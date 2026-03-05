@@ -1,0 +1,40 @@
+# Environment secrets
+.env
+.env.local
+.env.*.local
+supabase/functions/.env
+
+# Supabase generated
+supabase/.branches/
+supabase/.temp/
+
+# Node.js
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+apps/web/.next/
+apps/web/out/
+apps/web/.swc/
+
+# TypeScript build
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo

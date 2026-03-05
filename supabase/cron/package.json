@@ -1,0 +1,19 @@
+{
+  "name": "base-monitor-cron",
+  "version": "1.0.0",
+  "description": "Local cron scheduler for BASE Monitor edge functions",
+  "type": "module",
+  "scripts": {
+    "start": "tsx run.ts",
+    "once": "tsx run.ts --once"
+  },
+  "dependencies": {
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "@types/node": "^20.11.0",
+    "@types/node-cron": "^3.0.11"
+  }
+}
