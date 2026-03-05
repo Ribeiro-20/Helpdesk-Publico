@@ -38,14 +38,21 @@ base-monitor/
 │           ├── components/       # Componentes React reutilizáveis
 │           └── lib/              # Cliente Supabase, helpers
 ├── supabase/
-│   ├── migrations/            # SQL de inicialização do schema (3 ficheiros)
+│   ├── migrations/            # SQL de inicialização do schema
 │   ├── functions/             # Supabase Edge Functions (Deno)
 │   │   ├── _shared/           # Utilitários partilhados (CPV matcher, email, …)
 │   │   ├── admin-seed/        # Inicialização do tenant e utilizador admin
 │   │   ├── ingest-base/       # Ingestão de anúncios da API BASE
+│   │   ├── ingest-contracts/  # Ingestão de contratos celebrados ★ Fase 1
+│   │   ├── ingest-contract-mods/ # Modificações contratuais ★ Fase 1
+│   │   ├── extract-entities/  # Extração de entidades públicas ★ Fase 2
+│   │   ├── extract-companies/ # Extração de empresas adjudicatárias ★ Fase 2
+│   │   ├── compute-stats/     # Estatísticas agregadas (CPV, entidades, empresas) ★ Fase 3
 │   │   ├── match-and-queue/   # Matching CPV → criação de notificações
 │   │   └── send-emails/       # Envio de emails (Mailpit / SendGrid)
 │   └── cron/                  # Agendador local (Node.js + tsx)
+├── scripts/
+│   └── import-cpvs.ts         # Seed dos 9 454 códigos CPV
 ├── .env                       # Variáveis de ambiente (NÃO versionar)
 ├── .env.example               # Template de variáveis
 └── cpvs_final.json            # Taxonomia CPV completa
@@ -310,26 +317,59 @@ deno test supabase/functions/_shared/__tests__/canonicalJson.test.ts
 
 ```mermaid
 flowchart TD
-    A[BASE API\nbase.gov.pt] -->|anúncios JSON| B[ingest-base\nEdge Function]
-    B -->|upsert + deduplicação\n+ versionamento| C[(PostgreSQL\nannouncements\nannouncement_versions)]
-    C --> D[match-and-queue\nEdge Function]
-    D -->|CPV matching engine| E[(notifications\nstatus = PENDING)]
-    E --> F[send-emails\nEdge Function]
-    F -->|Mailpit dev| G[📬 Mailpit]
-    F -->|SendGrid prod| H[📧 SendGrid]
-    F --> I[(notifications\nstatus = SENT / FAILED)]
+    API[BASE API\nbase.gov.pt]
+
+    API -->|anúncios| IB[ingest-base]
+    API -->|contratos| IC[ingest-contracts ★]
+    API -->|modificações| IM[ingest-contract-mods ★]
+
+    IB --> ANN[(announcements\nannouncement_versions)]
+    IC --> CON[(contracts)]
+    IM --> MOD[(contract_modifications)]
+
+    ANN --> MQ[match-and-queue]
+    CON --> EE[extract-entities ★]
+    CON --> EC[extract-companies ★]
+
+    EE --> ENT[(entities)]
+    EC --> COM[(companies)]
+
+    ENT --> CS[compute-stats ★]
+    COM --> CS
+    ANN --> CS
+    CON --> CS
+    CS --> STATS[(cpv_stats)]
+
+    MQ -->|CPV matching| NOT[(notifications\nPENDING)]
+    NOT --> SE[send-emails]
+    SE -->|dev| MP[📬 Mailpit]
+    SE -->|prod| SG[📧 SendGrid]
+
+    style IB fill:#4ade80,color:#000
+    style IC fill:#fbbf24,color:#000
+    style IM fill:#fbbf24,color:#000
+    style EE fill:#fb923c,color:#000
+    style EC fill:#fb923c,color:#000
+    style CS fill:#f87171,color:#000
 ```
+
+> ★ Em desenvolvimento — retornam `stub` por enquanto.
 
 ---
 
 ## Edge Functions
 
-| Função            | Trigger            | Frequência sugerida              |
-| ----------------- | ------------------ | -------------------------------- |
-| `admin-seed`      | Manual (frontend)  | Uma vez, aquando da configuração |
-| `ingest-base`     | Cron + manual      | Cada 2 horas                     |
-| `match-and-queue` | Após `ingest-base` | Cada 2 horas                     |
-| `send-emails`     | Cron + manual      | Cada 10 minutos                  |
+| Função                 | Estado          | Trigger                 | Frequência sugerida |
+| ---------------------- | --------------- | ----------------------- | ------------------- |
+| `admin-seed`           | ✅ Implementada | Manual (frontend)       | Uma vez             |
+| `ingest-base`          | ✅ Implementada | Cron + manual           | Cada 2 horas        |
+| `match-and-queue`      | ✅ Implementada | Após `ingest-base`      | Cada 2 horas        |
+| `send-emails`          | ✅ Implementada | Cron + manual           | Cada 10 minutos     |
+| `ingest-contracts`     | 🟡 Fase 1       | Cron + manual           | Cada 2 horas        |
+| `ingest-contract-mods` | 🟡 Fase 1       | Cron + manual           | Diariamente         |
+| `extract-entities`     | 🟠 Fase 2       | Após `ingest-contracts` | Cada 2 horas        |
+| `extract-companies`    | 🟠 Fase 2       | Após `extract-entities` | Cada 2 horas        |
+| `compute-stats`        | 🔴 Fase 3       | Cron + manual           | Diariamente (03:00) |
 
 ---
 
@@ -365,9 +405,14 @@ supabase link --project-ref <ref>
 # Aplicar migrations
 supabase db push
 
-# Deploy das functions
+# Deploy de todas as functions
 supabase functions deploy admin-seed
 supabase functions deploy ingest-base
+supabase functions deploy ingest-contracts
+supabase functions deploy ingest-contract-mods
+supabase functions deploy extract-entities
+supabase functions deploy extract-companies
+supabase functions deploy compute-stats
 supabase functions deploy match-and-queue
 supabase functions deploy send-emails
 
