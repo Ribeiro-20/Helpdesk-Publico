@@ -1,0 +1,17 @@
+{
+  "name": "base-monitor-scripts",
+  "version": "1.0.0",
+  "description": "Utility scripts for BASE Monitor",
+  "type": "module",
+  "scripts": {
+    "import-cpvs": "tsx import-cpvs.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.44.2",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.1",
+    "@types/node": "^20.11.0"
+  }
+}

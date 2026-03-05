@@ -369,6 +369,16 @@ verify_jwt = false
 verify_jwt = false
 [functions.send-emails]
 verify_jwt = false
+[functions.ingest-contracts]
+verify_jwt = false
+[functions.ingest-contract-mods]
+verify_jwt = false
+[functions.extract-entities]
+verify_jwt = false
+[functions.extract-companies]
+verify_jwt = false
+[functions.compute-stats]
+verify_jwt = false
 
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"

@@ -78,6 +78,12 @@ supabase start
 # 3. Aplicar o schema da base de dados
 supabase db reset
 
+# 3b. Popular códigos CPV (obrigatório - ~9 454 registos)
+cd scripts
+npm install
+npx tsx import-cpvs.ts
+cd ..
+
 # 4. Copiar .env para as edge functions
 Copy-Item .env supabase/functions/.env
 
@@ -149,6 +155,30 @@ supabase db push
 ```
 
 Confirme as tabelas no Supabase Studio em http://127.0.0.1:54323.
+
+---
+
+### 3b. Popular a tabela de códigos CPV ⚠️ Obrigatório
+
+As migrations criam a tabela `cpv_codes` **vazia**. O motor de matching e a pesquisa de CPVs no frontend não funcionam sem estes dados.
+
+```powershell
+cd scripts
+npm install
+npx tsx import-cpvs.ts
+cd ..
+```
+
+Deverá ver:
+
+```
+Loaded 9454 CPV codes from cpvs_final.json
+Inserted 500/9454
+...
+Done!
+```
+
+> O script lê `.env` da raiz do projecto automaticamente — não é necessário exportar variáveis manualmente.
 
 ---
 

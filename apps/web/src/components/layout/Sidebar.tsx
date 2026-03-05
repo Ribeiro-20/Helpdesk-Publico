@@ -8,18 +8,41 @@ import clsx from "clsx";
 import {
   LayoutDashboard,
   Megaphone,
+  FileSignature,
+  Building2,
+  Factory,
+  TrendingUp,
   Users,
   Bell,
   Settings,
   LogOut,
 } from "lucide-react";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/announcements", label: "Anúncios", icon: Megaphone },
-  { href: "/clients", label: "Clientes", icon: Users },
-  { href: "/notifications", label: "Notificações", icon: Bell },
-  { href: "/settings", label: "Definições", icon: Settings },
+const NAV_SECTIONS = [
+  {
+    title: "Monitorização",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/announcements", label: "Anúncios", icon: Megaphone },
+      { href: "/contracts", label: "Contratos", icon: FileSignature },
+    ],
+  },
+  {
+    title: "Inteligência",
+    items: [
+      { href: "/entities", label: "Entidades", icon: Building2 },
+      { href: "/companies", label: "Empresas", icon: Factory },
+      { href: "/market", label: "Mercado", icon: TrendingUp },
+    ],
+  },
+  {
+    title: "Gestão",
+    items: [
+      { href: "/clients", label: "Clientes", icon: Users },
+      { href: "/notifications", label: "Notificações", icon: Bell },
+      { href: "/settings", label: "Definições", icon: Settings },
+    ],
+  },
 ] as const;
 
 export default function Sidebar({ userEmail }: { userEmail: string }) {
@@ -57,29 +80,38 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const isActive =
-            href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(href);
+      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.title}>
+            <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
+              {section.title}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map(({ href, label, icon: Icon }) => {
+                const isActive =
+                  href === "/dashboard"
+                    ? pathname === "/dashboard"
+                    : pathname.startsWith(href);
 
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={clsx(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
-                isActive
-                  ? "bg-brand-50 text-brand-700 shadow-sm"
-                  : "text-gray-500 hover:bg-surface-100 hover:text-gray-900",
-              )}
-            >
-              <Icon className={clsx("w-[18px] h-[18px] shrink-0", isActive ? "text-brand-600" : "")} />
-              {label}
-            </Link>
-          );
-        })}
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={clsx(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                      isActive
+                        ? "bg-brand-50 text-brand-700 shadow-sm"
+                        : "text-gray-500 hover:bg-surface-100 hover:text-gray-900",
+                    )}
+                  >
+                    <Icon className={clsx("w-[18px] h-[18px] shrink-0", isActive ? "text-brand-600" : "")} />
+                    {label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* User */}

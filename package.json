@@ -1,0 +1,20 @@
+{
+  "name": "base-monitor",
+  "version": "1.0.0",
+  "description": "Sistema de monitorização de anúncios de contratação pública do portal BASE",
+  "private": true,
+  "scripts": {
+    "setup": "supabase start && supabase db reset && npx tsx scripts/import-cpvs.ts",
+    "dev": "cd apps/web && npm install && npm run dev",
+    "functions": "supabase functions serve --env-file supabase/functions/.env",
+    "cron": "cd supabase/cron && npm install && npx tsx run.ts",
+    "cron:once": "cd supabase/cron && npm install && npx tsx run.ts --once"
+  },
+  "devDependencies": {
+    "supabase": "latest",
+    "@supabase/supabase-js": "^2.44.2",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.1",
+    "@types/node": "^20.11.0"
+  }
+}

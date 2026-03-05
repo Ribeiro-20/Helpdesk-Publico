@@ -10,6 +10,8 @@ supabase/.temp/
 
 # Node.js
 node_modules/
+scripts/node_modules/
+
 .pnp
 .pnp.js
 
