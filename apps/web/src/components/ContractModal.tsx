@@ -223,7 +223,7 @@ export default function ContractModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
+      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
         {/* ── HEADER ── */}
         <div
           className="shrink-0 px-6 pt-5 pb-5 pr-16"
@@ -269,22 +269,115 @@ export default function ContractModal({
 
           {!loading && !error && contract && (
             <>
+              {/* ── CLASSIFICAÇÃO ── */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Tag className="w-4 h-4" style={{ color: GREEN }} />
+                  <h3
+                    className="text-xs font-bold uppercase tracking-widest"
+                    style={{ color: GREEN }}
+                  >
+                    Classificação
+                  </h3>
+                </div>
+                <hr className="border-gray-200 mb-4" />
+                <div className="grid grid-cols-2 gap-4">
+                  {contract.contract_type && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Tipo de Contrato
+                      </p>
+                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
+                        {contract.contract_type}
+                      </span>
+                    </div>
+                  )}
+                  {contract.procedure_type && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Tipo de Procedimento
+                      </p>
+                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+                        {contract.procedure_type}
+                      </span>
+                    </div>
+                  )}
+                  {contract.announcement_type && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Tipo de Anúncio
+                      </p>
+                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700">
+                        {contract.announcement_type}
+                      </span>
+                    </div>
+                  )}
+                  {contract.legal_regime && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Regime Jurídico
+                      </p>
+                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-700">
+                        {contract.legal_regime}
+                      </span>
+                    </div>
+                  )}
+                  {contract.legal_basis && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Fundamento Legal
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        {contract.legal_basis}
+                      </p>
+                    </div>
+                  )}
+                  {cpvList.length > 0 && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Códigos CPV
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {cpvList.map((c, i) => (
+                          <span
+                            key={i}
+                            className="inline-block text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700"
+                          >
+                            {c}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {contract.framework_agreement && (
+                    <div className="col-span-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                        Acordo Quadro
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        {contract.framework_agreement}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* ── PRICES ── */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="border border-gray-200 rounded-xl p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Preço Contratual
-                  </p>
-                  <p className="text-xl font-bold" style={{ color: GREEN }}>
-                    {fmtEur(contract.contract_price)}
-                  </p>
-                </div>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     Preço Base
                   </p>
                   <p className="text-xl font-bold" style={{ color: GREEN }}>
                     {fmtEur(contract.base_price)}
+                  </p>
+                </div>
+                <div className="border border-gray-200 rounded-xl p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                    Preço Contratual
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: GREEN }}>
+                    {fmtEur(contract.contract_price)}
                   </p>
                 </div>
                 <div className="border border-gray-200 rounded-xl p-4">
@@ -296,6 +389,29 @@ export default function ContractModal({
                   </p>
                 </div>
               </div>
+
+              {/* ── FLAGS ── */}
+              {(contract.is_ecological ||
+                contract.is_centralized ||
+                contract.end_type) && (
+                <div className="flex flex-wrap gap-2">
+                  {contract.is_ecological && (
+                    <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 font-medium">
+                      🌿 Contrato Ecológico
+                    </span>
+                  )}
+                  {contract.is_centralized && (
+                    <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-medium">
+                      🏛 Centralizado
+                    </span>
+                  )}
+                  {contract.end_type && (
+                    <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-gray-100 border border-gray-200 text-gray-700 font-medium">
+                      Fim: {contract.end_type}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* ── DATAS ── */}
               <div>
@@ -309,7 +425,7 @@ export default function ContractModal({
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {contract.publication_date && (
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
@@ -363,58 +479,65 @@ export default function ContractModal({
                 </div>
               </div>
 
-              {/* ── CLASSIFICAÇÃO ── */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Tag className="w-4 h-4" style={{ color: GREEN }} />
-                  <h3
-                    className="text-xs font-bold uppercase tracking-widest"
-                    style={{ color: GREEN }}
-                  >
-                    Classificação
-                  </h3>
-                </div>
-                <hr className="border-gray-200 mb-4" />
-                <div className="space-y-4">
-                  {contract.contract_type && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                        Tipos de Contrato
-                      </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
-                        {contract.contract_type}
-                      </span>
-                    </div>
-                  )}
-                  {cpvList.length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                        Códigos CPV
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {cpvList.map((c, i) => (
-                          <span
-                            key={i}
-                            className="inline-block text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700"
-                          >
-                            {c}
-                          </span>
-                        ))}
+              {/* ── REFERÊNCIAS BASE ── */}
+              {(contract.base_contract_id ||
+                contract.base_procedure_id ||
+                contract.base_announcement_no ||
+                contract.base_incm_id) && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <h3
+                      className="text-xs font-bold uppercase tracking-widest"
+                      style={{ color: GREEN }}
+                    >
+                      Referências BASE
+                    </h3>
+                  </div>
+                  <hr className="border-gray-200 mb-4" />
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {contract.base_contract_id && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                          ID Contrato
+                        </p>
+                        <p className="text-sm font-mono text-gray-800">
+                          {contract.base_contract_id}
+                        </p>
                       </div>
-                    </div>
-                  )}
-                  {contract.procedure_type && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                        Tipo de Procedimento
-                      </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
-                        {contract.procedure_type}
-                      </span>
-                    </div>
-                  )}
+                    )}
+                    {contract.base_procedure_id && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                          ID Procedimento
+                        </p>
+                        <p className="text-sm font-mono text-gray-800">
+                          {contract.base_procedure_id}
+                        </p>
+                      </div>
+                    )}
+                    {contract.base_announcement_no && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                          Nº Anúncio
+                        </p>
+                        <p className="text-sm font-mono text-gray-800">
+                          {contract.base_announcement_no}
+                        </p>
+                      </div>
+                    )}
+                    {contract.base_incm_id && (
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                          ID INCM
+                        </p>
+                        <p className="text-sm font-mono text-gray-800">
+                          {contract.base_incm_id}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* ── ENTIDADES ── */}
               {(entities.length > 0 || winners.length > 0) && (

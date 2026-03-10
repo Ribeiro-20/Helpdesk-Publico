@@ -23,7 +23,12 @@ function formatEur(val: number | null): string {
     return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M €`;
   if (val >= 1_000)
     return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k €`;
-  return val.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " €";
+  return (
+    val.toLocaleString("pt-PT", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }) + " €"
+  );
 }
 
 function formatDate(d: string | null): string {
@@ -87,7 +92,12 @@ export default function ContractsTable({
   };
   add(1);
   if (page > 3) pages.push("dots");
-  for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) add(i);
+  for (
+    let i = Math.max(2, page - 1);
+    i <= Math.min(totalPages - 1, page + 1);
+    i++
+  )
+    add(i);
   if (page < totalPages - 2) pages.push("dots");
   if (totalPages > 1) add(totalPages);
 
@@ -111,7 +121,8 @@ export default function ContractsTable({
             <tbody className="divide-y divide-gray-100">
               {contracts.map((c) => {
                 const entityName =
-                  Array.isArray(c.contracting_entities) && c.contracting_entities.length > 0
+                  Array.isArray(c.contracting_entities) &&
+                  c.contracting_entities.length > 0
                     ? extractName(c.contracting_entities[0])
                     : "—";
                 const winnerName =
@@ -130,7 +141,9 @@ export default function ContractsTable({
                         {c.object || "Sem objecto"}
                       </p>
                       {c.procedure_type && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{c.procedure_type}</p>
+                        <p className="text-xs text-gray-400 mt-0.5 truncate">
+                          {c.procedure_type}
+                        </p>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate text-xs">{entityName}</td>
@@ -148,7 +161,9 @@ export default function ContractsTable({
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <span className="text-gray-900 font-medium text-xs">{formatEur(c.contract_price)}</span>
                       {discountBadge(c.base_price, c.contract_price) && (
-                        <span className="ml-1.5">{discountBadge(c.base_price, c.contract_price)}</span>
+                        <span className="ml-1.5">
+                          {discountBadge(c.base_price, c.contract_price)}
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -161,7 +176,13 @@ export default function ContractsTable({
                               : "bg-amber-100 text-amber-700"
                         }`}
                       >
-                        {c.status === "active" ? "Activo" : c.status === "closed" ? "Fechado" : c.status === "modified" ? "Modificado" : c.status}
+                        {c.status === "active"
+                          ? "Activo"
+                          : c.status === "closed"
+                            ? "Fechado"
+                            : c.status === "modified"
+                              ? "Modificado"
+                              : c.status}
                       </span>
                     </td>
                   </tr>
@@ -185,24 +206,32 @@ export default function ContractsTable({
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-1 flex-wrap pb-4">
           {page > 1 && (
-            <Link href={buildQs(page - 1)} className={BTN}>← Anterior</Link>
+            <Link href={buildQs(page - 1)} className={BTN}>
+              ← Anterior
+            </Link>
           )}
           {pages.map((p, i) =>
             p === "dots" ? (
-              <span key={`dots-${i}`} className={DOTS}>...</span>
+              <span key={`dots-${i}`} className={DOTS}>
+                ...
+              </span>
             ) : (
               <Link
                 key={p}
                 href={buildQs(p)}
                 className={p === page ? ACTIVE : BTN}
-                style={p === page ? { background: "rgba(74, 222, 128, 1)" } : {}}
+                style={
+                  p === page ? { background: "rgba(74, 222, 128, 1)" } : {}
+                }
               >
                 {p}
               </Link>
-            )
+            ),
           )}
           {page < totalPages && (
-            <Link href={buildQs(page + 1)} className={BTN}>Próxima →</Link>
+            <Link href={buildQs(page + 1)} className={BTN}>
+              Próxima →
+            </Link>
           )}
         </div>
       )}

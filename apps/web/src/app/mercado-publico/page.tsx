@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import Image from "next/image";
-import { Search, AlignJustify, FileText } from "lucide-react";
+import { FileText } from "lucide-react";
+import Header from "@/components/layout/Header";
 import ContractsTable from "@/components/ContractsTable";
 
 export const dynamic = "force-dynamic";
@@ -156,34 +157,7 @@ export default async function MercadoPublicoPage({
       className="min-h-screen flex flex-col"
       style={{ background: "rgba(248, 250, 252, 1)" }}
     >
-      {/* ── NAVBAR ── */}
-      <header
-        className="flex items-center justify-between px-10 py-3 sticky top-0 z-50"
-        style={{ background: NAV_BG }}
-      >
-        <Link href="/" className="shrink-0">
-          <Image
-            src="/logo-white.webp"
-            alt="Helpdesk Público"
-            width={200}
-            height={66}
-            className="object-contain"
-            priority
-          />
-        </Link>
-        <div className="relative w-80 mx-8">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Pesquisa"
-            className="w-full rounded-full bg-white/10 border border-white/20 text-sm text-white placeholder-gray-400 pl-10 pr-4 py-2.5 outline-none focus:bg-white/20 focus:border-white/40 transition-all"
-          />
-        </div>
-        <button className="flex items-center gap-2.5 text-white text-sm font-semibold border border-white/25 rounded-full px-5 py-2.5 hover:bg-white/10 transition-all">
-          Menu
-          <AlignJustify className="w-4 h-4" />
-        </button>
-      </header>
+      <Header />
 
       {/* ── MAIN ── */}
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">

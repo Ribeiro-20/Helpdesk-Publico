@@ -29,28 +29,28 @@ export default function Header() {
         background: NAV_BG,
       }}
     >
-      <div className="max-w-screen-2xl mx-auto flex items-center px-6 py-0 h-[130px]">
+      <div className="max-w-screen-2xl mx-auto flex items-center px-6 py-0 h-[72px]">
         {/* ── Logo ── */}
         <Link href="/" className="shrink-0 mr-10">
           <Image
             src="/logo-white.webp"
             alt="Helpdesk Público"
-            width={180}
-            height={72}
+            width={120}
+            height={44}
             className="object-contain"
             priority
           />
         </Link>
 
         {/* ── Nav (two rows, centred) ── */}
-        <nav className="flex-1 flex flex-col justify-center gap-0.5">
+        <nav className="flex-1 flex flex-col justify-center gap-0">
           {/* Row 1 */}
           <ul className="flex items-center justify-center gap-0">
             {NAV_ITEMS_ROW1.map((item, idx) => (
               <li key={item.label} className="flex items-center">
                 {idx !== 0 && (
                   <span
-                    className="mx-3 text-gray-500 select-none"
+                    className="mx-2 text-gray-500 select-none"
                     aria-hidden="true"
                   >
                     |
@@ -58,14 +58,14 @@ export default function Header() {
                 )}
                 <Link
                   href={item.href}
-                  className="text-[13px] font-medium text-gray-200 hover:text-white transition-colors whitespace-nowrap"
+                  className="text-[11.5px] font-medium text-gray-200 hover:text-white transition-colors whitespace-nowrap"
                 >
                   {item.label}
                 </Link>
               </li>
             ))}
             {/* trailing separator */}
-            <span className="mx-3 text-gray-500 select-none" aria-hidden="true">
+            <span className="mx-2 text-gray-500 select-none" aria-hidden="true">
               |
             </span>
           </ul>
@@ -76,7 +76,7 @@ export default function Header() {
               <li key={item.label} className="flex items-center">
                 {idx !== 0 && (
                   <span
-                    className="mx-3 text-gray-500 select-none"
+                    className="mx-2 text-gray-500 select-none"
                     aria-hidden="true"
                   >
                     |
@@ -84,7 +84,7 @@ export default function Header() {
                 )}
                 <Link
                   href={item.href}
-                  className="text-[13px] font-medium text-gray-200 hover:text-white transition-colors whitespace-nowrap"
+                  className="text-[11.5px] font-medium text-gray-200 hover:text-white transition-colors whitespace-nowrap"
                 >
                   {item.label}
                 </Link>
@@ -94,18 +94,18 @@ export default function Header() {
         </nav>
 
         {/* ── Right icons ── */}
-        <div className="shrink-0 flex items-center gap-5 ml-10">
+        <div className="shrink-0 flex items-center gap-4 ml-8">
           <button
             aria-label="Contacto por email"
             className="text-gray-300 hover:text-white transition-colors"
           >
-            <Mail className="w-6 h-6" strokeWidth={1.5} />
+            <Mail className="w-5 h-5" strokeWidth={1.5} />
           </button>
           <button
             aria-label="Área de utilizador"
             className="text-gray-300 hover:text-white transition-colors"
           >
-            <UserCircle2 className="w-6 h-6" strokeWidth={1.5} />
+            <UserCircle2 className="w-5 h-5" strokeWidth={1.5} />
           </button>
         </div>
       </div>
