@@ -9,41 +9,42 @@ import {
   TrendingUp,
   FileSearch,
   Chrome,
+  Book,
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 const CARDS = [
   {
-    icon: LayoutList,
-    title: "Mercado Público",
+    icon: Book,
+    title: "Contratos Públicos",
     description:
-      "Consulte dados sobre contratos públicos e entidades envolvidas.",
+      "Consulte todos os dados referentes aos contratos públicos.",
     href: "/mercado-publico",
   },
   {
     icon: BarChart2,
-    title: "Estatísticas Setor Público",
+    title: "Estatísticas Adujicantes",
     description:
-      "Veja estatísticas sobre gastos e atividade da administração pública.",
+      "Consulte todas as informações sobre os adjudicantes no mercado público.",
     href: "/estatisticas-publico",
   },
   {
     icon: TrendingUp,
-    title: "Estatísticas Setor Privado",
+    title: "Estatísticas Adjudicatários",
     description:
-      "Veja estatísticas sobre gastos e atividade da administração privada.",
+      "Consulte todas as informações sobre os adjudicatários no mercado público.",
     href: "/estatisticas-privado",
   },
   {
     icon: FileSearch,
     title: "Oportunidade Contratação Pública",
-    description: "Explore concursos públicos e oportunidades de contratação.",
+    description: "Consulte todas as oportunidades de negócio ativas no mercado público.",
     href: "/oportunidades",
   },
   {
     icon: Chrome,
     title: "Outros",
     description:
-      "Obtenha apoio e informações complementares sobre os serviços.",
+      "Consulte todos os contratos públicos a terminar ou em fase de renovação (área reservada a subscritores do serviço).",
     href: "/outros",
   },
 ];
