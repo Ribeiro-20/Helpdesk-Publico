@@ -14,14 +14,18 @@ export async function GET(req: NextRequest) {
 
   const supabase = await createClient();
 
-  // Search by id prefix or description (case-insensitive)
-  const pattern = `%${q}%`;
-  const { data, error } = await supabase
-    .from("cpv_codes")
-    .select("id, descricao")
-    .or(`id.ilike.${pattern},descricao.ilike.${pattern}`)
-    .order("id")
-    .limit(limit);
+  const isNumericPrefix = /^[0-9-]+$/.test(q);
+  let query = supabase.from("cpv_codes").select("id, descricao").order("id").limit(limit);
+
+  if (isNumericPrefix) {
+    // Numeric queries should behave as CPV prefix matches (e.g. 331*).
+    query = query.ilike("id", `${q}%`);
+  } else {
+    const pattern = `%${q}%`;
+    query = query.or(`id.ilike.${pattern},descricao.ilike.${pattern}`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

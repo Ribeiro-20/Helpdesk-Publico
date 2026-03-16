@@ -4,17 +4,16 @@ import Link from "next/link";
 import Image from "next/image";
 
 import {
-  LayoutList,
+  FileText,
   BarChart2,
   TrendingUp,
   FileSearch,
   Chrome,
-  Book,
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 const CARDS = [
   {
-    icon: Book,
+    icon: FileText,
     title: "Contratos Públicos",
     description:
       "Consulte todos os dados referentes aos contratos públicos.",
@@ -22,7 +21,7 @@ const CARDS = [
   },
   {
     icon: BarChart2,
-    title: "Estatísticas Adujicantes",
+    title: "Estatísticas Adjudicantes",
     description:
       "Consulte todas as informações sobre os adjudicantes no mercado público.",
     href: "/estatisticas-publico",

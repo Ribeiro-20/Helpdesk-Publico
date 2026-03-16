@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabasePublicEnv } from "@/lib/supabase/env";
 
 interface Action {
   fn: string;
@@ -44,8 +45,8 @@ export default function AdminActions({
   const [fromDate, setFromDate] = useState(defaults.from);
   const [toDate, setToDate] = useState(defaults.to);
 
+  const { url: supabaseUrl, anonKey } = getSupabasePublicEnv("Admin actions");
   const supabase = createClient();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
   async function callFn(fn: string, body: Record<string, unknown> = {}) {
     setLoading(fn);
@@ -53,7 +54,6 @@ export default function AdminActions({
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? "";
-      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
       const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
         method: "POST",

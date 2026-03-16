@@ -4,11 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import ContractModal from "./ContractModal";
 
-interface ContractRow {
+export interface ContractRow {
   id: string;
   object: string | null;
   procedure_type: string | null;
+  contract_type?: string | null;
   signing_date: string | null;
+  execution_deadline_days?: number | null;
+  execution_locations?: string[];
   cpv_main: string | null;
   contract_price: number | null;
   base_price: number | null;
@@ -19,16 +22,10 @@ interface ContractRow {
 
 function formatEur(val: number | null): string {
   if (val == null) return "—";
-  if (val >= 1_000_000)
-    return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M €`;
-  if (val >= 1_000)
-    return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k €`;
-  return (
-    val.toLocaleString("pt-PT", {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }) + " €"
-  );
+  return val.toLocaleString("pt-PT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }) + " €";
 }
 
 function formatDate(d: string | null): string {
@@ -38,21 +35,59 @@ function formatDate(d: string | null): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-function discountBadge(base: number | null, contract: number | null) {
-  if (base == null || contract == null || base === 0) return null;
-  const pct = ((base - contract) / base) * 100;
-  if (Math.abs(pct) < 0.5) return null;
-  const isDiscount = pct > 0;
-  return (
-    <span
-      className={`inline-block text-xs px-1.5 py-0.5 rounded font-medium ${
-        isDiscount ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-      }`}
-    >
-      {isDiscount ? "-" : "+"}
-      {Math.abs(pct).toFixed(0)}%
-    </span>
-  );
+function executionProgress(signingDate: string | null, deadlineDays: number | null | undefined): number | null {
+  if (!signingDate || !deadlineDays || deadlineDays <= 0) return null;
+
+  const start = new Date(`${signingDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const elapsedMs = Date.now() - start.getTime();
+  const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
+  return (elapsedDays / deadlineDays) * 100;
+}
+
+function resolveStatusBadge(contract: ContractRow): {
+  label: string;
+  className: string;
+  title?: string;
+} {
+  if (contract.status === "closed") {
+    return { label: "Fechado", className: "bg-gray-100 text-gray-600" };
+  }
+
+  if (contract.status === "modified") {
+    return { label: "Modificado", className: "bg-amber-100 text-amber-700" };
+  }
+
+  if (contract.status === "active") {
+    const progress = executionProgress(
+      contract.signing_date,
+      contract.execution_deadline_days,
+    );
+
+    if (progress != null && progress >= 100) {
+      return {
+        label: "Prazo excedido",
+        className: "bg-red-100 text-red-700",
+        title: `${progress.toFixed(0)}% do prazo de execucao`,
+      };
+    }
+
+    if (progress != null && progress >= 80) {
+      return {
+        label: "Aproxima prazo",
+        className: "bg-amber-100 text-amber-700",
+        title: `${progress.toFixed(0)}% do prazo de execucao`,
+      };
+    }
+
+    return { label: "Activo", className: "bg-green-100 text-green-700" };
+  }
+
+  return {
+    label: contract.status || "Desconhecido",
+    className: "bg-gray-100 text-gray-600",
+  };
 }
 
 function extractName(raw: string): string {
@@ -129,6 +164,7 @@ export default function ContractsTable({
                   Array.isArray(c.winners) && c.winners.length > 0
                     ? extractName(c.winners[0])
                     : "—";
+                const statusBadge = resolveStatusBadge(c);
 
                 return (
                   <tr
@@ -160,29 +196,13 @@ export default function ContractsTable({
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       <span className="text-gray-900 font-medium text-xs">{formatEur(c.contract_price)}</span>
-                      {discountBadge(c.base_price, c.contract_price) && (
-                        <span className="ml-1.5">
-                          {discountBadge(c.base_price, c.contract_price)}
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
-                        className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
-                          c.status === "active"
-                            ? "bg-green-100 text-green-700"
-                            : c.status === "closed"
-                              ? "bg-gray-100 text-gray-600"
-                              : "bg-amber-100 text-amber-700"
-                        }`}
+                        className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge.className}`}
+                        title={statusBadge.title}
                       >
-                        {c.status === "active"
-                          ? "Activo"
-                          : c.status === "closed"
-                            ? "Fechado"
-                            : c.status === "modified"
-                              ? "Modificado"
-                              : c.status}
+                        {statusBadge.label}
                       </span>
                     </td>
                   </tr>
