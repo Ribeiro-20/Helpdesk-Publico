@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import Header from "@/components/layout/Header";
 import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
+import InfoPopover from "@/components/InfoPopover";
 
 export const dynamic = "force-dynamic";
 
@@ -424,9 +425,12 @@ export default async function MercadoPublicoPage({
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <MercadoCpvInput defaultValue={cpvFilter} />
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Entidade adjudicante
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label className="block text-xs text-gray-400">
+                  Entidade adjudicante
+                </label>
+                <InfoPopover text="Filtre por nome ou NIPC da entidade adjudicante." />
+              </div>
               <input
                 name="entity"
                 defaultValue={entityFilter}
@@ -435,9 +439,12 @@ export default async function MercadoPublicoPage({
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Empresa adjudicatária
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label className="block text-xs text-gray-400">
+                  Empresa adjudicatária
+                </label>
+                <InfoPopover text="Filtre por nome ou NIPC da empresa adjudicataria." />
+              </div>
               <input
                 name="winner"
                 defaultValue={winnerFilter}
@@ -446,9 +453,12 @@ export default async function MercadoPublicoPage({
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Tipo de procedimento
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label className="block text-xs text-gray-400">
+                  Tipo de procedimento
+                </label>
+                <InfoPopover text="Filtre por tipo de procedimento (ex: Concurso Publico, Ajuste Direto)." />
+              </div>
               <input
                 name="procedure"
                 defaultValue={procedureFilter}
@@ -477,9 +487,12 @@ export default async function MercadoPublicoPage({
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Data de
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label className="block text-xs text-gray-400">
+                  Data de
+                </label>
+                <InfoPopover text="Data inicial da celebracao dos contratos." />
+              </div>
               <input
                 name="from_date"
                 type="date"
@@ -489,9 +502,12 @@ export default async function MercadoPublicoPage({
             </div>
 
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Data até
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label className="block text-xs text-gray-400">
+                  Data até
+                </label>
+                <InfoPopover text="Data final da celebracao dos contratos." />
+              </div>
               <input
                 name="to_date"
                 type="date"
@@ -501,9 +517,12 @@ export default async function MercadoPublicoPage({
             </div>
 
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Valor min.
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label className="block text-xs text-gray-400">
+                  Valor min.
+                </label>
+                <InfoPopover text="Valor minimo do contrato em euros." />
+              </div>
               <input
                 name="min_value"
                 type="number"
@@ -514,9 +533,12 @@ export default async function MercadoPublicoPage({
             </div>
 
             <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Valor max.
-              </label>
+              <div className="flex items-center gap-1 mb-1">
+                <label className="block text-xs text-gray-400">
+                  Valor max.
+                </label>
+                <InfoPopover text="Valor maximo do contrato em euros." />
+              </div>
               <input
                 name="max_value"
                 type="number"

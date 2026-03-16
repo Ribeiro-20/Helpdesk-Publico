@@ -35,13 +35,13 @@ const CARDS = [
   },
   {
     icon: FileSearch,
-    title: "Oportunidade Contratação Pública",
+    title: "Oportunidade no Mercado Público",
     description: "Consulte todas as oportunidades de negócio ativas no mercado público.",
     href: "/oportunidades",
   },
   {
     icon: Chrome,
-    title: "Outros",
+    title: "Market Intelligence",
     description:
       "Consulte todos os contratos públicos a terminar ou em fase de renovação (área reservada a subscritores do serviço).",
     href: "/outros",
