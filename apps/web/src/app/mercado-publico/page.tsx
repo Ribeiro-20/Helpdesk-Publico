@@ -3,7 +3,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { FileText } from "lucide-react";
 import Header from "@/components/layout/Header";
-import ContractsTable from "@/components/ContractsTable";
+import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
+import MercadoCpvInput from "@/components/MercadoCpvInput";
 
 export const dynamic = "force-dynamic";
 
@@ -22,33 +23,106 @@ const FOOTER_COLS: Record<string, string[]> = {
   INSTITUCIONAL: ["Sobre Nós"],
 };
 
+type MercadoSearchParams = {
+  page?: string;
+  cpv?: string;
+  entity?: string;
+  winner?: string;
+  procedure?: string;
+  contract_type?: string;
+  country?: string;
+  district?: string;
+  municipality?: string;
+  min_value?: string;
+  max_value?: string;
+  from_date?: string;
+  to_date?: string;
+  sort?: string;
+};
+
+type ContractExtraRow = {
+  id: string;
+  contract_type: string | null;
+  execution_deadline_days: number | null;
+  execution_locations: unknown;
+};
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseExecutionLocation(raw: string): {
+  country: string;
+  district: string;
+  municipality: string;
+} {
+  const parts = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  return {
+    country: parts[0] ?? "",
+    district: parts[1] ?? "",
+    municipality: parts.slice(2).join(", "),
+  };
+}
+
+function locationMatches(
+  locations: string[],
+  country: string,
+  district: string,
+  municipality: string,
+): boolean {
+  if (country === "all" && district === "all" && municipality === "all") {
+    return true;
+  }
+
+  for (const rawLocation of locations) {
+    const parsed = parseExecutionLocation(rawLocation);
+
+    if (country !== "all" && parsed.country !== country) continue;
+    if (district !== "all" && parsed.district !== district) continue;
+    if (municipality !== "all" && parsed.municipality !== municipality) continue;
+
+    return true;
+  }
+
+  return false;
+}
+
+function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
 export default async function MercadoPublicoPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    page?: string;
-    cpv?: string;
-    entity?: string;
-    winner?: string;
-    procedure?: string;
-    min_value?: string;
-    max_value?: string;
-    from_date?: string;
-    to_date?: string;
-    sort?: string;
-  }>;
+  searchParams: Promise<MercadoSearchParams>;
 }) {
   const params = await searchParams;
   const page = Math.max(1, parseInt(params.page ?? "1"));
-  const cpvFilter = params.cpv ?? "";
-  const entityFilter = params.entity ?? "";
-  const winnerFilter = params.winner ?? "";
-  const procedureFilter = params.procedure ?? "";
-  const minValue = params.min_value ?? "";
-  const maxValue = params.max_value ?? "";
-  const fromDate = params.from_date ?? "";
-  const toDate = params.to_date ?? "";
+  const cpvFilter = (params.cpv ?? "").trim();
+  const entityFilter = (params.entity ?? "").trim();
+  const winnerFilter = (params.winner ?? "").trim();
+  const procedureFilter = (params.procedure ?? "").trim();
+  const minValue = (params.min_value ?? "").trim();
+  const maxValue = (params.max_value ?? "").trim();
+  const fromDate = (params.from_date ?? "").trim();
+  const toDate = (params.to_date ?? "").trim();
   const sortField = params.sort ?? "signing_date";
+  const contractTypeFilter = params.contract_type ?? "all";
+  const countryFilter = params.country ?? "all";
+  const districtFilter = params.district ?? "all";
+  const municipalityFilter = params.municipality ?? "all";
 
   const supabase = await createClient();
 
@@ -60,26 +134,134 @@ export default async function MercadoPublicoPage({
     .maybeSingle();
 
   const tenantId = tenant?.id ?? "00000000-0000-0000-0000-000000000000";
-  const from = (page - 1) * PAGE_SIZE;
 
-  interface ContractRow {
-    id: string;
-    object: string | null;
-    procedure_type: string | null;
-    publication_date: string | null;
-    signing_date: string | null;
-    cpv_main: string | null;
-    contract_price: number | null;
-    base_price: number | null;
-    effective_price: number | null;
-    currency: string;
-    status: string;
-    contracting_entities: string[];
-    winners: string[];
+  // Build facet options for contract type and hierarchical location filters.
+  const { data: facetRows } = await supabase
+    .from("contracts")
+    .select("contract_type, execution_locations")
+    .eq("tenant_id", tenantId)
+    .limit(5000);
+
+  const contractTypeSet = new Set<string>();
+  const locationTree = new Map<string, Map<string, Set<string>>>();
+
+  for (const row of facetRows ?? []) {
+    const contractType = (row.contract_type as string | null) ?? null;
+    if (contractType) {
+      contractTypeSet.add(contractType);
+    }
+
+    for (const rawLocation of toStringArray(row.execution_locations)) {
+      const { country, district, municipality } = parseExecutionLocation(rawLocation);
+      if (!country) continue;
+
+      if (!locationTree.has(country)) {
+        locationTree.set(country, new Map());
+      }
+
+      if (!district) continue;
+
+      const countryMap = locationTree.get(country)!;
+      if (!countryMap.has(district)) {
+        countryMap.set(district, new Set());
+      }
+
+      if (municipality) {
+        countryMap.get(district)!.add(municipality);
+      }
+    }
   }
 
-  let contracts: ContractRow[] = [];
+  const contractTypeOptions = Array.from(contractTypeSet).sort((a, b) =>
+    a.localeCompare(b, "pt-PT"),
+  );
+
+  const countryOptions = Array.from(locationTree.keys()).sort((a, b) =>
+    a.localeCompare(b, "pt-PT"),
+  );
+  const selectedCountry =
+    countryFilter !== "all" && countryOptions.includes(countryFilter)
+      ? countryFilter
+      : "all";
+
+  const districtSet = new Set<string>();
+  if (selectedCountry !== "all") {
+    for (const district of Array.from(locationTree.get(selectedCountry)?.keys() ?? [])) {
+      districtSet.add(district);
+    }
+  } else {
+    for (const countryMap of Array.from(locationTree.values())) {
+      for (const district of Array.from(countryMap.keys())) {
+        districtSet.add(district);
+      }
+    }
+  }
+
+  const districtOptions = Array.from(districtSet).sort((a, b) =>
+    a.localeCompare(b, "pt-PT"),
+  );
+  const selectedDistrict =
+    districtFilter !== "all" && districtOptions.includes(districtFilter)
+      ? districtFilter
+      : "all";
+
+  const municipalitySet = new Set<string>();
+  if (selectedCountry !== "all" && selectedDistrict !== "all") {
+    for (const municipality of Array.from(
+      locationTree.get(selectedCountry)?.get(selectedDistrict) ?? [],
+    )) {
+      municipalitySet.add(municipality);
+    }
+  } else if (selectedCountry !== "all") {
+    for (const districtMap of Array.from(locationTree.get(selectedCountry)?.values() ?? [])) {
+      for (const municipality of Array.from(districtMap)) {
+        municipalitySet.add(municipality);
+      }
+    }
+  } else if (selectedDistrict !== "all") {
+    for (const countryMap of Array.from(locationTree.values())) {
+      for (const [district, municipalityList] of Array.from(countryMap.entries())) {
+        if (district !== selectedDistrict) continue;
+        for (const municipality of Array.from(municipalityList)) {
+          municipalitySet.add(municipality);
+        }
+      }
+    }
+  } else {
+    for (const countryMap of Array.from(locationTree.values())) {
+      for (const municipalityList of Array.from(countryMap.values())) {
+        for (const municipality of Array.from(municipalityList)) {
+          municipalitySet.add(municipality);
+        }
+      }
+    }
+  }
+
+  const municipalityOptions = Array.from(municipalitySet).sort((a, b) =>
+    a.localeCompare(b, "pt-PT"),
+  );
+  const selectedMunicipality =
+    municipalityFilter !== "all" && municipalityOptions.includes(municipalityFilter)
+      ? municipalityFilter
+      : "all";
+
+  const selectedContractType =
+    contractTypeFilter !== "all" && contractTypeOptions.includes(contractTypeFilter)
+      ? contractTypeFilter
+      : "all";
+
+  const needsExtendedFiltering =
+    !!cpvFilter ||
+    selectedContractType !== "all" ||
+    selectedCountry !== "all" ||
+    selectedDistrict !== "all" ||
+    selectedMunicipality !== "all";
+
+  const rpcOffset = needsExtendedFiltering ? 0 : (page - 1) * PAGE_SIZE;
+  const rpcLimit = needsExtendedFiltering ? 5000 : PAGE_SIZE;
+
   let totalCount = 0;
+  let contracts: ContractRow[] = [];
 
   const { data: rpcResult } = await supabase.rpc("search_contracts", {
     p_tenant_id: tenantId,
@@ -92,22 +274,104 @@ export default async function MercadoPublicoPage({
     p_from_date: fromDate || null,
     p_to_date: toDate || null,
     p_sort: sortField,
-    p_offset: from,
-    p_limit: PAGE_SIZE,
+    p_offset: rpcOffset,
+    p_limit: rpcLimit,
   });
+
+  let rpcRows: ContractRow[] = [];
+  let rpcTotalCount = 0;
 
   if (rpcResult && Array.isArray(rpcResult) && rpcResult.length > 0) {
     const result = rpcResult[0] as { rows: ContractRow[]; total_count: number };
-    contracts = Array.isArray(result.rows) ? result.rows : [];
-    totalCount = result.total_count ?? 0;
+    rpcRows = Array.isArray(result.rows) ? result.rows : [];
+    rpcTotalCount = result.total_count ?? 0;
   }
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const ids = rpcRows.map((row) => row.id).filter(Boolean);
+  const extrasById = new Map<
+    string,
+    {
+      contract_type: string | null;
+      execution_deadline_days: number | null;
+      execution_locations: string[];
+    }
+  >();
+
+  for (const idChunk of chunkArray(ids, 200)) {
+    const { data: extraRows } = await supabase
+      .from("contracts")
+      .select("id, contract_type, execution_deadline_days, execution_locations")
+      .in("id", idChunk);
+
+    for (const row of (extraRows ?? []) as ContractExtraRow[]) {
+      extrasById.set(row.id, {
+        contract_type: row.contract_type,
+        execution_deadline_days: row.execution_deadline_days,
+        execution_locations: toStringArray(row.execution_locations),
+      });
+    }
+  }
+
+  let mergedRows: ContractRow[] = rpcRows.map((row) => {
+    const extra = extrasById.get(row.id);
+    return {
+      ...row,
+      contract_type: extra?.contract_type ?? null,
+      execution_deadline_days: extra?.execution_deadline_days ?? null,
+      execution_locations: extra?.execution_locations ?? [],
+    };
+  });
+
+  if (cpvFilter) {
+    const cpvPrefix = cpvFilter.toLowerCase();
+    mergedRows = mergedRows.filter((row) =>
+      (row.cpv_main ?? "").toLowerCase().startsWith(cpvPrefix),
+    );
+  }
+
+  if (selectedContractType !== "all") {
+    mergedRows = mergedRows.filter(
+      (row) => (row.contract_type ?? "") === selectedContractType,
+    );
+  }
+
+  if (
+    selectedCountry !== "all" ||
+    selectedDistrict !== "all" ||
+    selectedMunicipality !== "all"
+  ) {
+    mergedRows = mergedRows.filter((row) =>
+      locationMatches(
+        row.execution_locations ?? [],
+        selectedCountry,
+        selectedDistrict,
+        selectedMunicipality,
+      ),
+    );
+  }
+
+  if (needsExtendedFiltering) {
+    totalCount = mergedRows.length;
+    const totalPagesFiltered = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    const safePageFiltered = Math.min(page, totalPagesFiltered);
+    const offset = (safePageFiltered - 1) * PAGE_SIZE;
+    contracts = mergedRows.slice(offset, offset + PAGE_SIZE);
+  } else {
+    totalCount = rpcTotalCount;
+    contracts = mergedRows;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
   const hasFilters = !!(
     cpvFilter ||
     entityFilter ||
     winnerFilter ||
     procedureFilter ||
+    selectedContractType !== "all" ||
+    selectedCountry !== "all" ||
+    selectedDistrict !== "all" ||
+    selectedMunicipality !== "all" ||
     minValue ||
     maxValue ||
     fromDate ||
@@ -120,37 +384,18 @@ export default async function MercadoPublicoPage({
   if (entityFilter) qsParams.set("entity", entityFilter);
   if (winnerFilter) qsParams.set("winner", winnerFilter);
   if (procedureFilter) qsParams.set("procedure", procedureFilter);
+  if (selectedContractType !== "all") qsParams.set("contract_type", selectedContractType);
+  if (selectedCountry !== "all") qsParams.set("country", selectedCountry);
+  if (selectedDistrict !== "all") qsParams.set("district", selectedDistrict);
+  if (selectedMunicipality !== "all") qsParams.set("municipality", selectedMunicipality);
   if (minValue) qsParams.set("min_value", minValue);
   if (maxValue) qsParams.set("max_value", maxValue);
   if (fromDate) qsParams.set("from_date", fromDate);
   if (toDate) qsParams.set("to_date", toDate);
   if (sortField) qsParams.set("sort", sortField);
-  const buildQsBase = `/mercado-publico?${qsParams.toString()}`;
-
-  function buildQs(overrides: Record<string, string | number> = {}) {
-    const base: Record<string, string> = {
-      page: String(page),
-      cpv: cpvFilter,
-      entity: entityFilter,
-      winner: winnerFilter,
-      procedure: procedureFilter,
-      min_value: minValue,
-      max_value: maxValue,
-      from_date: fromDate,
-      to_date: toDate,
-      sort: sortField,
-    };
-    const merged = {
-      ...base,
-      ...Object.fromEntries(
-        Object.entries(overrides).map(([k, v]) => [k, String(v)]),
-      ),
-    };
-    const parts = Object.entries(merged)
-      .filter(([, v]) => v)
-      .map(([k, v]) => `${k}=${encodeURIComponent(v)}`);
-    return `/mercado-publico?${parts.join("&")}`;
-  }
+  const buildQsBase = qsParams.toString()
+    ? `/mercado-publico?${qsParams.toString()}`
+    : "/mercado-publico";
 
   return (
     <div
@@ -176,33 +421,61 @@ export default async function MercadoPublicoPage({
 
         {/* Filters */}
         <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-          <div className="grid grid-cols-4 gap-3">
-            <input
-              name="cpv"
-              defaultValue={cpvFilter}
-              placeholder="CPV (ex: 45000000)"
-              className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-            />
-            <input
-              name="entity"
-              defaultValue={entityFilter}
-              placeholder="Entidade..."
-              className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-            />
-            <input
-              name="winner"
-              defaultValue={winnerFilter}
-              placeholder="Empresa vencedora..."
-              className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-            />
-            <input
-              name="procedure"
-              defaultValue={procedureFilter}
-              placeholder="Tipo procedimento..."
-              className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <MercadoCpvInput defaultValue={cpvFilter} />
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Entidade adjudicante
+              </label>
+              <input
+                name="entity"
+                defaultValue={entityFilter}
+                placeholder="Nome ou NIPC"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Empresa adjudicatária
+              </label>
+              <input
+                name="winner"
+                defaultValue={winnerFilter}
+                placeholder="Nome ou NIPC"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Tipo de procedimento
+              </label>
+              <input
+                name="procedure"
+                defaultValue={procedureFilter}
+                placeholder="Concurso Publico, Ajuste Direto..."
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Tipo de contrato
+              </label>
+              <select
+                name="contract_type"
+                defaultValue={selectedContractType}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+              >
+                <option value="all">Todos</option>
+                {contractTypeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <div className="grid grid-cols-[1fr_1fr_1fr_1fr_1.4fr_auto_auto] items-end gap-3">
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs text-gray-400 mb-1">
                 Data de
@@ -214,6 +487,7 @@ export default async function MercadoPublicoPage({
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
               />
             </div>
+
             <div>
               <label className="block text-xs text-gray-400 mb-1">
                 Data até
@@ -225,6 +499,7 @@ export default async function MercadoPublicoPage({
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
               />
             </div>
+
             <div>
               <label className="block text-xs text-gray-400 mb-1">
                 Valor min.
@@ -237,6 +512,7 @@ export default async function MercadoPublicoPage({
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
               />
             </div>
+
             <div>
               <label className="block text-xs text-gray-400 mb-1">
                 Valor max.
@@ -249,6 +525,63 @@ export default async function MercadoPublicoPage({
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.2fr_auto_auto] items-end gap-3">
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                País
+              </label>
+              <select
+                name="country"
+                defaultValue={selectedCountry}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
+              >
+                <option value="all">Todos</option>
+                {countryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Distrito
+              </label>
+              <select
+                name="district"
+                defaultValue={selectedDistrict}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
+              >
+                <option value="all">Todos</option>
+                {districtOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Concelho
+              </label>
+              <select
+                name="municipality"
+                defaultValue={selectedMunicipality}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
+              >
+                <option value="all">Todos</option>
+                {municipalityOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="block text-xs text-gray-400 mb-1">
                 Ordenar
@@ -264,6 +597,7 @@ export default async function MercadoPublicoPage({
                 <option value="value_asc">Menor valor</option>
               </select>
             </div>
+
             <button
               type="submit"
               className="text-white text-sm font-medium px-5 py-2 rounded-xl transition-all shadow-sm hover:opacity-90"
@@ -287,7 +621,7 @@ export default async function MercadoPublicoPage({
           contracts={contracts}
           hasFilters={hasFilters}
           totalPages={totalPages}
-          page={page}
+          page={safePage}
           buildQsBase={buildQsBase}
         />
       </main>
@@ -333,7 +667,8 @@ export default async function MercadoPublicoPage({
               </div>
             ))}
             <div className="flex flex-col items-center gap-4 pt-1">
-              <button
+              <a
+                href="mailto:supcom@helpdeskpublico.pt"
                 aria-label="Email"
                 className="text-gray-400 hover:text-white transition-colors"
               >
@@ -351,7 +686,7 @@ export default async function MercadoPublicoPage({
                   <rect width="20" height="16" x="2" y="4" rx="2" />
                   <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
                 </svg>
-              </button>
+              </a>
               <button
                 aria-label="Conta"
                 className="text-gray-400 hover:text-white transition-colors"

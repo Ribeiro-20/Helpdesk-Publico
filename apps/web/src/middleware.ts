@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getSupabasePublicEnv } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = [
   "/",
@@ -30,10 +31,11 @@ export async function middleware(request: NextRequest) {
   const isAuthCallback = pathname.startsWith("/auth");
 
   let supabaseResponse = NextResponse.next({ request });
+  const { url, anonKey } = getSupabasePublicEnv("Supabase middleware");
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    anonKey,
     {
       cookies: {
         get(name: string) {
