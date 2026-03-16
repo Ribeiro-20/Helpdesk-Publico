@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Info } from "lucide-react";
+import InfoPopover from "@/components/InfoPopover";
 
 type CpvOption = {
   id: string;
@@ -103,13 +103,10 @@ export default function MercadoCpvInput({
         >
           CPV
         </label>
-        <span
-          title="Escreva o inicio do codigo (ex: 331). A pesquisa filtra por prefixo de CPV, como no BASE."
-          className="inline-flex items-center text-gray-400"
-          aria-label="Ajuda CPV"
-        >
-          <Info className="w-3.5 h-3.5" />
-        </span>
+        <InfoPopover
+          text="Escreva o inicio do codigo (ex: 331). A pesquisa filtra por prefixo de CPV, como no BASE."
+          ariaLabel="Ajuda CPV"
+        />
       </div>
 
       <input

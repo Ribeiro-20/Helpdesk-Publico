@@ -145,11 +145,11 @@ export default function ContractsTable({
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Objecto</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Entidade</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Vencedor</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Adjudicante</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Adjudicatário</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Celebração</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">CPV</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Valor</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider w-[110px]">CPV</th>
+                <th className="text-center px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Valor</th>
                 <th className="text-center px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Estado</th>
               </tr>
             </thead>
@@ -187,14 +187,14 @@ export default function ContractsTable({
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">
                       {formatDate(c.signing_date)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 w-[110px]">
                       {c.cpv_main ? (
                         <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap">
                           {c.cpv_main}
                         </span>
                       ) : "—"}
                     </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
                       <span className="text-gray-900 font-medium text-xs">{formatEur(c.contract_price)}</span>
                     </td>
                     <td className="px-4 py-3 text-center">
