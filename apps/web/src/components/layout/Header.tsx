@@ -7,7 +7,7 @@ import { ChevronDown, Mail, UserCircle2 } from "lucide-react";
 
 const NAV_ITEMS_ROW1 = [
   { label: "Serviços Adjudicantes", href: "#" },
-  { label: "Serviços Empresas e Adjudicatários", href: "#" },
+  { label: "Serviços Empresas e Adjudicatarias", href: "#" },
   { label: "Alerta Concursos Públicos", href: "#" },
   { label: "Blog", href: "#" },
   { label: "Identificação CPV", href: "#" },

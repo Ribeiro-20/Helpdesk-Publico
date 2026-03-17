@@ -5,8 +5,8 @@ import Image from "next/image";
 
 import {
   FileText,
-  BarChart2,
-  TrendingUp,
+  Landmark,
+  Building2,
   FileSearch,
   Chrome,
 } from "lucide-react";
@@ -20,17 +20,17 @@ const CARDS = [
     href: "/mercado-publico",
   },
   {
-    icon: BarChart2,
+    icon: Landmark,
     title: "Estatísticas Adjudicantes",
     description:
       "Consulte todas as informações sobre os adjudicantes no mercado público.",
     href: "/estatisticas-publico",
   },
   {
-    icon: TrendingUp,
-    title: "Estatísticas Adjudicatários",
+    icon: Building2,
+    title: "Estatísticas Adjudicatarias",
     description:
-      "Consulte todas as informações sobre os adjudicatários no mercado público.",
+      "Consulte todas as informações sobre os adjudicatarias no mercado público.",
     href: "/estatisticas-privado",
   },
   {
@@ -51,7 +51,7 @@ const CARDS = [
 const FOOTER_COLS: Record<string, string[]> = {
   SERVIÇOS: [
     "Serviços Adjudicantes",
-    "Serviços Empresas e Adjudicatários",
+    "Serviços Empresas e Adjudicatarias",
     "Alerta Concursos Públicos",
     "Identificação CPV",
   ],
@@ -179,7 +179,7 @@ export default function HomePage() {
                       <Link
                         href="#"
                         className={`text-sm text-gray-400 hover:text-white transition-colors ${
-                          label === "Serviços Empresas e Adjudicatários"
+                          label === "Serviços Empresas e Adjudicatarias"
                             ? "underline"
                             : ""
                         }`}
