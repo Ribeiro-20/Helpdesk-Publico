@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import Image from "next/image";
 import { FileText } from "lucide-react";
@@ -126,7 +126,7 @@ export default async function MercadoPublicoPage({
   const districtFilter = params.district ?? "all";
   const municipalityFilter = params.municipality ?? "all";
 
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   // Get first tenant (public access — no auth required)
   const { data: tenant } = await supabase

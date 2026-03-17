@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const isNumericPrefix = /^[0-9-]+$/.test(q);
   let query = supabase.from("cpv_codes").select("id, descricao").order("id").limit(limit);
