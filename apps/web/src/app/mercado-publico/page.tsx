@@ -151,22 +151,61 @@ export default async function MercadoPublicoPage({
   const tenantId = tenant?.id ?? "00000000-0000-0000-0000-000000000000";
 
   // Build facet options for contract type and hierarchical location filters.
-  const { data: facetRows } = await supabase
+  const { data: locationRows } = await supabase
     .from("contracts")
-    .select("contract_type, procedure_type, execution_locations")
+    .select("execution_locations")
     .eq("tenant_id", tenantId)
     .limit(5000);
 
-  const contractTypeSet = new Set<string>();
-  const procedureTypeSet = new Set<string>();
+  // Fetch all procedure/contract types (no limit) to populate filters correctly
+  const { data: procedureRows } = await supabase
+    .from("contracts")
+    .select("procedure_type")
+    .eq("tenant_id", tenantId);
+
+  const { data: contractTypeRows } = await supabase
+    .from("contracts")
+    .select("contract_type")
+    .eq("tenant_id", tenantId);
+
+  // Seed with known standard types
+  const contractTypeSet = new Set<string>([
+    "Aquisição de bens móveis",
+    "Aquisição de serviços",
+    "Empreitada de obras públicas",
+    "Concessão de obras públicas",
+    "Concessão de serviços públicos",
+    "Locação de bens móveis",
+  ]);
+
+  const procedureTypeSet = new Set<string>([
+    "Ajuste Direto Regime Geral",
+    "Concurso público",
+    "Concurso limitado por prévia qualificação",
+    "Procedimento de negociação",
+    "Diálogo concorrencial",
+    "Parceria para a inovação",
+    "Ao abrigo de acordo-quadro (art.º 258.º)",
+    "Ao abrigo de acordo-quadro (art.º 259.º)",
+    "Consulta Prévia",
+    "Consulta Prévia Simplificada",
+    "Contratação excluída I",
+    "Contratação excluída II",
+  ]);
+
   const locationTree = new Map<string, Map<string, Set<string>>>();
 
-  for (const row of facetRows ?? []) {
+  for (const row of contractTypeRows ?? []) {
     const contractType = (row.contract_type as string | null) ?? null;
-    const procedureType = (row.procedure_type as string | null) ?? null;
     if (contractType) contractTypeSet.add(contractType);
-    if (procedureType) procedureTypeSet.add(procedureType);
+  }
 
+  for (const row of procedureRows ?? []) {
+    const procedureType = (row.procedure_type as string | null) ?? null;
+    if (procedureType) procedureTypeSet.add(procedureType);
+  }
+
+  for (const row of locationRows ?? []) {
     for (const rawLocation of toStringArray(row.execution_locations)) {
       const { country, district, municipality } =
         parseExecutionLocation(rawLocation);
@@ -249,16 +288,22 @@ export default async function MercadoPublicoPage({
       ? municipalityFilter
       : "all";
 
-  const needsExtendedFiltering =
-    !!cpvFilter ||
-    contractTypeFilters.length > 0 ||
-    procedureFilters.length > 0 ||
+  // Only force client-side filtering (fetch all) if we are filtering by fields
+  // that CANNOT be handled efficiently by the DB/RPC with current logic.
+  // Location filters require JS parsing, so they force extended filtering.
+  // CPV is handled by RPC, so it doesn't need extended filtering.
+  const hasLocationFilters =
     selectedCountry !== "all" ||
     selectedDistrict !== "all" ||
     selectedMunicipality !== "all";
 
+  const needsExtendedFiltering =
+    contractTypeFilters.length > 0 ||
+    procedureFilters.length > 0 ||
+    hasLocationFilters;
+
   const rpcOffset = needsExtendedFiltering ? 0 : (page - 1) * PAGE_SIZE;
-  const rpcLimit = needsExtendedFiltering ? 5000 : PAGE_SIZE;
+  const rpcLimit = needsExtendedFiltering ? 50000 : PAGE_SIZE;
 
   let totalCount = 0;
   let contracts: ContractRow[] = [];
@@ -302,19 +347,28 @@ export default async function MercadoPublicoPage({
       q = q.order("publication_date", { ascending: false, nullsFirst: false });
     else q = q.order("signing_date", { ascending: false, nullsFirst: false });
 
-    // Fetch all matching rows then apply location filter + paginate
-    const { data: directRows, count: directCount } = await q.limit(10000);
+    // If NO location filters are active, we can paginate directly in DB (performant for millions of rows)
+    if (!hasLocationFilters) {
+      // Apply pagination directly to query
+      const offsetDB = (page - 1) * PAGE_SIZE;
+      q = q.range(offsetDB, offsetDB + PAGE_SIZE - 1);
 
-    let filteredDirect = (directRows ?? []).map((row: any) => ({
-      ...row,
-      execution_locations: toStringArray(row.execution_locations),
-    })) as ContractRow[];
+      const { data: directRows, count: directCount } = await q;
 
-    if (
-      selectedCountry !== "all" ||
-      selectedDistrict !== "all" ||
-      selectedMunicipality !== "all"
-    ) {
+      contracts = (directRows ?? []).map((row: any) => ({
+        ...row,
+        execution_locations: toStringArray(row.execution_locations),
+      })) as ContractRow[];
+      totalCount = directCount ?? 0;
+    } else {
+      // Fallback for location filters: fetch up to limit, filter in JS (slower, capped)
+      const { data: directRows } = await q.limit(50000);
+
+      let filteredDirect = (directRows ?? []).map((row: any) => ({
+        ...row,
+        execution_locations: toStringArray(row.execution_locations),
+      })) as ContractRow[];
+
       filteredDirect = filteredDirect.filter((row) =>
         locationMatches(
           row.execution_locations ?? [],
@@ -323,13 +377,13 @@ export default async function MercadoPublicoPage({
           selectedMunicipality,
         ),
       );
-    }
 
-    totalCount = filteredDirect.length;
-    const totalPagesF = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-    const safePageF = Math.min(page, totalPagesF);
-    const offsetF = (safePageF - 1) * PAGE_SIZE;
-    contracts = filteredDirect.slice(offsetF, offsetF + PAGE_SIZE);
+      totalCount = filteredDirect.length;
+      const totalPagesF = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+      const safePageF = Math.min(page, totalPagesF);
+      const offsetF = (safePageF - 1) * PAGE_SIZE;
+      contracts = filteredDirect.slice(offsetF, offsetF + PAGE_SIZE);
+    }
   } else {
     const { data: rpcResult } = await supabase.rpc("search_contracts", {
       p_tenant_id: tenantId,
@@ -395,7 +449,9 @@ export default async function MercadoPublicoPage({
       };
     });
 
-    if (cpvFilter) {
+    // Only apply JS filtering if we are in "extended filtering" mode (client-side pagination).
+    // If we used server-side pagination (needsExtendedFiltering === false), the rows are already correct for the page.
+    if (needsExtendedFiltering && cpvFilter) {
       const cpvPrefix = cpvFilter.toLowerCase();
       mergedRows = mergedRows.filter((row) =>
         (row.cpv_main ?? "").toLowerCase().startsWith(cpvPrefix),
