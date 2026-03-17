@@ -34,24 +34,24 @@ export default function MercadoCpvInput({
     submitTimerRef.current = setTimeout(() => {
       const form = wrapperRef.current?.closest("form");
       if (!(form instanceof HTMLFormElement)) return;
-      
+
       const formData = new FormData(form);
       const params = new URLSearchParams();
-      
+
       formData.forEach((val, key) => {
         if (typeof val === "string" && val.trim() !== "") {
           if (key === "cpv" && overrideCpv !== undefined) return;
           if (val && val !== "all") {
-            params.set(key, val);
+            params.append(key, val);
           }
         }
       });
-      
+
       const cpvToSet = overrideCpv !== undefined ? overrideCpv : formData.get("cpv");
       if (typeof cpvToSet === "string" && cpvToSet.trim() !== "") {
         params.set("cpv", cpvToSet.trim());
       }
-      
+
       router.push(`${pathname}?${params.toString()}`, { scroll: false });
     }, delayMs);
   }
@@ -59,12 +59,12 @@ export default function MercadoCpvInput({
   useEffect(() => {
     const form = wrapperRef.current?.closest("form");
     if (!form) return;
-    
+
     const submitHandler = (e: SubmitEvent) => {
       e.preventDefault();
       submitForm(0);
     };
-    
+
     form.addEventListener("submit", submitHandler);
     return () => form.removeEventListener("submit", submitHandler);
   }, [pathname, router]);

@@ -5,12 +5,11 @@ import { FileText } from "lucide-react";
 import Header from "@/components/layout/Header";
 import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
+import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 
 export const dynamic = "force-dynamic";
-
-const PAGE_SIZE = 20;
 
 const NAV_BG = "rgba(26, 27, 31, 1)";
 
@@ -30,8 +29,8 @@ type MercadoSearchParams = {
   cpv?: string;
   entity?: string;
   winner?: string;
-  procedure?: string;
-  contract_type?: string;
+  procedure?: string | string[];
+  contract_type?: string | string[];
   country?: string;
   district?: string;
   municipality?: string;
@@ -40,6 +39,7 @@ type MercadoSearchParams = {
   from_date?: string;
   to_date?: string;
   sort?: string;
+  limit?: string;
 };
 
 type ContractExtraRow = {
@@ -89,7 +89,8 @@ function locationMatches(
 
     if (country !== "all" && parsed.country !== country) continue;
     if (district !== "all" && parsed.district !== district) continue;
-    if (municipality !== "all" && parsed.municipality !== municipality) continue;
+    if (municipality !== "all" && parsed.municipality !== municipality)
+      continue;
 
     return true;
   }
@@ -115,16 +116,28 @@ export default async function MercadoPublicoPage({
   const cpvFilter = (params.cpv ?? "").trim();
   const entityFilter = (params.entity ?? "").trim();
   const winnerFilter = (params.winner ?? "").trim();
-  const procedureFilter = (params.procedure ?? "").trim();
+  // Helper: parse a URL param that may be a single string or array of strings
+  function getArrayParam(v: string | string[] | undefined): string[] {
+    if (!v) return [];
+    return (Array.isArray(v) ? v : [v])
+      .flatMap((s) => s.split("|"))
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  const procedureFilters = getArrayParam(params.procedure);
+  const contractTypeFilters = getArrayParam(params.contract_type);
   const minValue = (params.min_value ?? "").trim();
   const maxValue = (params.max_value ?? "").trim();
   const fromDate = (params.from_date ?? "").trim();
   const toDate = (params.to_date ?? "").trim();
   const sortField = params.sort ?? "signing_date";
-  const contractTypeFilter = params.contract_type ?? "all";
   const countryFilter = params.country ?? "all";
   const districtFilter = params.district ?? "all";
   const municipalityFilter = params.municipality ?? "all";
+
+  const limitStr = (params.limit ?? "25").trim();
+  const PAGE_SIZE = limitStr === "50" ? 50 : limitStr === "100" ? 100 : 25;
 
   const supabase = await createAdminClient();
 
@@ -140,21 +153,23 @@ export default async function MercadoPublicoPage({
   // Build facet options for contract type and hierarchical location filters.
   const { data: facetRows } = await supabase
     .from("contracts")
-    .select("contract_type, execution_locations")
+    .select("contract_type, procedure_type, execution_locations")
     .eq("tenant_id", tenantId)
     .limit(5000);
 
   const contractTypeSet = new Set<string>();
+  const procedureTypeSet = new Set<string>();
   const locationTree = new Map<string, Map<string, Set<string>>>();
 
   for (const row of facetRows ?? []) {
     const contractType = (row.contract_type as string | null) ?? null;
-    if (contractType) {
-      contractTypeSet.add(contractType);
-    }
+    const procedureType = (row.procedure_type as string | null) ?? null;
+    if (contractType) contractTypeSet.add(contractType);
+    if (procedureType) procedureTypeSet.add(procedureType);
 
     for (const rawLocation of toStringArray(row.execution_locations)) {
-      const { country, district, municipality } = parseExecutionLocation(rawLocation);
+      const { country, district, municipality } =
+        parseExecutionLocation(rawLocation);
       if (!country) continue;
 
       if (!locationTree.has(country)) {
@@ -177,23 +192,26 @@ export default async function MercadoPublicoPage({
   const contractTypeOptions = Array.from(contractTypeSet).sort((a, b) =>
     a.localeCompare(b, "pt-PT"),
   );
+  const procedureTypeOptions = Array.from(procedureTypeSet).sort((a, b) =>
+    a.localeCompare(b, "pt-PT"),
+  );
 
   const countryOptions = Array.from(locationTree.keys()).sort((a, b) =>
     a.localeCompare(b, "pt-PT"),
   );
   const locationOptionsByCountry: Record<string, Record<string, string[]>> = {};
 
-  for (const [country, districtMap] of Array.from(locationTree.entries()).sort((a, b) =>
-    a[0].localeCompare(b[0], "pt-PT"),
+  for (const [country, districtMap] of Array.from(locationTree.entries()).sort(
+    (a, b) => a[0].localeCompare(b[0], "pt-PT"),
   )) {
     locationOptionsByCountry[country] = {};
 
-    for (const [district, municipalitySet] of Array.from(districtMap.entries()).sort(
-      (a, b) => a[0].localeCompare(b[0], "pt-PT"),
-    )) {
-      locationOptionsByCountry[country][district] = Array.from(municipalitySet).sort((a, b) =>
-        a.localeCompare(b, "pt-PT"),
-      );
+    for (const [district, municipalitySet] of Array.from(
+      districtMap.entries(),
+    ).sort((a, b) => a[0].localeCompare(b[0], "pt-PT"))) {
+      locationOptionsByCountry[country][district] = Array.from(
+        municipalitySet,
+      ).sort((a, b) => a.localeCompare(b, "pt-PT"));
     }
   }
 
@@ -204,8 +222,8 @@ export default async function MercadoPublicoPage({
 
   const districtOptions =
     selectedCountry !== "all"
-      ? Array.from(locationTree.get(selectedCountry)?.keys() ?? []).sort((a, b) =>
-          a.localeCompare(b, "pt-PT"),
+      ? Array.from(locationTree.get(selectedCountry)?.keys() ?? []).sort(
+          (a, b) => a.localeCompare(b, "pt-PT"),
         )
       : [];
 
@@ -218,9 +236,9 @@ export default async function MercadoPublicoPage({
 
   const municipalityOptions =
     selectedCountry !== "all" && selectedDistrict !== "all"
-      ? Array.from(locationTree.get(selectedCountry)?.get(selectedDistrict) ?? []).sort(
-          (a, b) => a.localeCompare(b, "pt-PT"),
-        )
+      ? Array.from(
+          locationTree.get(selectedCountry)?.get(selectedDistrict) ?? [],
+        ).sort((a, b) => a.localeCompare(b, "pt-PT"))
       : [];
 
   const selectedMunicipality =
@@ -231,14 +249,10 @@ export default async function MercadoPublicoPage({
       ? municipalityFilter
       : "all";
 
-  const selectedContractType =
-    contractTypeFilter !== "all" && contractTypeOptions.includes(contractTypeFilter)
-      ? contractTypeFilter
-      : "all";
-
   const needsExtendedFiltering =
     !!cpvFilter ||
-    selectedContractType !== "all" ||
+    contractTypeFilters.length > 0 ||
+    procedureFilters.length > 0 ||
     selectedCountry !== "all" ||
     selectedDistrict !== "all" ||
     selectedMunicipality !== "all";
@@ -249,102 +263,186 @@ export default async function MercadoPublicoPage({
   let totalCount = 0;
   let contracts: ContractRow[] = [];
 
-  const { data: rpcResult } = await supabase.rpc("search_contracts", {
-    p_tenant_id: tenantId,
-    p_entity_nif: entityFilter || null,
-    p_winner_nif: winnerFilter || null,
-    p_cpv: cpvFilter || null,
-    p_procedure: procedureFilter || null,
-    p_min_value: minValue ? parseFloat(minValue) : null,
-    p_max_value: maxValue ? parseFloat(maxValue) : null,
-    p_from_date: fromDate || null,
-    p_to_date: toDate || null,
-    p_sort: sortField,
-    p_offset: rpcOffset,
-    p_limit: rpcLimit,
-  });
+  // -------------------------------------------------------------------
+  // If procedure or contract_type filters are active, query DB directly
+  // so that ALL matching rows are returned (RPC has a cap of 5000 rows).
+  // -------------------------------------------------------------------
+  const hasTypeFilters =
+    contractTypeFilters.length > 0 || procedureFilters.length > 0;
 
-  let rpcRows: ContractRow[] = [];
-  let rpcTotalCount = 0;
-
-  if (rpcResult && Array.isArray(rpcResult) && rpcResult.length > 0) {
-    const result = rpcResult[0] as { rows: ContractRow[]; total_count: number };
-    rpcRows = Array.isArray(result.rows) ? result.rows : [];
-    rpcTotalCount = result.total_count ?? 0;
-  }
-
-  const ids = rpcRows.map((row) => row.id).filter(Boolean);
-  const extrasById = new Map<
-    string,
-    {
-      contract_type: string | null;
-      execution_deadline_days: number | null;
-      execution_locations: string[];
-    }
-  >();
-
-  for (const idChunk of chunkArray(ids, 200)) {
-    const { data: extraRows } = await supabase
+  if (hasTypeFilters) {
+    // Build a direct query applying exact filters at DB level
+    let q = supabase
       .from("contracts")
-      .select("id, contract_type, execution_deadline_days, execution_locations")
-      .in("id", idChunk);
+      .select(
+        "id, object, procedure_type, contract_type, signing_date, publication_date, cpv_main, contract_price, base_price, status, contracting_entities, winners, execution_deadline_days, execution_locations",
+        { count: "exact" },
+      )
+      .eq("tenant_id", tenantId);
 
-    for (const row of (extraRows ?? []) as ContractExtraRow[]) {
-      extrasById.set(row.id, {
-        contract_type: row.contract_type,
-        execution_deadline_days: row.execution_deadline_days,
-        execution_locations: toStringArray(row.execution_locations),
-      });
-    }
-  }
+    if (contractTypeFilters.length > 0)
+      q = q.in("contract_type", contractTypeFilters);
+    if (procedureFilters.length > 0)
+      q = q.in("procedure_type", procedureFilters);
+    if (entityFilter)
+      q = (q as any).ilike("contracting_entities", `%${entityFilter}%`);
+    if (winnerFilter) q = (q as any).ilike("winners", `%${winnerFilter}%`);
+    if (cpvFilter) q = q.ilike("cpv_main", `${cpvFilter}%`);
+    if (minValue) q = q.gte("contract_price", parseFloat(minValue));
+    if (maxValue) q = q.lte("contract_price", parseFloat(maxValue));
+    if (fromDate) q = q.gte("signing_date", fromDate);
+    if (toDate) q = q.lte("signing_date", toDate);
 
-  let mergedRows: ContractRow[] = rpcRows.map((row) => {
-    const extra = extrasById.get(row.id);
-    return {
+    // Apply sort
+    if (sortField === "value_desc")
+      q = q.order("contract_price", { ascending: false, nullsFirst: false });
+    else if (sortField === "value_asc")
+      q = q.order("contract_price", { ascending: true, nullsFirst: false });
+    else if (sortField === "publication_date")
+      q = q.order("publication_date", { ascending: false, nullsFirst: false });
+    else q = q.order("signing_date", { ascending: false, nullsFirst: false });
+
+    // Fetch all matching rows then apply location filter + paginate
+    const { data: directRows, count: directCount } = await q.limit(10000);
+
+    let filteredDirect = (directRows ?? []).map((row: any) => ({
       ...row,
-      contract_type: extra?.contract_type ?? null,
-      execution_deadline_days: extra?.execution_deadline_days ?? null,
-      execution_locations: extra?.execution_locations ?? [],
-    };
-  });
+      execution_locations: toStringArray(row.execution_locations),
+    })) as ContractRow[];
 
-  if (cpvFilter) {
-    const cpvPrefix = cpvFilter.toLowerCase();
-    mergedRows = mergedRows.filter((row) =>
-      (row.cpv_main ?? "").toLowerCase().startsWith(cpvPrefix),
-    );
-  }
+    if (
+      selectedCountry !== "all" ||
+      selectedDistrict !== "all" ||
+      selectedMunicipality !== "all"
+    ) {
+      filteredDirect = filteredDirect.filter((row) =>
+        locationMatches(
+          row.execution_locations ?? [],
+          selectedCountry,
+          selectedDistrict,
+          selectedMunicipality,
+        ),
+      );
+    }
 
-  if (selectedContractType !== "all") {
-    mergedRows = mergedRows.filter(
-      (row) => (row.contract_type ?? "") === selectedContractType,
-    );
-  }
-
-  if (
-    selectedCountry !== "all" ||
-    selectedDistrict !== "all" ||
-    selectedMunicipality !== "all"
-  ) {
-    mergedRows = mergedRows.filter((row) =>
-      locationMatches(
-        row.execution_locations ?? [],
-        selectedCountry,
-        selectedDistrict,
-        selectedMunicipality,
-      ),
-    );
-  }
-
-  if (needsExtendedFiltering) {
-    totalCount = mergedRows.length;
-    const totalPagesFiltered = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-    const safePageFiltered = Math.min(page, totalPagesFiltered);
-    const offset = (safePageFiltered - 1) * PAGE_SIZE;
-    contracts = mergedRows.slice(offset, offset + PAGE_SIZE);
+    totalCount = filteredDirect.length;
+    const totalPagesF = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    const safePageF = Math.min(page, totalPagesF);
+    const offsetF = (safePageF - 1) * PAGE_SIZE;
+    contracts = filteredDirect.slice(offsetF, offsetF + PAGE_SIZE);
   } else {
-    totalCount = rpcTotalCount;
-    contracts = mergedRows;
+    const { data: rpcResult } = await supabase.rpc("search_contracts", {
+      p_tenant_id: tenantId,
+      p_entity_nif: entityFilter || null,
+      p_winner_nif: winnerFilter || null,
+      p_cpv: cpvFilter || null,
+      p_procedure: null, // multi-select filters applied JS-side
+      p_min_value: minValue ? parseFloat(minValue) : null,
+      p_max_value: maxValue ? parseFloat(maxValue) : null,
+      p_from_date: fromDate || null,
+      p_to_date: toDate || null,
+      p_sort: sortField,
+      p_offset: rpcOffset,
+      p_limit: rpcLimit,
+    });
+
+    let rpcRows: ContractRow[] = [];
+    let rpcTotalCount = 0;
+
+    if (rpcResult && Array.isArray(rpcResult) && rpcResult.length > 0) {
+      const result = rpcResult[0] as {
+        rows: ContractRow[];
+        total_count: number;
+      };
+      rpcRows = Array.isArray(result.rows) ? result.rows : [];
+      rpcTotalCount = result.total_count ?? 0;
+    }
+
+    const ids = rpcRows.map((row) => row.id).filter(Boolean);
+    const extrasById = new Map<
+      string,
+      {
+        contract_type: string | null;
+        execution_deadline_days: number | null;
+        execution_locations: string[];
+      }
+    >();
+
+    for (const idChunk of chunkArray(ids, 200)) {
+      const { data: extraRows } = await supabase
+        .from("contracts")
+        .select(
+          "id, contract_type, execution_deadline_days, execution_locations",
+        )
+        .in("id", idChunk);
+
+      for (const row of (extraRows ?? []) as ContractExtraRow[]) {
+        extrasById.set(row.id, {
+          contract_type: row.contract_type,
+          execution_deadline_days: row.execution_deadline_days,
+          execution_locations: toStringArray(row.execution_locations),
+        });
+      }
+    }
+
+    let mergedRows: ContractRow[] = rpcRows.map((row) => {
+      const extra = extrasById.get(row.id);
+      return {
+        ...row,
+        contract_type: extra?.contract_type ?? null,
+        execution_deadline_days: extra?.execution_deadline_days ?? null,
+        execution_locations: extra?.execution_locations ?? [],
+      };
+    });
+
+    if (cpvFilter) {
+      const cpvPrefix = cpvFilter.toLowerCase();
+      mergedRows = mergedRows.filter((row) =>
+        (row.cpv_main ?? "").toLowerCase().startsWith(cpvPrefix),
+      );
+    }
+
+    if (contractTypeFilters.length > 0) {
+      mergedRows = mergedRows.filter(
+        (row) =>
+          row.contract_type != null &&
+          contractTypeFilters.includes(row.contract_type),
+      );
+    }
+
+    if (procedureFilters.length > 0) {
+      mergedRows = mergedRows.filter(
+        (row) =>
+          row.procedure_type != null &&
+          procedureFilters.includes(row.procedure_type),
+      );
+    }
+
+    if (
+      selectedCountry !== "all" ||
+      selectedDistrict !== "all" ||
+      selectedMunicipality !== "all"
+    ) {
+      mergedRows = mergedRows.filter((row) =>
+        locationMatches(
+          row.execution_locations ?? [],
+          selectedCountry,
+          selectedDistrict,
+          selectedMunicipality,
+        ),
+      );
+    }
+
+    if (needsExtendedFiltering) {
+      totalCount = mergedRows.length;
+      const totalPagesFiltered = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+      const safePageFiltered = Math.min(page, totalPagesFiltered);
+      const offset = (safePageFiltered - 1) * PAGE_SIZE;
+      contracts = mergedRows.slice(offset, offset + PAGE_SIZE);
+    } else {
+      totalCount = rpcTotalCount;
+      contracts = mergedRows;
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -353,8 +451,8 @@ export default async function MercadoPublicoPage({
     cpvFilter ||
     entityFilter ||
     winnerFilter ||
-    procedureFilter ||
-    selectedContractType !== "all" ||
+    procedureFilters.length > 0 ||
+    contractTypeFilters.length > 0 ||
     selectedCountry !== "all" ||
     selectedDistrict !== "all" ||
     selectedMunicipality !== "all" ||
@@ -369,16 +467,20 @@ export default async function MercadoPublicoPage({
   if (cpvFilter) qsParams.set("cpv", cpvFilter);
   if (entityFilter) qsParams.set("entity", entityFilter);
   if (winnerFilter) qsParams.set("winner", winnerFilter);
-  if (procedureFilter) qsParams.set("procedure", procedureFilter);
-  if (selectedContractType !== "all") qsParams.set("contract_type", selectedContractType);
+  if (procedureFilters.length > 0)
+    procedureFilters.forEach((v) => qsParams.append("procedure", v));
+  if (contractTypeFilters.length > 0)
+    contractTypeFilters.forEach((v) => qsParams.append("contract_type", v));
   if (selectedCountry !== "all") qsParams.set("country", selectedCountry);
   if (selectedDistrict !== "all") qsParams.set("district", selectedDistrict);
-  if (selectedMunicipality !== "all") qsParams.set("municipality", selectedMunicipality);
+  if (selectedMunicipality !== "all")
+    qsParams.set("municipality", selectedMunicipality);
   if (minValue) qsParams.set("min_value", minValue);
   if (maxValue) qsParams.set("max_value", maxValue);
   if (fromDate) qsParams.set("from_date", fromDate);
   if (toDate) qsParams.set("to_date", toDate);
   if (sortField) qsParams.set("sort", sortField);
+  if (PAGE_SIZE !== 25) qsParams.set("limit", PAGE_SIZE.toString());
   const buildQsBase = qsParams.toString()
     ? `/mercado-publico?${qsParams.toString()}`
     : "/mercado-publico";
@@ -397,7 +499,7 @@ export default async function MercadoPublicoPage({
           <FileText className="w-6 h-6 text-green-500" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Mercado Público
+              Estatísticas de Mercado
             </h1>
             <p className="text-gray-500 text-sm">
               {totalCount} contratos celebrados
@@ -437,45 +539,28 @@ export default async function MercadoPublicoPage({
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
               />
             </div>
-            <div>
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Tipo de procedimento
-                </label>
-                <InfoPopover text="Filtre por tipo de procedimento (ex: Concurso Publico, Ajuste Direto)." />
-              </div>
-              <input
+            <div className="relative z-20">
+              <MercadoMultiSelect
                 name="procedure"
-                defaultValue={procedureFilter}
-                placeholder="Concurso Publico, Ajuste Direto..."
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+                label="Tipo de procedimento"
+                options={procedureTypeOptions}
+                defaultSelected={procedureFilters}
               />
             </div>
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Tipo de contrato
-              </label>
-              <select
+            <div className="relative z-10">
+              <MercadoMultiSelect
                 name="contract_type"
-                defaultValue={selectedContractType}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-              >
-                <option value="all">Todos</option>
-                {contractTypeOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+                label="Tipo de contrato"
+                options={contractTypeOptions}
+                defaultSelected={contractTypeFilters}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Data de
-                </label>
+                <label className="block text-xs text-gray-400">Data de</label>
                 <InfoPopover text="Data inicial da celebracao dos contratos." />
               </div>
               <input
@@ -488,9 +573,7 @@ export default async function MercadoPublicoPage({
 
             <div>
               <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Data até
-                </label>
+                <label className="block text-xs text-gray-400">Data até</label>
                 <InfoPopover text="Data final da celebracao dos contratos." />
               </div>
               <input
@@ -534,13 +617,28 @@ export default async function MercadoPublicoPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.2fr_auto_auto] items-end gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1fr_1.2fr_auto_auto] items-end gap-3">
             <MercadoLocationFilters
               locationOptionsByCountry={locationOptionsByCountry}
               defaultCountry={selectedCountry}
               defaultDistrict={selectedDistrict}
               defaultMunicipality={selectedMunicipality}
             />
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Apresentar
+              </label>
+              <select
+                name="limit"
+                defaultValue={PAGE_SIZE.toString()}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
+              >
+                <option value="25">25 contratos</option>
+                <option value="50">50 contratos</option>
+                <option value="100">100 contratos</option>
+              </select>
+            </div>
 
             <div>
               <label className="block text-xs text-gray-400 mb-1">
