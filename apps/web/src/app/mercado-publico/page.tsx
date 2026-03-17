@@ -426,9 +426,9 @@ export default async function MercadoPublicoPage({
             <div>
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Empresa adjudicatária
+                  Entidade adjudicatária
                 </label>
-                <InfoPopover text="Filtre por nome ou NIPC da empresa adjudicataria." />
+                <InfoPopover text="Filtre por nome ou NIPC da entidade adjudicataria." />
               </div>
               <input
                 name="winner"

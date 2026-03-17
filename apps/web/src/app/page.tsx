@@ -5,8 +5,8 @@ import Image from "next/image";
 
 import {
   FileText,
-  BarChart2,
-  TrendingUp,
+  Landmark,
+  Building2,
   FileSearch,
   Chrome,
 } from "lucide-react";
@@ -20,14 +20,14 @@ const CARDS = [
     href: "/mercado-publico",
   },
   {
-    icon: BarChart2,
+    icon: Landmark,
     title: "Estatísticas Adjudicantes",
     description:
       "Consulte todas as informações sobre os adjudicantes no mercado público.",
     href: "/estatisticas-publico",
   },
   {
-    icon: TrendingUp,
+    icon: Building2,
     title: "Estatísticas Adjudicatários",
     description:
       "Consulte todas as informações sobre os adjudicatários no mercado público.",

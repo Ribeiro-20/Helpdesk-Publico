@@ -222,7 +222,7 @@ export default async function EstatisticasPrivadoPage({
         <BarChart2 className="w-6 h-6 text-green-500" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Estatisticas de Empresas Adjudicatarias
+            Estatisticas de Empresas Adjudicatários
           </h1>
           <p className="text-gray-500 text-sm">{totalRows} empresas encontradas</p>
         </div>
