@@ -25,8 +25,6 @@ const FOOTER_COLS: Record<string, string[]> = {
 type PageParams = {
   page?: string;
   q?: string;
-  region?: string;
-  sort?: string;
 };
 
 type TopEntity = {
@@ -69,26 +67,6 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   const parsed = parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
-}
-
-function parsePositiveNumber(value: string | undefined): number | null {
-  if (!value) return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return parsed;
-}
-
-function uniqueStrings(values: string[]): string[] {
-  const seen: Record<string, true> = {};
-  const out: string[] = [];
-  for (const value of values) {
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    if (seen[trimmed]) continue;
-    seen[trimmed] = true;
-    out.push(trimmed);
-  }
-  return out;
 }
 
 function parseTopEntities(value: unknown): TopEntity[] {
@@ -152,12 +130,6 @@ export default async function EstatisticasPrivadoPage({
   const params = await searchParams;
   const page = parsePositiveInt(params.page, 1);
   const searchText = (params.q ?? "").trim();
-  const regionFilter = params.region ?? "all";
-  const sort =
-    params.sort &&
-    ["value_desc", "contracts_desc", "recent_desc", "name_asc"].includes(params.sort)
-      ? params.sort
-      : "value_desc";
 
   const supabase = await createClient();
 
@@ -198,16 +170,6 @@ export default async function EstatisticasPrivadoPage({
     );
   }
 
-  const { data: facetRows } = await supabase
-    .from("companies")
-    .select("location")
-    .eq("tenant_id", tenantId)
-    .limit(4000);
-
-  const regionOptions = uniqueStrings(
-    (facetRows ?? []).map((row) => String(row.location ?? "").trim()),
-  ).sort();
-
   let query = supabase
     .from("companies")
     .select(
@@ -221,23 +183,9 @@ export default async function EstatisticasPrivadoPage({
     query = query.or(`name.ilike.%${token}%,nif.ilike.%${token}%`);
   }
 
-  if (regionFilter !== "all") {
-    query = query.eq("location", regionFilter);
-  }
-
-  if (sort === "contracts_desc") {
-    query = query
-      .order("contracts_won", { ascending: false })
-      .order("total_value_won", { ascending: false });
-  } else if (sort === "recent_desc") {
-    query = query.order("last_win_at", { ascending: false, nullsFirst: false });
-  } else if (sort === "name_asc") {
-    query = query.order("name", { ascending: true });
-  } else {
-    query = query
-      .order("total_value_won", { ascending: false })
-      .order("contracts_won", { ascending: false });
-  }
+  query = query
+    .order("total_value_won", { ascending: false })
+    .order("contracts_won", { ascending: false });
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -251,11 +199,9 @@ export default async function EstatisticasPrivadoPage({
 
   const baseQuery: Record<string, string> = {
     q: searchText,
-    region: regionFilter,
-    sort,
   };
 
-  const hasFilters = !!searchText || regionFilter !== "all";
+  const hasFilters = !!searchText;
 
   const pages: Array<number | "dots"> = [];
   const addPage = (n: number) => {
@@ -283,43 +229,13 @@ export default async function EstatisticasPrivadoPage({
       </div>
 
       <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="md:col-span-3">
-            <input
-              name="q"
-              defaultValue={searchText}
-              placeholder="Pesquisa por empresa ou NIF"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-            />
-          </div>
-          <select
-            name="region"
-            defaultValue={regionFilter}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-          >
-            <option value="all">Regiao: Todas</option>
-            {regionOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_auto_auto] items-end gap-3">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Ordenar</label>
-            <select
-              name="sort"
-              defaultValue={sort}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-            >
-              <option value="value_desc">Maior valor</option>
-              <option value="contracts_desc">Mais contratos</option>
-              <option value="recent_desc">Atividade recente</option>
-              <option value="name_asc">Nome A-Z</option>
-            </select>
-          </div>
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <input
+            name="q"
+            defaultValue={searchText}
+            placeholder="Pesquisar por empresa ou NIF"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+          />
           <button
             type="submit"
             className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
@@ -335,9 +251,7 @@ export default async function EstatisticasPrivadoPage({
             >
               Limpar
             </Link>
-          ) : (
-            <div />
-          )}
+          ) : null}
         </div>
       </form>
 
