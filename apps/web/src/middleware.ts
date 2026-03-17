@@ -9,9 +9,11 @@ const PUBLIC_PATHS = [
   "/estatisticas-privado",
   "/oportunidades",
   "/outros",
+  "/api/contracts",
+  "/api/cpv-search",
 ];
 
-// Also allow /mercado-publico/[id] and any sub-paths
+// Also allow any sub-paths of the above
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

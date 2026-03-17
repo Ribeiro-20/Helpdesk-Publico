@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { getSupabasePublicEnv, getSupabaseAdminEnv } from "@/lib/supabase/env";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -28,6 +28,24 @@ export async function createClient() {
             // Server component – cookies can't be set here, middleware handles it
           }
         },
+      },
+    },
+  );
+}
+
+export async function createAdminClient() {
+  const { url, serviceRoleKey } = getSupabaseAdminEnv("Supabase admin client");
+
+  return createServerClient(
+    url,
+    serviceRoleKey,
+    {
+      cookies: {
+        get(name: string) {
+          return undefined; // Admin client doesn't need cookies
+        },
+        set(name: string, value: string, options: object) {},
+        remove(name: string, options: object) {},
       },
     },
   );

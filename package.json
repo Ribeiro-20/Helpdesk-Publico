@@ -11,10 +11,14 @@
     "cron:once": "cd supabase/cron && npm install && npx tsx run.ts --once"
   },
   "devDependencies": {
-    "supabase": "latest",
     "@supabase/supabase-js": "^2.44.2",
+    "@types/node": "^20.11.0",
     "dotenv": "^16.4.5",
-    "tsx": "^4.19.1",
-    "@types/node": "^20.11.0"
+    "supabase": "latest",
+    "tsx": "^4.19.1"
+  },
+  "dependencies": {
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "lucide-react": "^0.577.0"
   }
 }

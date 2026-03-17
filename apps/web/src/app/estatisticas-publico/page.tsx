@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import Header from "@/components/layout/Header";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, Building2, Filter, Search } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -178,7 +178,7 @@ export default async function EstatisticasPublicoPage({
   const page = parsePositiveInt(params.page, 1);
   const searchText = (params.q ?? "").trim();
 
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const {
     data: { user },
