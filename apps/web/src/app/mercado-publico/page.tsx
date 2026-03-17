@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import Header from "@/components/layout/Header";
 import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
+import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 
 export const dynamic = "force-dynamic";
@@ -180,69 +181,53 @@ export default async function MercadoPublicoPage({
   const countryOptions = Array.from(locationTree.keys()).sort((a, b) =>
     a.localeCompare(b, "pt-PT"),
   );
+  const locationOptionsByCountry: Record<string, Record<string, string[]>> = {};
+
+  for (const [country, districtMap] of Array.from(locationTree.entries()).sort((a, b) =>
+    a[0].localeCompare(b[0], "pt-PT"),
+  )) {
+    locationOptionsByCountry[country] = {};
+
+    for (const [district, municipalitySet] of Array.from(districtMap.entries()).sort(
+      (a, b) => a[0].localeCompare(b[0], "pt-PT"),
+    )) {
+      locationOptionsByCountry[country][district] = Array.from(municipalitySet).sort((a, b) =>
+        a.localeCompare(b, "pt-PT"),
+      );
+    }
+  }
+
   const selectedCountry =
     countryFilter !== "all" && countryOptions.includes(countryFilter)
       ? countryFilter
       : "all";
 
-  const districtSet = new Set<string>();
-  if (selectedCountry !== "all") {
-    for (const district of Array.from(locationTree.get(selectedCountry)?.keys() ?? [])) {
-      districtSet.add(district);
-    }
-  } else {
-    for (const countryMap of Array.from(locationTree.values())) {
-      for (const district of Array.from(countryMap.keys())) {
-        districtSet.add(district);
-      }
-    }
-  }
+  const districtOptions =
+    selectedCountry !== "all"
+      ? Array.from(locationTree.get(selectedCountry)?.keys() ?? []).sort((a, b) =>
+          a.localeCompare(b, "pt-PT"),
+        )
+      : [];
 
-  const districtOptions = Array.from(districtSet).sort((a, b) =>
-    a.localeCompare(b, "pt-PT"),
-  );
   const selectedDistrict =
-    districtFilter !== "all" && districtOptions.includes(districtFilter)
+    selectedCountry !== "all" &&
+    districtFilter !== "all" &&
+    districtOptions.includes(districtFilter)
       ? districtFilter
       : "all";
 
-  const municipalitySet = new Set<string>();
-  if (selectedCountry !== "all" && selectedDistrict !== "all") {
-    for (const municipality of Array.from(
-      locationTree.get(selectedCountry)?.get(selectedDistrict) ?? [],
-    )) {
-      municipalitySet.add(municipality);
-    }
-  } else if (selectedCountry !== "all") {
-    for (const districtMap of Array.from(locationTree.get(selectedCountry)?.values() ?? [])) {
-      for (const municipality of Array.from(districtMap)) {
-        municipalitySet.add(municipality);
-      }
-    }
-  } else if (selectedDistrict !== "all") {
-    for (const countryMap of Array.from(locationTree.values())) {
-      for (const [district, municipalityList] of Array.from(countryMap.entries())) {
-        if (district !== selectedDistrict) continue;
-        for (const municipality of Array.from(municipalityList)) {
-          municipalitySet.add(municipality);
-        }
-      }
-    }
-  } else {
-    for (const countryMap of Array.from(locationTree.values())) {
-      for (const municipalityList of Array.from(countryMap.values())) {
-        for (const municipality of Array.from(municipalityList)) {
-          municipalitySet.add(municipality);
-        }
-      }
-    }
-  }
+  const municipalityOptions =
+    selectedCountry !== "all" && selectedDistrict !== "all"
+      ? Array.from(locationTree.get(selectedCountry)?.get(selectedDistrict) ?? []).sort(
+          (a, b) => a.localeCompare(b, "pt-PT"),
+        )
+      : [];
 
-  const municipalityOptions = Array.from(municipalitySet).sort((a, b) =>
-    a.localeCompare(b, "pt-PT"),
-  );
   const selectedMunicipality =
-    municipalityFilter !== "all" && municipalityOptions.includes(municipalityFilter)
+    selectedCountry !== "all" &&
+    selectedDistrict !== "all" &&
+    municipalityFilter !== "all" &&
+    municipalityOptions.includes(municipalityFilter)
       ? municipalityFilter
       : "all";
 
@@ -550,59 +535,12 @@ export default async function MercadoPublicoPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1.2fr_auto_auto] items-end gap-3">
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                País
-              </label>
-              <select
-                name="country"
-                defaultValue={selectedCountry}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              >
-                <option value="all">Todos</option>
-                {countryOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Distrito
-              </label>
-              <select
-                name="district"
-                defaultValue={selectedDistrict}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
-              >
-                <option value="all">Todos</option>
-                {districtOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Concelho
-              </label>
-              <select
-                name="municipality"
-                defaultValue={selectedMunicipality}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
-              >
-                <option value="all">Todos</option>
-                {municipalityOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <MercadoLocationFilters
+              locationOptionsByCountry={locationOptionsByCountry}
+              defaultCountry={selectedCountry}
+              defaultDistrict={selectedDistrict}
+              defaultMunicipality={selectedMunicipality}
+            />
 
             <div>
               <label className="block text-xs text-gray-400 mb-1">
