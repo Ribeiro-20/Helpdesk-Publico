@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import Header from "@/components/layout/Header";
+import PublicFooter from "@/components/layout/PublicFooter";
 import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, Filter } from "lucide-react";
 import BackButton from "@/components/BackButton";
@@ -8,20 +8,8 @@ import BackButton from "@/components/BackButton";
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
-const NAV_BG = "rgba(26, 27, 31, 1)";
 const BODY_BG = "rgba(248, 250, 252, 1)";
 const GREEN = "rgba(74, 222, 128, 1)";
-
-const FOOTER_COLS: Record<string, string[]> = {
-  SERVICOS: [
-    "Servicos Adjudicantes",
-    "Servicos Empresas e Adjudicatarias",
-    "Alerta Concursos Publicos",
-    "Identificacao CPV",
-  ],
-  RECURSOS: ["Blog", "ESG e Sustentabilidade", "RH", "FAQs"],
-  INSTITUCIONAL: ["Sobre Nos"],
-};
 
 type PageParams = {
   page?: string;
@@ -311,12 +299,12 @@ export default async function EstatisticasPrivadoPage({
           </div>
           <div className="w-full md:w-48">
             <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
-              NIF
+              NIPC
             </label>
             <input
               name="nif"
               defaultValue={nifFilter}
-              placeholder="NIF"
+              placeholder="NIPC"
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
             />
           </div>
@@ -372,7 +360,7 @@ export default async function EstatisticasPrivadoPage({
                   Empresa
                 </th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                  Acao
+                  Ação
                 </th>
               </tr>
             </thead>
@@ -484,62 +472,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
         {children}
       </main>
-      <footer
-        className="text-white pt-12 pb-6 px-10"
-        style={{ background: NAV_BG }}
-      >
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] gap-20 pb-10 border-b border-white/10">
-            <div className="flex flex-col gap-4">
-              <Image
-                src="/logo-white.webp"
-                alt="Helpdesk Publico"
-                width={180}
-                height={60}
-                className="object-contain"
-              />
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Solucoes especializadas em Contratacao Publica Eficiente.
-                Apoiamos entidades adjudicantes e operadores economicos em todo
-                o processo de concurso publico.
-              </p>
-            </div>
-            {Object.entries(FOOTER_COLS).map(([title, links]) => (
-              <div key={title}>
-                <p className="text-sm font-bold tracking-widest uppercase text-white mb-4">
-                  {title}
-                </p>
-                <ul className="space-y-2.5">
-                  {links.map((label) => (
-                    <li key={label}>
-                      <Link
-                        href="#"
-                        className="text-sm text-gray-400 hover:text-white transition-colors"
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div className="pt-5 flex flex-col items-center gap-3 text-xs text-gray-500 text-center">
-            <p>
-              © 2023 Helpdesk Publico. Todos os direitos reservados. Contratacao
-              Publica Eficiente.
-            </p>
-            <div className="flex items-center justify-center gap-5">
-              <Link href="#" className="hover:text-gray-300 transition-colors">
-                Politica de Privacidade
-              </Link>
-              <Link href="#" className="hover:text-gray-300 transition-colors">
-                Termos e Condicoes
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

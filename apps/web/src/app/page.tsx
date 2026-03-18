@@ -75,19 +75,21 @@ export default async function HomePage() {
     {
       icon: FileText,
       title: "Contratos Públicos",
-      description: `${integer(stats.contracts)} contratos públicos registados.`,
+      description: "Consulte todos os dados referentes aos contratos públicos.",
       href: "/mercado-publico",
     },
     {
       icon: Landmark,
       title: "Estatísticas Adjudicantes",
-      description: `${integer(stats.entities)} entidades adjudicantes com atividade registada.`,
+      description:
+        "Consulte todas as informações sobre os adjudicantes no mercado público.",
       href: "/estatisticas-publico",
     },
     {
       icon: Building2,
       title: "Estatísticas Adjudicatarias",
-      description: `${integer(stats.companies)} empresas adjudicatárias registadas.`,
+      description:
+        "Consulte todas as informações sobre os adjudicatarias no mercado público.",
       href: "/estatisticas-privado",
     },
     {
