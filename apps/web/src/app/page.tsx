@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 
 import {
   FileText,
@@ -11,6 +10,7 @@ import {
   Chrome,
 } from "lucide-react";
 import Header from "@/components/layout/Header";
+import PublicFooter from "@/components/layout/PublicFooter";
 const CARDS = [
   {
     icon: FileText,
@@ -213,6 +213,7 @@ export default function HomePage() {
           </div>
         </div>
       </footer>
+      <PublicFooter />
     </div>
   );
 }
