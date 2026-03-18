@@ -29,9 +29,9 @@ const CARDS = [
   },
   {
     icon: Building2,
-    title: "Estatísticas Adjudicatárias",
+    title: "Estatísticas Adjudicatarias",
     description:
-      "Consulte todas as informações sobre os adjudicatárias no mercado público.",
+      "Consulte todas as informações sobre os adjudicatarias no mercado público.",
     href: "/estatisticas-privado",
   },
   {
@@ -48,19 +48,6 @@ const CARDS = [
     href: "/outros",
   },
 ];
-
-const FOOTER_COLS: Record<string, string[]> = {
-  SERVIÇOS: [
-    "Serviços Adjudicantes",
-    "Serviços Empresas e Adjudicatárias",
-    "Alerta Concursos Públicos",
-    "Identificação CPV",
-  ],
-  RECURSOS: ["Blog", "ESG e Sustentabilidade", "RH", "FAQs"],
-  INSTITUCIONAL: ["Sobre Nós"],
-};
-
-const NAV_BG = "rgba(26, 27, 31, 1)";
 const BODY_BG = "rgba(248, 250, 252, 1)";
 const GREEN = "rgba(74, 222, 128, 1)";
 
