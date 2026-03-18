@@ -1,6 +1,5 @@
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import BackButton from "@/components/BackButton";
 import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, Building2, Filter, Search } from "lucide-react";
 import PublicFooter from "@/components/layout/PublicFooter";
@@ -255,19 +254,16 @@ export default async function EstatisticasPublicoPage({
 
   return (
     <PageShell>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <BarChart2 className="w-6 h-6 text-green-500" />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Estatisticas de Entidades Adjudicantes
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {totalRows} entidades encontradas
-            </p>
-          </div>
+      <div className="flex items-center gap-3">
+        <BarChart2 className="w-6 h-6 text-green-500" />
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">
+            Estatisticas de Entidades Adjudicantes
+          </h1>
+          <p className="text-gray-500 text-sm">
+            {totalRows} entidades encontradas
+          </p>
         </div>
-        <BackButton fallbackHref="/" className="w-fit shrink-0" />
       </div>
 
       <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
@@ -284,7 +280,7 @@ export default async function EstatisticasPublicoPage({
             style={{ background: GREEN, color: "#1a1a1a" }}
           >
             <Filter className="w-4 h-4" />
-            Pesquisar
+            Filtrar
           </button>
           {hasFilters ? (
             <Link
