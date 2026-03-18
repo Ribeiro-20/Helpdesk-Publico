@@ -6,7 +6,8 @@
  *
  * Security:
  *  - If the tenants table is empty → anyone authenticated can seed (first-run).
- *  - If tenants already exist → requires header x-admin-seed-secret == ADMIN_SEED_SECRET.
+ *  - If tenants exist and app_users is empty → bootstrap recovery allowed.
+ *  - If tenants and app_users already exist → requires x-admin-seed-secret == ADMIN_SEED_SECRET.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -29,25 +30,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
-
-    // How many tenants exist?
-    const { count } = await supabaseAdmin
-      .from("tenants")
-      .select("*", { count: "exact", head: true });
-
-    if ((count ?? 0) > 0) {
-      const secret = Deno.env.get("ADMIN_SEED_SECRET");
-      const provided = req.headers.get("x-admin-seed-secret");
-      if (!secret || provided !== secret) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "System already initialised. Supply the correct x-admin-seed-secret header.",
-          }),
-          { status: 403, headers: CORS },
-        );
-      }
-    }
 
     // Resolve authenticated user
     const authHeader = req.headers.get("Authorization");
@@ -78,45 +60,103 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if this user already has an app_users row
-    const { data: existing } = await supabaseAdmin
+    // Return early if this user is already initialised.
+    const { data: existingUser } = await supabaseAdmin
       .from("app_users")
       .select("tenant_id, role")
       .eq("id", user.id)
       .maybeSingle();
 
-    if (existing) {
+    if (existingUser) {
       return new Response(
         JSON.stringify({
           message: "User already initialised",
-          tenant_id: existing.tenant_id,
-          role: existing.role,
+          tenant_id: existingUser.tenant_id,
+          role: existingUser.role,
         }),
         { status: 200, headers: CORS },
       );
     }
 
-    // Create tenant
+    // Check bootstrap state.
+    const { count: tenantCount } = await supabaseAdmin
+      .from("tenants")
+      .select("*", { count: "exact", head: true });
+
+    // Fresh install: no tenant yet -> create one and map current user as admin.
+    if ((tenantCount ?? 0) === 0) {
+      const { data: tenant, error: tenantErr } = await supabaseAdmin
+        .from("tenants")
+        .insert({ name: "Default" })
+        .select()
+        .single();
+
+      if (tenantErr) throw tenantErr;
+
+      const { error: userErr } = await supabaseAdmin.from("app_users").insert({
+        id: user.id,
+        tenant_id: tenant.id,
+        role: "admin",
+      });
+
+      if (userErr) {
+        // Rollback tenant (best-effort)
+        await supabaseAdmin.from("tenants").delete().eq("id", tenant.id);
+        throw userErr;
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          tenant_id: tenant.id,
+          user_id: user.id,
+          role: "admin",
+          message: "System initialised successfully",
+        }),
+        { status: 200, headers: CORS },
+      );
+    }
+
+    // Existing tenant(s): allow without secret only if no app_users yet
+    // (bootstrap recovery when tenant was created manually).
+    const { count: appUsersCount } = await supabaseAdmin
+      .from("app_users")
+      .select("*", { count: "exact", head: true });
+
+    const secret = Deno.env.get("ADMIN_SEED_SECRET");
+    const provided = req.headers.get("x-admin-seed-secret");
+    const isBootstrapRecovery = (appUsersCount ?? 0) === 0;
+    const hasValidSecret = !!secret && provided === secret;
+
+    if (!isBootstrapRecovery && !hasValidSecret) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "System already initialised. Supply the correct x-admin-seed-secret header.",
+        }),
+        { status: 403, headers: CORS },
+      );
+    }
+
+    // Attach current user as admin to the oldest tenant.
     const { data: tenant, error: tenantErr } = await supabaseAdmin
       .from("tenants")
-      .insert({ name: "Default" })
-      .select()
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
       .single();
 
-    if (tenantErr) throw tenantErr;
+    if (tenantErr || !tenant) {
+      throw tenantErr ?? new Error("No tenant found");
+    }
 
-    // Create app_user as admin
     const { error: userErr } = await supabaseAdmin.from("app_users").insert({
       id: user.id,
       tenant_id: tenant.id,
       role: "admin",
     });
 
-    if (userErr) {
-      // Rollback tenant (best-effort)
-      await supabaseAdmin.from("tenants").delete().eq("id", tenant.id);
-      throw userErr;
-    }
+    if (userErr) throw userErr;
 
     return new Response(
       JSON.stringify({
@@ -124,7 +164,8 @@ Deno.serve(async (req) => {
         tenant_id: tenant.id,
         user_id: user.id,
         role: "admin",
-        message: "System initialised successfully",
+        bootstrap_recovery: isBootstrapRecovery,
+        message: "User linked to existing tenant",
       }),
       { status: 200, headers: CORS },
     );
