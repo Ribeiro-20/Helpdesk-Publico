@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 import {
   FileText,
@@ -129,6 +130,8 @@ export default function HomePage() {
           </div>
         </div>
       </main>
+
+      {/* ── FOOTER ── */}
       <PublicFooter />
     </div>
   );

@@ -1,8 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import Image from "next/image";
+import { FileText, Filter } from "lucide-react";
 import Header from "@/components/layout/Header";
-import PublicFooter from "@/components/layout/PublicFooter";
 import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoMultiSelect from "@/components/MercadoMultiSelect";
@@ -10,6 +10,20 @@ import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 
 export const dynamic = "force-dynamic";
+
+const NAV_BG = "rgba(26, 27, 31, 1)";
+
+const FOOTER_COLS: Record<string, string[]> = {
+  SERVIÇOS: [
+    "Serviços Adjudicantes",
+    "Serviços Empresas e Adjudicatários",
+    "Alerta Concursos Públicos",
+    "Identificação CPV",
+  ],
+  RECURSOS: ["Blog", "ESG e Sustentabilidade", "RH", "FAQs"],
+  INSTITUCIONAL: ["Sobre Nós"],
+};
+
 type MercadoSearchParams = {
   page?: string;
   cpv?: string;
@@ -726,7 +740,107 @@ export default async function MercadoPublicoPage({
         />
       </main>
 
-      <PublicFooter />
+      {/* ── FOOTER ── */}
+      <footer
+        className="text-white pt-12 pb-6 px-10"
+        style={{ background: NAV_BG }}
+      >
+        <div className="max-w-screen-2xl mx-auto">
+          <div className="grid grid-cols-[1fr_1fr_1fr_1fr_80px] gap-16 pb-10 border-b border-white/10">
+            <div className="flex flex-col gap-4 pr-8">
+              <Image
+                src="/logo-white.webp"
+                alt="Helpdesk Público"
+                width={180}
+                height={60}
+                className="object-contain"
+              />
+              <p className="text-sm text-gray-400 leading-relaxed">
+                Soluções especializadas em Contratação Pública Eficiente.
+                Apoiamos entidades adjudicantes e operadores económicos em todo
+                o processo de concurso público.
+              </p>
+            </div>
+            {Object.entries(FOOTER_COLS).map(([title, links]) => (
+              <div key={title}>
+                <p className="text-sm font-bold tracking-widest uppercase text-white mb-4">
+                  {title}
+                </p>
+                <ul className="space-y-2.5">
+                  {links.map((label) => (
+                    <li key={label}>
+                      <Link
+                        href="#"
+                        className={`text-sm text-gray-400 hover:text-white transition-colors ${label === "Serviços Empresas e Adjudicatários" ? "underline" : ""}`}
+                      >
+                        {label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <div className="flex flex-col items-center gap-4 pt-1">
+              <a
+                href="mailto:supcom@helpdeskpublico.pt"
+                aria-label="Email"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect width="20" height="16" x="2" y="4" rx="2" />
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                </svg>
+              </a>
+              <button
+                aria-label="Conta"
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M20 21a8 8 0 1 0-16 0" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div className="pt-5 flex items-center justify-between text-xs text-gray-500">
+            <p>
+              © 2023 Helpdesk Público. Todos os direitos reservados. Contratação
+              Pública Eficiente.
+            </p>
+            <div className="flex items-center gap-5">
+              <Link href="#" className="hover:text-gray-300 transition-colors">
+                Política de Privacidade
+              </Link>
+              <Link href="#" className="hover:text-gray-300 transition-colors">
+                Termos de Utilização
+              </Link>
+              <Link href="#" className="hover:text-gray-300 transition-colors">
+                Cookies
+              </Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
