@@ -3,6 +3,7 @@ import Header from "@/components/layout/Header";
 import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, Filter } from "lucide-react";
 import PublicFooter from "@/components/layout/PublicFooter";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,9 @@ const BODY_BG = "rgba(248, 250, 252, 1)";
 const GREEN = "rgba(74, 222, 128, 1)";
 type PageParams = {
   page?: string;
-  q?: string;
+  nif?: string;
+  name?: string;
+  year?: string;
 };
 
 type TopEntity = {
@@ -89,14 +92,19 @@ function normalizeCompany(row: Record<string, unknown>): CompanyRow {
     contracts_won: Math.max(0, Math.round(toNumber(row.contracts_won))),
     total_value_won: Math.max(0, toNumber(row.total_value_won)),
     avg_contract_value:
-      row.avg_contract_value == null ? null : Math.max(0, toNumber(row.avg_contract_value)),
+      row.avg_contract_value == null
+        ? null
+        : Math.max(0, toNumber(row.avg_contract_value)),
     win_rate: row.win_rate == null ? null : Math.max(0, toNumber(row.win_rate)),
     last_win_at: toStringOrNull(row.last_win_at),
     top_entities: parseTopEntities(row.top_entities),
   };
 }
 
-function buildQuery(base: Record<string, string>, overrides: Record<string, string>): string {
+function buildQuery(
+  base: Record<string, string>,
+  overrides: Record<string, string>,
+): string {
   const params = new URLSearchParams();
   const merged = { ...base, ...overrides };
 
@@ -116,7 +124,9 @@ export default async function EstatisticasPrivadoPage({
 }) {
   const params = await searchParams;
   const page = parsePositiveInt(params.page, 1);
-  const searchText = (params.q ?? "").trim();
+  const nifFilter = (params.nif ?? "").trim();
+  const nameFilter = (params.name ?? "").trim();
+  const yearFilter = (params.year ?? "").trim();
 
   const supabase = await createAdminClient();
 
@@ -148,7 +158,9 @@ export default async function EstatisticasPrivadoPage({
     return (
       <PageShell>
         <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-gray-900">/estatisticas-privado</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            /estatisticas-privado
+          </h1>
           <p className="text-sm text-gray-500 mt-2">
             Nao foi possivel resolver o tenant para mostrar estatisticas.
           </p>
@@ -165,9 +177,52 @@ export default async function EstatisticasPrivadoPage({
     )
     .eq("tenant_id", tenantId);
 
-  if (searchText) {
-    const token = searchText.replace(/[,%()]/g, " ");
-    query = query.or(`name.ilike.%${token}%,nif.ilike.%${token}%`);
+  if (yearFilter) {
+    // Filter by Year: Fetch contracts in that year to find active NIFs (winners)
+    const { data: contractsInYear } = await supabase
+      .from("contracts")
+      .select("winners")
+      .eq("tenant_id", tenantId)
+      .gte("signing_date", `${yearFilter}-01-01`)
+      .lte("signing_date", `${yearFilter}-12-31`)
+      .limit(100000);
+
+    const nifSet = new Set<string>();
+
+    if (contractsInYear) {
+      for (const c of contractsInYear) {
+        if (Array.isArray(c.winners)) {
+          for (const item of c.winners) {
+            if (typeof item === "string") {
+              // Tenta extrair NIF do formato "NIF - Nome" ou apenas "NIF"
+              let nif = item.split(" - ")[0]?.trim();
+
+              // Fallback: tenta extrair primeira sequência de digitos se o split falhar ou não for numérico
+              if (!nif || !/^\d+$/.test(nif)) {
+                const match = item.match(/^(\d+)/);
+                if (match) nif = match[1];
+              }
+
+              if (nif) nifSet.add(nif);
+            }
+          }
+        }
+      }
+    }
+
+    if (nifSet.size === 0) {
+      // Se não houver contratos nesse ano, força resultado vazio
+      query = query.eq("nif", "000000000");
+    } else {
+      query = query.in("nif", Array.from(nifSet));
+    }
+  }
+
+  if (nifFilter) {
+    query = query.ilike("nif", `%${nifFilter}%`);
+  }
+  if (nameFilter) {
+    query = query.ilike("name", `%${nameFilter}%`);
   }
 
   query = query
@@ -179,16 +234,20 @@ export default async function EstatisticasPrivadoPage({
 
   const { data: companyRows, count } = await query.range(from, to);
 
-  const companies = ((companyRows ?? []) as Record<string, unknown>[]).map(normalizeCompany);
+  const companies = ((companyRows ?? []) as Record<string, unknown>[]).map(
+    normalizeCompany,
+  );
   const totalRows = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
 
   const baseQuery: Record<string, string> = {
-    q: searchText,
+    nif: nifFilter,
+    name: nameFilter,
+    year: yearFilter,
   };
 
-  const hasFilters = !!searchText;
+  const hasFilters = !!(nifFilter || nameFilter || yearFilter);
 
   const pages: Array<number | "dots"> = [];
   const addPage = (n: number) => {
@@ -197,7 +256,11 @@ export default async function EstatisticasPrivadoPage({
 
   addPage(1);
   if (safePage > 3) pages.push("dots");
-  for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i += 1) {
+  for (
+    let i = Math.max(2, safePage - 1);
+    i <= Math.min(totalPages - 1, safePage + 1);
+    i += 1
+  ) {
     addPage(i);
   }
   if (safePage < totalPages - 2) pages.push("dots");
@@ -205,39 +268,84 @@ export default async function EstatisticasPrivadoPage({
 
   return (
     <PageShell>
-      <div className="flex items-center gap-3">
-        <BarChart2 className="w-6 h-6 text-green-500" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Estatisticas de Empresas Adjudicatárias
-          </h1>
-          <p className="text-gray-500 text-sm">{totalRows} empresas encontradas</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <BarChart2 className="w-6 h-6 text-green-500" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Estatisticas de Empresas Adjudicatárias
+            </h1>
+            <p className="text-gray-500 text-sm">
+              {totalRows} empresas encontradas
+            </p>
+          </div>
         </div>
+        <BackButton fallbackHref="/" className="w-fit shrink-0" />
       </div>
 
       <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <input
-            name="q"
-            defaultValue={searchText}
-            placeholder="Pesquisar por empresa ou NIF"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-          />
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
-            style={{ background: GREEN, color: "#1a1a1a" }}
-          >
-            <Filter className="w-4 h-4" />
-            Filtrar
-          </button>
-          {hasFilters ? (
-            <Link
-              href="/estatisticas-privado"
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+        <div className="flex flex-col md:flex-row md:items-end gap-3">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
+              Empresa
+            </label>
+            <input
+              name="name"
+              defaultValue={nameFilter}
+              placeholder="Nome da empresa"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
+              NIF
+            </label>
+            <input
+              name="nif"
+              defaultValue={nifFilter}
+              placeholder="NIF"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+            />
+          </div>
+          <div className="w-full md:w-36">
+            <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
+              Ano
+            </label>
+            <select
+              name="year"
+              defaultValue={yearFilter}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
             >
-              Limpar
-            </Link>
+              <option value="">Todos</option>
+              {Array.from(
+                { length: 10 },
+                (_, i) => new Date().getFullYear() - i,
+              ).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[38px]"
+              style={{ background: GREEN, color: "#1a1a1a" }}
+            >
+              <Filter className="w-4 h-4" />
+              Pesquisar
+            </button>
+          </div>
+          {hasFilters ? (
+            <div>
+              <Link
+                href="/estatisticas-privado"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[38px]"
+              >
+                Limpar
+              </Link>
+            </div>
           ) : null}
         </div>
       </form>
@@ -258,13 +366,23 @@ export default async function EstatisticasPrivadoPage({
 
             <tbody className="divide-y divide-gray-100">
               {companies.map((row) => {
-                const contractsHref = `/mercado-publico?winner=${encodeURIComponent(row.nif)}`;
+                let contractsHref = `/mercado-publico?winner=${encodeURIComponent(
+                  row.nif,
+                )}`;
 
+                if (yearFilter) {
+                  contractsHref += `&from_date=${yearFilter}-01-01&to_date=${yearFilter}-12-31`;
+                }
 
                 return (
-                  <tr key={row.id} className="hover:bg-green-50/40 transition-colors">
+                  <tr
+                    key={row.id}
+                    className="hover:bg-green-50/40 transition-colors"
+                  >
                     <td className="px-4 py-3">
-                      <p className="text-green-700 font-medium leading-tight">{row.name}</p>
+                      <p className="text-green-700 font-medium leading-tight">
+                        {row.name}
+                      </p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         {row.nif}
                         {row.location ? ` · ${row.location}` : ""}
@@ -284,7 +402,10 @@ export default async function EstatisticasPrivadoPage({
 
               {companies.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="px-4 py-16 text-center text-gray-400">
+                  <td
+                    colSpan={2}
+                    className="px-4 py-16 text-center text-gray-400"
+                  >
                     Nenhuma empresa encontrada com estes filtros.
                   </td>
                 </tr>
@@ -307,7 +428,10 @@ export default async function EstatisticasPrivadoPage({
 
           {pages.map((p, i) =>
             p === "dots" ? (
-              <span key={`dots-${i}`} className="px-2 py-1.5 text-sm text-gray-300">
+              <span
+                key={`dots-${i}`}
+                className="px-2 py-1.5 text-sm text-gray-300"
+              >
                 ...
               </span>
             ) : (
