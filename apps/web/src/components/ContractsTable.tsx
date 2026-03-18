@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import ContractModal from "./ContractModal";
+import InfoPopover from "./InfoPopover";
 
 export interface ContractRow {
   id: string;
@@ -207,12 +208,13 @@ export default function ContractsTable({
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider w-[110px]">
                   <span className="inline-flex items-center gap-1">
                     CPV
-                    <span
-                      className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 text-[10px] font-bold text-gray-500 bg-white normal-case"
-                      title="Passe o rato por cima do código CPV para ver a descrição."
-                      aria-label="Informação sobre coluna CPV"
-                    >
-                      i
+                    <span className="normal-case">
+                      <InfoPopover
+                        text="Passe o rato por cima do código CPV para ver a descrição."
+                        ariaLabel="Informação sobre coluna CPV"
+                        side="right"
+                        placement="bottom"
+                      />
                     </span>
                   </span>
                 </th>

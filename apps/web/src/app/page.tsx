@@ -28,9 +28,9 @@ const CARDS = [
   },
   {
     icon: Building2,
-    title: "Estatísticas Adjudicatarias",
+    title: "Estatísticas Adjudicatárias",
     description:
-      "Consulte todas as informações sobre os adjudicatarias no mercado público.",
+      "Consulte todas as informações sobre os adjudicatárias no mercado público.",
     href: "/estatisticas-privado",
   },
   {
@@ -51,7 +51,7 @@ const CARDS = [
 const FOOTER_COLS: Record<string, string[]> = {
   SERVIÇOS: [
     "Serviços Adjudicantes",
-    "Serviços Empresas e Adjudicatarias",
+    "Serviços Empresas e Adjudicatárias",
     "Alerta Concursos Públicos",
     "Identificação CPV",
   ],
@@ -179,7 +179,7 @@ export default function HomePage() {
                       <Link
                         href="#"
                         className={`text-sm text-gray-400 hover:text-white transition-colors ${
-                          label === "Serviços Empresas e Adjudicatarias"
+                          label === "Serviços Empresas e Adjudicatárias"
                             ? "underline"
                             : ""
                         }`}
