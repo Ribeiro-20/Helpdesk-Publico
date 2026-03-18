@@ -1,32 +1,18 @@
 import Link from "next/link";
-import Image from "next/image";
 import Header from "@/components/layout/Header";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, Filter } from "lucide-react";
+import PublicFooter from "@/components/layout/PublicFooter";
 
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
-const NAV_BG = "rgba(26, 27, 31, 1)";
 const BODY_BG = "rgba(248, 250, 252, 1)";
 const GREEN = "rgba(74, 222, 128, 1)";
-
-const FOOTER_COLS: Record<string, string[]> = {
-  SERVICOS: [
-    "Servicos Adjudicantes",
-    "Servicos Empresas e Adjudicatarios",
-    "Alerta Concursos Publicos",
-    "Identificacao CPV",
-  ],
-  RECURSOS: ["Blog", "ESG e Sustentabilidade", "RH", "FAQs"],
-  INSTITUCIONAL: ["Sobre Nos"],
-};
 
 type PageParams = {
   page?: string;
   q?: string;
-  region?: string;
-  sort?: string;
 };
 
 type TopEntity = {
@@ -69,26 +55,6 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   const parsed = parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return parsed;
-}
-
-function parsePositiveNumber(value: string | undefined): number | null {
-  if (!value) return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) return null;
-  return parsed;
-}
-
-function uniqueStrings(values: string[]): string[] {
-  const seen: Record<string, true> = {};
-  const out: string[] = [];
-  for (const value of values) {
-    const trimmed = value.trim();
-    if (!trimmed) continue;
-    if (seen[trimmed]) continue;
-    seen[trimmed] = true;
-    out.push(trimmed);
-  }
-  return out;
 }
 
 function parseTopEntities(value: unknown): TopEntity[] {
@@ -152,14 +118,8 @@ export default async function EstatisticasPrivadoPage({
   const params = await searchParams;
   const page = parsePositiveInt(params.page, 1);
   const searchText = (params.q ?? "").trim();
-  const regionFilter = params.region ?? "all";
-  const sort =
-    params.sort &&
-    ["value_desc", "contracts_desc", "recent_desc", "name_asc"].includes(params.sort)
-      ? params.sort
-      : "value_desc";
 
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const {
     data: { user },
@@ -198,16 +158,6 @@ export default async function EstatisticasPrivadoPage({
     );
   }
 
-  const { data: facetRows } = await supabase
-    .from("companies")
-    .select("location")
-    .eq("tenant_id", tenantId)
-    .limit(4000);
-
-  const regionOptions = uniqueStrings(
-    (facetRows ?? []).map((row) => String(row.location ?? "").trim()),
-  ).sort();
-
   let query = supabase
     .from("companies")
     .select(
@@ -221,23 +171,9 @@ export default async function EstatisticasPrivadoPage({
     query = query.or(`name.ilike.%${token}%,nif.ilike.%${token}%`);
   }
 
-  if (regionFilter !== "all") {
-    query = query.eq("location", regionFilter);
-  }
-
-  if (sort === "contracts_desc") {
-    query = query
-      .order("contracts_won", { ascending: false })
-      .order("total_value_won", { ascending: false });
-  } else if (sort === "recent_desc") {
-    query = query.order("last_win_at", { ascending: false, nullsFirst: false });
-  } else if (sort === "name_asc") {
-    query = query.order("name", { ascending: true });
-  } else {
-    query = query
-      .order("total_value_won", { ascending: false })
-      .order("contracts_won", { ascending: false });
-  }
+  query = query
+    .order("total_value_won", { ascending: false })
+    .order("contracts_won", { ascending: false });
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
@@ -251,11 +187,9 @@ export default async function EstatisticasPrivadoPage({
 
   const baseQuery: Record<string, string> = {
     q: searchText,
-    region: regionFilter,
-    sort,
   };
 
-  const hasFilters = !!searchText || regionFilter !== "all";
+  const hasFilters = !!searchText;
 
   const pages: Array<number | "dots"> = [];
   const addPage = (n: number) => {
@@ -276,50 +210,20 @@ export default async function EstatisticasPrivadoPage({
         <BarChart2 className="w-6 h-6 text-green-500" />
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Estatisticas de Empresas Adjudicatarias
+            Estatisticas de Empresas Adjudicatárias
           </h1>
           <p className="text-gray-500 text-sm">{totalRows} empresas encontradas</p>
         </div>
       </div>
 
       <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          <div className="md:col-span-3">
-            <input
-              name="q"
-              defaultValue={searchText}
-              placeholder="Pesquisa por empresa ou NIF"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-            />
-          </div>
-          <select
-            name="region"
-            defaultValue={regionFilter}
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-          >
-            <option value="all">Regiao: Todas</option>
-            {regionOptions.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-[1.5fr_auto_auto] items-end gap-3">
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Ordenar</label>
-            <select
-              name="sort"
-              defaultValue={sort}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-            >
-              <option value="value_desc">Maior valor</option>
-              <option value="contracts_desc">Mais contratos</option>
-              <option value="recent_desc">Atividade recente</option>
-              <option value="name_asc">Nome A-Z</option>
-            </select>
-          </div>
+        <div className="flex flex-col md:flex-row md:items-center gap-3">
+          <input
+            name="q"
+            defaultValue={searchText}
+            placeholder="Pesquisar por empresa ou NIF"
+            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+          />
           <button
             type="submit"
             className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
@@ -335,9 +239,7 @@ export default async function EstatisticasPrivadoPage({
             >
               Limpar
             </Link>
-          ) : (
-            <div />
-          )}
+          ) : null}
         </div>
       </form>
 
@@ -446,57 +348,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
         {children}
       </main>
-      <footer className="text-white pt-12 pb-6 px-10" style={{ background: NAV_BG }}>
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] gap-20 pb-10 border-b border-white/10">
-            <div className="flex flex-col gap-4">
-              <Image
-                src="/logo-white.webp"
-                alt="Helpdesk Publico"
-                width={180}
-                height={60}
-                className="object-contain"
-              />
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Solucoes especializadas em Contratacao Publica Eficiente. Apoiamos entidades
-                adjudicantes e operadores economicos em todo o processo de concurso publico.
-              </p>
-            </div>
-            {Object.entries(FOOTER_COLS).map(([title, links]) => (
-              <div key={title}>
-                <p className="text-sm font-bold tracking-widest uppercase text-white mb-4">
-                  {title}
-                </p>
-                <ul className="space-y-2.5">
-                  {links.map((label) => (
-                    <li key={label}>
-                      <Link
-                        href="#"
-                        className="text-sm text-gray-400 hover:text-white transition-colors"
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-          <div className="pt-5 flex flex-col items-center gap-3 text-xs text-gray-500 text-center">
-            <p>
-              © 2023 Helpdesk Publico. Todos os direitos reservados. Contratacao Publica Eficiente.
-            </p>
-            <div className="flex items-center justify-center gap-5">
-              <Link href="#" className="hover:text-gray-300 transition-colors">
-                Politica de Privacidade
-              </Link>
-              <Link href="#" className="hover:text-gray-300 transition-colors">
-                Termos e Condicoes
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
