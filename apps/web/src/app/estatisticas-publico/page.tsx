@@ -24,7 +24,9 @@ const FOOTER_COLS: Record<string, string[]> = {
 
 type PageParams = {
   page?: string;
-  q?: string;
+  nif?: string;
+  name?: string;
+  year?: string;
 };
 
 type TopCompany = {
@@ -122,7 +124,9 @@ function normalizeEntity(row: Record<string, unknown>): EntityRow {
     total_contracts: Math.max(0, Math.round(toNumber(row.total_contracts))),
     total_value: Math.max(0, toNumber(row.total_value)),
     avg_contract_value:
-      row.avg_contract_value == null ? null : Math.max(0, toNumber(row.avg_contract_value)),
+      row.avg_contract_value == null
+        ? null
+        : Math.max(0, toNumber(row.avg_contract_value)),
     last_activity_at: toStringOrNull(row.last_activity_at),
     top_companies: parseTopCompanies(row.top_companies),
   };
@@ -156,7 +160,10 @@ function concentrationBadge(share: number): {
   };
 }
 
-function buildQuery(base: Record<string, string>, overrides: Record<string, string>): string {
+function buildQuery(
+  base: Record<string, string>,
+  overrides: Record<string, string>,
+): string {
   const params = new URLSearchParams();
   const merged = { ...base, ...overrides };
 
@@ -176,7 +183,9 @@ export default async function EstatisticasPublicoPage({
 }) {
   const params = await searchParams;
   const page = parsePositiveInt(params.page, 1);
-  const searchText = (params.q ?? "").trim();
+  const nifFilter = (params.nif ?? "").trim();
+  const nameFilter = (params.name ?? "").trim();
+  const yearFilter = (params.year ?? "").trim();
 
   const supabase = await createAdminClient();
 
@@ -208,7 +217,9 @@ export default async function EstatisticasPublicoPage({
     return (
       <PageShell>
         <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-          <h1 className="text-xl font-semibold text-gray-900">/estatisticas-publico</h1>
+          <h1 className="text-xl font-semibold text-gray-900">
+            /estatisticas-publico
+          </h1>
           <p className="text-sm text-gray-500 mt-2">
             Nao foi possivel resolver o tenant para mostrar estatisticas.
           </p>
@@ -225,31 +236,88 @@ export default async function EstatisticasPublicoPage({
     )
     .eq("tenant_id", tenantId);
 
-  if (searchText) {
-    const token = searchText.replace(/[,%()]/g, " ");
-    query = query.or(`name.ilike.%${token}%,nif.ilike.%${token}%`);
+  // Filter by Year: Fetch contracts in that year to find active NIFs
+  if (yearFilter) {
+    const start = `${yearFilter}-01-01`;
+    const end = `${yearFilter}-12-31`;
+
+    const { data: contractsInYear } = await supabase
+      .from("contracts")
+      .select("contracting_entities")
+      .eq("tenant_id", tenantId)
+      .gte("signing_date", start)
+      .lte("signing_date", end)
+      .limit(100000);
+
+    const nifSet = new Set<string>();
+    if (contractsInYear) {
+      for (const c of contractsInYear) {
+        const ents = c.contracting_entities;
+        if (Array.isArray(ents)) {
+          for (const item of ents) {
+            if (typeof item === "string") {
+              // Tenta extrair NIF do formato "NIF - Nome" ou apenas "NIF"
+              let nif = item.split(" - ")[0]?.trim();
+
+              // Fallback: tenta extrair primeira sequência de digitos se o split falhar ou não for numérico
+              if (!nif || !/^\d+$/.test(nif)) {
+                const match = item.match(/^(\d+)/);
+                if (match) nif = match[1];
+              }
+
+              if (nif) nifSet.add(nif);
+            }
+          }
+        }
+      }
+    }
+
+    if (nifSet.size === 0) {
+      query = query.eq("nif", "000000000"); // Nenhum contrato encontrado -> filtro impossível
+    } else {
+      query = query.in("nif", Array.from(nifSet));
+    }
   }
 
-  query = query.order("total_value", { ascending: false }).order("total_contracts", { ascending: false });
+  if (nifFilter) {
+    query = query.ilike("nif", `%${nifFilter}%`);
+  }
+  if (nameFilter) {
+    query = query.ilike("name", `%${nameFilter}%`);
+  }
+
+  query = query
+    .order("total_value", { ascending: false })
+    .order("total_contracts", { ascending: false });
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
   const { data: entityRows, count } = await query.range(from, to);
 
-  const entities = ((entityRows ?? []) as Record<string, unknown>[]).map(normalizeEntity);
+  const entities = ((entityRows ?? []) as Record<string, unknown>[]).map(
+    normalizeEntity,
+  );
   const totalRows = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
 
-  const currentPageContracts = entities.reduce((sum, row) => sum + row.total_contracts, 0);
-  const currentPageValue = entities.reduce((sum, row) => sum + row.total_value, 0);
+  const currentPageContracts = entities.reduce(
+    (sum, row) => sum + row.total_contracts,
+    0,
+  );
+  const currentPageValue = entities.reduce(
+    (sum, row) => sum + row.total_value,
+    0,
+  );
 
   const baseQuery: Record<string, string> = {
-    q: searchText,
+    nif: nifFilter,
+    name: nameFilter,
+    year: yearFilter,
   };
 
-  const hasFilters = !!searchText;
+  const hasFilters = !!(nifFilter || nameFilter || yearFilter);
 
   const pages: Array<number | "dots"> = [];
   const addPage = (n: number) => {
@@ -258,7 +326,11 @@ export default async function EstatisticasPublicoPage({
 
   addPage(1);
   if (safePage > 3) pages.push("dots");
-  for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i += 1) {
+  for (
+    let i = Math.max(2, safePage - 1);
+    i <= Math.min(totalPages - 1, safePage + 1);
+    i += 1
+  ) {
     addPage(i);
   }
   if (safePage < totalPages - 2) pages.push("dots");
@@ -279,28 +351,68 @@ export default async function EstatisticasPublicoPage({
       </div>
 
       <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center gap-3">
-          <input
-            name="q"
-            defaultValue={searchText}
-            placeholder="Pesquisar por entidade ou NIF"
-            className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-          />
-          <button
-            type="submit"
-            className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
-            style={{ background: GREEN, color: "#1a1a1a" }}
-          >
-            <Filter className="w-4 h-4" />
-            Filtrar
-          </button>
-          {hasFilters ? (
-            <Link
-              href="/estatisticas-publico"
-              className="px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+        <div className="flex flex-col md:flex-row md:items-end gap-3">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
+              Entidade
+            </label>
+            <input
+              name="name"
+              defaultValue={nameFilter}
+              placeholder="Nome da entidade"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
+              NIF
+            </label>
+            <input
+              name="nif"
+              defaultValue={nifFilter}
+              placeholder="NIF"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+            />
+          </div>
+          <div className="w-full md:w-36">
+            <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
+              Ano
+            </label>
+            <select
+              name="year"
+              defaultValue={yearFilter}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
             >
-              Limpar
-            </Link>
+              <option value="">Todos</option>
+              {Array.from(
+                { length: 10 },
+                (_, i) => new Date().getFullYear() - i,
+              ).map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <button
+              type="submit"
+              className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[38px]"
+              style={{ background: GREEN, color: "#1a1a1a" }}
+            >
+              <Filter className="w-4 h-4" />
+              Filtrar
+            </button>
+          </div>
+          {hasFilters ? (
+            <div>
+              <Link
+                href="/estatisticas-publico"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[38px]"
+              >
+                Limpar
+              </Link>
+            </div>
           ) : null}
         </div>
       </form>
@@ -321,14 +433,26 @@ export default async function EstatisticasPublicoPage({
 
             <tbody className="divide-y divide-gray-100">
               {entities.map((row) => {
-                const contractsHref = `/mercado-publico?entity=${encodeURIComponent(row.nif)}`;
+                let contractsHref = `/mercado-publico?entity=${encodeURIComponent(
+                  row.nif,
+                )}`;
+
+                if (yearFilter) {
+                  contractsHref += `&from_date=${yearFilter}-01-01&to_date=${yearFilter}-12-31`;
+                }
 
                 return (
-                  <tr key={row.id} className="hover:bg-green-50/40 transition-colors">
+                  <tr
+                    key={row.id}
+                    className="hover:bg-green-50/40 transition-colors"
+                  >
                     <td className="px-4 py-3">
-                      <p className="text-green-700 font-medium leading-tight">{row.name}</p>
+                      <p className="text-green-700 font-medium leading-tight">
+                        {row.name}
+                      </p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {row.nif} {row.entity_type ? `· ${row.entity_type}` : ""}
+                        {row.nif}{" "}
+                        {row.entity_type ? `· ${row.entity_type}` : ""}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -345,7 +469,10 @@ export default async function EstatisticasPublicoPage({
 
               {entities.length === 0 && (
                 <tr>
-                  <td colSpan={2} className="px-4 py-16 text-center text-gray-400">
+                  <td
+                    colSpan={2}
+                    className="px-4 py-16 text-center text-gray-400"
+                  >
                     Nenhuma entidade encontrada com estes filtros.
                   </td>
                 </tr>
@@ -368,7 +495,10 @@ export default async function EstatisticasPublicoPage({
 
           {pages.map((p, i) =>
             p === "dots" ? (
-              <span key={`dots-${i}`} className="px-2 py-1.5 text-sm text-gray-300">
+              <span
+                key={`dots-${i}`}
+                className="px-2 py-1.5 text-sm text-gray-300"
+              >
                 ...
               </span>
             ) : (
@@ -417,7 +547,10 @@ function PageShell({ children }: { children: React.ReactNode }) {
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
         {children}
       </main>
-      <footer className="text-white pt-12 pb-6 px-10" style={{ background: NAV_BG }}>
+      <footer
+        className="text-white pt-12 pb-6 px-10"
+        style={{ background: NAV_BG }}
+      >
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] gap-20 pb-10 border-b border-white/10">
             <div className="flex flex-col gap-4">
@@ -429,16 +562,23 @@ function PageShell({ children }: { children: React.ReactNode }) {
                 className="object-contain"
               />
               <p className="text-sm text-gray-400 leading-relaxed">
-                Solucoes especializadas em Contratacao Publica Eficiente. Apoiamos entidades adjudicantes e operadores economicos em todo o processo de concurso publico.
+                Solucoes especializadas em Contratacao Publica Eficiente.
+                Apoiamos entidades adjudicantes e operadores economicos em todo
+                o processo de concurso publico.
               </p>
             </div>
             {Object.entries(FOOTER_COLS).map(([title, links]) => (
               <div key={title}>
-                <p className="text-sm font-bold tracking-widest uppercase text-white mb-4">{title}</p>
+                <p className="text-sm font-bold tracking-widest uppercase text-white mb-4">
+                  {title}
+                </p>
                 <ul className="space-y-2.5">
                   {links.map((label) => (
                     <li key={label}>
-                      <Link href="#" className="text-sm text-gray-400 hover:text-white transition-colors">
+                      <Link
+                        href="#"
+                        className="text-sm text-gray-400 hover:text-white transition-colors"
+                      >
                         {label}
                       </Link>
                     </li>
@@ -448,11 +588,20 @@ function PageShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <div className="pt-5 flex flex-col items-center gap-3 text-xs text-gray-500 text-center">
-            <p>© 2023 Helpdesk Publico. Todos os direitos reservados. Contratacao Publica Eficiente.</p>
+            <p>
+              © 2023 Helpdesk Publico. Todos os direitos reservados. Contratacao
+              Publica Eficiente.
+            </p>
             <div className="flex items-center justify-center gap-5">
-              <Link href="#" className="hover:text-gray-300 transition-colors">Politica de Privacidade</Link>
-              <Link href="#" className="hover:text-gray-300 transition-colors">Termos de Utilizacao</Link>
-              <Link href="#" className="hover:text-gray-300 transition-colors">Cookies</Link>
+              <Link href="#" className="hover:text-gray-300 transition-colors">
+                Politica de Privacidade
+              </Link>
+              <Link href="#" className="hover:text-gray-300 transition-colors">
+                Termos de Utilizacao
+              </Link>
+              <Link href="#" className="hover:text-gray-300 transition-colors">
+                Cookies
+              </Link>
             </div>
           </div>
         </div>
