@@ -8,6 +8,7 @@ import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -551,16 +552,19 @@ export default async function MercadoPublicoPage({
       {/* ── MAIN ── */}
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
         {/* Title */}
-        <div className="flex items-center gap-3">
-          <FileText className="w-6 h-6 text-green-500" />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Estatísticas de Mercado
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {totalCount} contratos celebrados
-            </p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <FileText className="w-6 h-6 text-green-500" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Estatísticas de Mercado
+              </h1>
+              <p className="text-gray-500 text-sm">
+                {totalCount} contratos celebrados
+              </p>
+            </div>
           </div>
+          <BackButton fallbackHref="/" className="w-fit shrink-0" />
         </div>
 
         {/* Filters */}
