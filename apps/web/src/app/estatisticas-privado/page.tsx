@@ -9,7 +9,6 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;
 const BODY_BG = "rgba(248, 250, 252, 1)";
 const GREEN = "rgba(74, 222, 128, 1)";
-
 type PageParams = {
   page?: string;
   q?: string;

@@ -47,7 +47,6 @@ const CARDS = [
     href: "/outros",
   },
 ];
-
 const BODY_BG = "rgba(248, 250, 252, 1)";
 const GREEN = "rgba(74, 222, 128, 1)";
 
@@ -130,7 +129,6 @@ export default function HomePage() {
           </div>
         </div>
       </main>
-
       <PublicFooter />
     </div>
   );

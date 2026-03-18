@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import ContractModal from "./ContractModal";
 
 export interface ContractRow {
@@ -22,10 +23,12 @@ export interface ContractRow {
 
 function formatEur(val: number | null): string {
   if (val == null) return "—";
-  return val.toLocaleString("pt-PT", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }) + " €";
+  return (
+    val.toLocaleString("pt-PT", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) + " €"
+  );
 }
 
 function formatDate(d: string | null): string {
@@ -35,7 +38,10 @@ function formatDate(d: string | null): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-function executionProgress(signingDate: string | null, deadlineDays: number | null | undefined): number | null {
+function executionProgress(
+  signingDate: string | null,
+  deadlineDays: number | null | undefined,
+): number | null {
   if (!signingDate || !deadlineDays || deadlineDays <= 0) return null;
 
   const start = new Date(`${signingDate}T00:00:00`);
@@ -106,9 +112,52 @@ export default function ContractsTable({
   hasFilters: boolean;
   totalPages: number;
   page: number;
-  buildQsBase: string; // base URL with current filters, without page
+  buildQsBase: string;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [cpvDescriptions, setCpvDescriptions] = useState<
+    Record<string, string>
+  >({});
+  const supabase = createClient();
+
+  const cpvCodesOnPage = useMemo(
+    () =>
+      Array.from(
+        new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[]),
+      ),
+    [contracts],
+  );
+
+  useEffect(() => {
+    if (cpvCodesOnPage.length === 0) return;
+
+    const missing = cpvCodesOnPage.filter((code) => !cpvDescriptions[code]);
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const { data, error } = await supabase
+        .from("cpv_codes")
+        .select("id, descricao")
+        .in("id", missing);
+
+      if (cancelled || error || !data) return;
+
+      const mapped: Record<string, string> = {};
+      for (const row of data as Array<{ id: string; descricao: string }>) {
+        if (row.id) mapped[row.id] = row.descricao ?? "";
+      }
+
+      if (Object.keys(mapped).length > 0) {
+        setCpvDescriptions((prev) => ({ ...prev, ...mapped }));
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [cpvCodesOnPage, cpvDescriptions, supabase]);
 
   function buildQs(p: number) {
     const url = new URL(buildQsBase, "http://x");
@@ -138,19 +187,41 @@ export default function ContractsTable({
 
   return (
     <>
-      {/* Table */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Objecto</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Adjudicante</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Adjudicatário</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Celebração</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider w-[110px]">CPV</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Valor</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Estado</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                  Objecto
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                  Adjudicante
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                  Adjudicatário
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                  Celebração
+                </th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider w-[110px]">
+                  <span className="inline-flex items-center gap-1">
+                    CPV
+                    <span
+                      className="inline-flex items-center justify-center w-4 h-4 rounded-full border border-gray-300 text-[10px] font-bold text-gray-500 bg-white normal-case"
+                      title="Passe o rato por cima do código CPV para ver a descrição."
+                      aria-label="Informação sobre coluna CPV"
+                    >
+                      i
+                    </span>
+                  </span>
+                </th>
+                <th className="text-center px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                  Valor
+                </th>
+                <th className="text-center px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
+                  Estado
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -165,6 +236,10 @@ export default function ContractsTable({
                     ? extractName(c.winners[0])
                     : "—";
                 const statusBadge = resolveStatusBadge(c);
+                const cpvTitle = c.cpv_main
+                  ? cpvDescriptions[c.cpv_main] ||
+                    "Descrição de CPV indisponível"
+                  : undefined;
 
                 return (
                   <tr
@@ -182,20 +257,31 @@ export default function ContractsTable({
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate text-xs">{entityName}</td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate text-xs">{winnerName}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate text-xs">
+                      {entityName}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate text-xs">
+                      {winnerName}
+                    </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">
                       {formatDate(c.signing_date)}
                     </td>
                     <td className="px-4 py-3 w-[110px]">
                       {c.cpv_main ? (
-                        <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap">
+                        <span
+                          title={cpvTitle}
+                          className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap"
+                        >
                           {c.cpv_main}
                         </span>
-                      ) : "—"}
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap">
-                      <span className="text-gray-900 font-medium text-xs">{formatEur(c.contract_price)}</span>
+                      <span className="text-gray-900 font-medium text-xs">
+                        {formatEur(c.contract_price)}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span
@@ -210,7 +296,10 @@ export default function ContractsTable({
               })}
               {contracts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-16 text-center text-gray-400">
+                  <td
+                    colSpan={7}
+                    className="px-4 py-16 text-center text-gray-400"
+                  >
                     {hasFilters
                       ? "Nenhum contrato encontrado com estes filtros."
                       : "Nenhum contrato na base de dados. Execute a ingestão de contratos no Dashboard."}
@@ -222,7 +311,6 @@ export default function ContractsTable({
         </div>
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center gap-1 flex-wrap pb-4">
           {page > 1 && (
@@ -256,7 +344,6 @@ export default function ContractsTable({
         </div>
       )}
 
-      {/* Modal */}
       {selectedId && (
         <ContractModal
           contractId={selectedId}

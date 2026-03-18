@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
@@ -141,7 +141,7 @@ export default async function PublicContractDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
+  const supabase = await createAdminClient();
 
   const [{ data: contract }, { data: modifications }] = await Promise.all([
     supabase.from("contracts").select("*").eq("id", id).single(),

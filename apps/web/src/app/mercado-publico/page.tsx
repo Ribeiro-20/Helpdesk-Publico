@@ -10,7 +10,6 @@ import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 
 export const dynamic = "force-dynamic";
-
 type MercadoSearchParams = {
   page?: string;
   cpv?: string;
