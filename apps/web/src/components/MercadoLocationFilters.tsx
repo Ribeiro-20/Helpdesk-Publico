@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import InfoPopover from "./InfoPopover";
 
 type LocationOptionsByCountry = Record<string, Record<string, string[]>>;
 
@@ -122,70 +123,77 @@ export default function MercadoLocationFilters({
     districtDisabled || district === "all" || municipalityOptions.length === 0;
 
   return (
-    <>
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">País</label>
-        <select
-          name="country"
-          value={country}
-          onChange={(event) => {
-            setCountry(event.target.value);
-            setDistrict("all");
-            setMunicipality("all");
-          }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-        >
-          <option value="all">Todos</option>
-          {countryOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+    <div className="md:col-span-3">
+      <div className="flex items-center gap-1 mb-1">
+        <p className="block text-xs text-gray-500">Local de Execução</p>
+        <InfoPopover text="Filtre por país, distrito e concelho do local de execução." />
       </div>
 
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Distrito</label>
-        <select
-          name="district"
-          value={district}
-          disabled={districtDisabled}
-          onChange={(event) => {
-            setDistrict(event.target.value);
-            setMunicipality("all");
-          }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
-        >
-          <option value="all">{districtDisabled ? "Selecione um país" : "Todos"}</option>
-          {districtOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">País</label>
+          <select
+            name="country"
+            value={country}
+            onChange={(event) => {
+              setCountry(event.target.value);
+              setDistrict("all");
+              setMunicipality("all");
+            }}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
+          >
+            <option value="all">Todos</option>
+            {countryOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Concelho</label>
-        <select
-          name="municipality"
-          value={municipality}
-          disabled={municipalityDisabled}
-          onChange={(event) => {
-            setMunicipality(event.target.value);
-          }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
-        >
-          <option value="all">
-            {municipalityDisabled ? "Selecione um distrito" : "Todos"}
-          </option>
-          {municipalityOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Distrito</label>
+          <select
+            name="district"
+            value={district}
+            disabled={districtDisabled}
+            onChange={(event) => {
+              setDistrict(event.target.value);
+              setMunicipality("all");
+            }}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            <option value="all">{districtDisabled ? "Selecione um país" : "Todos"}</option>
+            {districtOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs text-gray-400 mb-1">Concelho</label>
+          <select
+            name="municipality"
+            value={municipality}
+            disabled={municipalityDisabled}
+            onChange={(event) => {
+              setMunicipality(event.target.value);
+            }}
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
+          >
+            <option value="all">
+              {municipalityDisabled ? "Selecione um distrito" : "Todos"}
             </option>
-          ))}
-        </select>
+            {municipalityOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

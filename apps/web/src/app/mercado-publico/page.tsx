@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import Link from "next/link";
+import Image from "next/image";
+import { FileText, Filter } from "lucide-react";
 import { FileText } from "lucide-react";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
@@ -7,7 +9,9 @@ import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
+import MercadoDateDropdown from "@/components/MercadoDateDropdown";
 import InfoPopover from "@/components/InfoPopover";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 type MercadoSearchParams = {
@@ -537,16 +541,19 @@ export default async function MercadoPublicoPage({
       {/* ── MAIN ── */}
       <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
         {/* Title */}
-        <div className="flex items-center gap-3">
-          <FileText className="w-6 h-6 text-green-500" />
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Estatísticas de Mercado
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {totalCount} contratos celebrados
-            </p>
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <FileText className="w-6 h-6 text-green-500" />
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Estatísticas de Mercado
+              </h1>
+              <p className="text-gray-500 text-sm">
+                {totalCount} contratos celebrados
+              </p>
+            </div>
           </div>
+          <BackButton fallbackHref="/" className="w-fit shrink-0" />
         </div>
 
         {/* Filters */}
@@ -600,30 +607,24 @@ export default async function MercadoPublicoPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div>
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">Data de</label>
+            <div className="rounded-xl border border-gray-200 bg-white p-3">
+              <div className="flex items-center gap-1 mb-2">
+                <label className="block text-xs text-gray-400">
+                  Data de
+                </label>
                 <InfoPopover text="Data inicial da celebracao dos contratos." />
               </div>
-              <input
-                name="from_date"
-                type="date"
-                defaultValue={fromDate}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              />
+              <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
             </div>
 
-            <div>
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">Data até</label>
+            <div className="rounded-xl border border-gray-200 bg-white p-3">
+              <div className="flex items-center gap-1 mb-2">
+                <label className="block text-xs text-gray-400">
+                  Data até
+                </label>
                 <InfoPopover text="Data final da celebracao dos contratos." />
               </div>
-              <input
-                name="to_date"
-                type="date"
-                defaultValue={toDate}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              />
+              <MercadoDateDropdown name="to_date" defaultValue={toDate} />
             </div>
 
             <div>
@@ -700,10 +701,11 @@ export default async function MercadoPublicoPage({
 
             <button
               type="submit"
-              className="text-white text-sm font-medium px-5 py-2 rounded-xl transition-all shadow-sm hover:opacity-90"
+              className="inline-flex items-center justify-center gap-1 px-5 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
               style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
             >
-              Filtrar
+              <Filter className="w-4 h-4" />
+              Pesquisar
             </button>
             {hasFilters && (
               <Link
