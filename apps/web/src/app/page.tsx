@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 import {
   FileText,
@@ -144,75 +145,6 @@ export default function HomePage() {
       </main>
 
       {/* ── FOOTER ── */}
-      <footer
-        className="text-white pt-12 pb-6 px-10"
-        style={{ background: NAV_BG }}
-      >
-        <div className="max-w-7xl mx-auto">
-          {/* Top grid */}
-          <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] gap-20 pb-10 border-b border-white/10">
-            {/* Brand */}
-            <div className="flex flex-col gap-4">
-              <Image
-                src="/logo-white.webp"
-                alt="Helpdesk Público"
-                width={180}
-                height={60}
-                className="object-contain"
-              />
-              <p className="text-sm text-gray-400 leading-relaxed">
-                Soluções especializadas em Contratação Pública Eficiente.
-                Apoiamos entidades adjudicantes e operadores económicos em todo
-                o processo de concurso público.
-              </p>
-            </div>
-
-            {/* Link cols */}
-            {Object.entries(FOOTER_COLS).map(([title, links]) => (
-              <div key={title}>
-                <p className="text-sm font-bold tracking-widest uppercase text-white mb-4">
-                  {title}
-                </p>
-                <ul className="space-y-2.5">
-                  {links.map((label) => (
-                    <li key={label}>
-                      <Link
-                        href="#"
-                        className={`text-sm text-gray-400 hover:text-white transition-colors ${
-                          label === "Serviços Empresas e Adjudicatárias"
-                            ? "underline"
-                            : ""
-                        }`}
-                      >
-                        {label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-
-          {/* Bottom bar */}
-          <div className="pt-5 flex flex-col items-center gap-3 text-xs text-gray-500 text-center">
-            <p>
-              © 2023 Helpdesk Público. Todos os direitos reservados. Contratação
-              Pública Eficiente.
-            </p>
-            <div className="flex items-center justify-center gap-5">
-              <Link href="#" className="hover:text-gray-300 transition-colors">
-                Política de Privacidade
-              </Link>
-              <Link href="#" className="hover:text-gray-300 transition-colors">
-                Termos de Utilização
-              </Link>
-              <Link href="#" className="hover:text-gray-300 transition-colors">
-                Cookies
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
       <PublicFooter />
     </div>
   );

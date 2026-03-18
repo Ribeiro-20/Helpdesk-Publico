@@ -48,7 +48,7 @@ export default async function SettingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* User info */}
         <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-          <h2 className="font-semibold text-gray-900 mb-4 text-xs uppercase tracking-wider text-gray-400">
+          <h2 className="font-semibold mb-4 text-xs uppercase tracking-wider text-gray-400">
             Utilizador
           </h2>
           <div>
