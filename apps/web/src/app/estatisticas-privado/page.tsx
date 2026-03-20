@@ -1,8 +1,8 @@
 import Link from "next/link";
 import Header from "@/components/layout/Header";
+import PublicFooter from "@/components/layout/PublicFooter";
 import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, Filter } from "lucide-react";
-import PublicFooter from "@/components/layout/PublicFooter";
 import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;
 const BODY_BG = "rgba(248, 250, 252, 1)";
 const GREEN = "rgba(74, 222, 128, 1)";
+
 type PageParams = {
   page?: string;
   nif?: string;
@@ -298,12 +299,12 @@ export default async function EstatisticasPrivadoPage({
           </div>
           <div className="w-full md:w-48">
             <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
-              NIF
+              NIPC
             </label>
             <input
               name="nif"
               defaultValue={nifFilter}
-              placeholder="NIF"
+              placeholder="NIPC"
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
             />
           </div>
@@ -359,7 +360,7 @@ export default async function EstatisticasPrivadoPage({
                   Empresa
                 </th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                  Acao
+                  Ação
                 </th>
               </tr>
             </thead>
