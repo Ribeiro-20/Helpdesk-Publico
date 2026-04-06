@@ -15,6 +15,10 @@ function sortValues(values: string[]): string[] {
   return [...values].sort((a, b) => a.localeCompare(b, "pt-PT"));
 }
 
+function formatDistrictLabel(value: string): string {
+  return value === "Braganca" ? "Bragança" : value;
+}
+
 function getDistrictOptions(
   locationOptionsByCountry: LocationOptionsByCountry,
   country: string,
@@ -159,7 +163,7 @@ export default function MercadoLocationFilters({
           <option value="all">{districtDisabled ? "Selecione um país" : "Todos"}</option>
           {districtOptions.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {formatDistrictLabel(option)}
             </option>
           ))}
         </select>
