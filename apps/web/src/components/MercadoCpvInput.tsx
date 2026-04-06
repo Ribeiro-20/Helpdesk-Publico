@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import InfoPopover from "@/components/InfoPopover";
 
-
-
 export default function MercadoCpvInput({
   defaultValue,
 }: {
@@ -24,8 +22,6 @@ export default function MercadoCpvInput({
       return current;
     });
   }, [defaultValue]);
-
-
 
   function submitForm(delayMs: number, overrideCpv?: string) {
     if (submitTimerRef.current) {
@@ -47,7 +43,8 @@ export default function MercadoCpvInput({
         }
       });
 
-      const cpvToSet = overrideCpv !== undefined ? overrideCpv : formData.get("cpv");
+      const cpvToSet =
+        overrideCpv !== undefined ? overrideCpv : formData.get("cpv");
       if (typeof cpvToSet === "string" && cpvToSet.trim() !== "") {
         params.set("cpv", cpvToSet.trim());
       }
@@ -79,14 +76,11 @@ export default function MercadoCpvInput({
   return (
     <div ref={wrapperRef} className="relative">
       <div className="flex items-center gap-1 mb-1">
-        <label
-          htmlFor="mercado-cpv"
-          className="block text-xs text-gray-400"
-        >
+        <label htmlFor="mercado-cpv" className="block text-xs text-gray-400">
           CPV
         </label>
         <InfoPopover
-          text="Escreva o inicio do codigo (ex: 331). A pesquisa filtra por prefixo de CPV, como no BASE."
+          text="Insira o código CPV. Escreva o inicio do codigo (ex: 331). A pesquisa filtra por prefixo de CPV, como no BASE."
           ariaLabel="Ajuda CPV"
         />
       </div>
@@ -97,10 +91,9 @@ export default function MercadoCpvInput({
         value={value}
         onChange={(event) => handleChange(event.target.value)}
         autoComplete="off"
-        placeholder="CPV (ex: 331 ou 45000000)"
+        placeholder="insira o código CPV"
         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
       />
-
     </div>
   );
 }
