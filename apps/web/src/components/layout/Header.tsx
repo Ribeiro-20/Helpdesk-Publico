@@ -45,7 +45,7 @@ export default function Header() {
         {/* ── Logo ── */}
         <Link href="/" className="shrink-0 mr-12">
           <Image
-            src="/logo-white.webp"
+            src="/logo-white.png"
             alt="Helpdesk Público"
             width={180}
             height={66}
