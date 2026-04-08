@@ -53,6 +53,7 @@ base-monitor/
 │   └── cron/                  # Agendador local (Node.js + tsx)
 ├── scripts/
 │   └── import-cpvs.ts         # Seed dos 9 454 códigos CPV
+│   └── scrape-dr-contracts.ts # Scraping headless do Diario da Republica (anuncios de procedimento)
 ├── .env                       # Variáveis de ambiente (NÃO versionar)
 ├── .env.example               # Template de variáveis
 └── cpvs_final.json            # Taxonomia CPV completa
@@ -186,6 +187,39 @@ Done!
 ```
 
 > O script lê `.env` da raiz do projecto automaticamente — não é necessário exportar variáveis manualmente.
+
+---
+
+### 3c. (Opcional) Scraping do Diario da Republica para contratos publicos
+
+Se quiser recolher anuncios de procedimento directamente do portal DR (com browser headless), use o script em `scripts/`:
+
+```powershell
+cd scripts
+npm install
+npm run scrape-dr
+```
+
+Para tentar inserir os resultados na tabela `announcements` (fonte `DR_SCRAPE`):
+
+```powershell
+cd scripts
+npm run scrape-dr:upsert
+```
+
+Parâmetros úteis:
+
+```powershell
+npx tsx scrape-dr-contracts.ts --query "contratacao publica" --wait-ms 20000 --max-results 300
+```
+
+Para recolher diretamente da pagina do Diario (Parte `L - Contratos publicos`), usa:
+
+```powershell
+npx tsx scrape-dr-contracts.ts --daily-url "https://diariodarepublica.pt/dr/detalhe/diario-republica/49-2026-1070724100-41" --wait-ms 30000 --max-results 50
+```
+
+> Nota: esta pagina pode demorar a renderizar em ambiente headless. `--wait-ms 30000` e o valor recomendado para estabilidade.
 
 ---
 

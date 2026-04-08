@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 supabase/functions/.env
+supabase/functions.env
 
 # Supabase generated
 supabase/.branches/

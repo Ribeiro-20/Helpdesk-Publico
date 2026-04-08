@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import AdminActions from "@/components/AdminActions";
+import PageHeader from "@/components/layout/PageHeader";
+import { Settings } from "lucide-react";
 
 function Field({
   label,
@@ -38,17 +40,16 @@ export default async function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Definições</h1>
-        <p className="text-gray-400 text-sm mt-1">
-          Informações do sistema e ações de administração
-        </p>
-      </div>
+      <PageHeader
+        icon={Settings}
+        title="Definições"
+        description="Informações do sistema e ações de administração"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* User info */}
         <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-          <h2 className="font-semibold mb-4 text-xs uppercase tracking-wider text-gray-400">
+          <h2 className="text-sm font-semibold text-gray-900 mb-1">
             Utilizador
           </h2>
           <div>
@@ -62,7 +63,7 @@ export default async function SettingsPage() {
 
         {/* System info */}
         <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-          <h2 className="font-semibold text-xs uppercase tracking-wider text-gray-400 mb-4">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
             Ambiente
           </h2>
           <div>
@@ -98,7 +99,7 @@ export default async function SettingsPage() {
       {isAdmin && (
         <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card space-y-4">
           <div>
-            <h2 className="font-semibold text-xs uppercase tracking-wider text-gray-400">
+            <h2 className="text-sm font-semibold text-gray-900 mb-1">
               Ações de Administração
             </h2>
             <p className="text-gray-400 text-sm mt-1">
@@ -115,6 +116,16 @@ export default async function SettingsPage() {
                 body: { dry_run: false },
               },
               {
+                fn: "delete-announcements",
+                label: "Apagar Anúncios (intervalo)",
+                variant: "secondary",
+              },
+              {
+                fn: "ingest-dr",
+                label: "Ingerir Anúncios DR",
+                variant: "primary",
+              },
+              {
                 fn: "ingest-contracts",
                 label: "Ingerir Contratos",
                 variant: "primary",
@@ -122,13 +133,13 @@ export default async function SettingsPage() {
               },
               {
                 fn: "ingest-base",
-                label: "Dry Run Anúncios",
+                label: "Simular Anúncios",
                 variant: "secondary",
                 body: { dry_run: true },
               },
               {
                 fn: "ingest-contracts",
-                label: "Dry Run Contratos",
+                label: "Simular Contratos",
                 variant: "secondary",
                 body: { dry_run: true },
               },
@@ -149,7 +160,7 @@ export default async function SettingsPage() {
               },
               {
                 fn: "match-and-queue",
-                label: "Processar CPV Match",
+                label: "Processar Correspondência CPV",
                 variant: "secondary",
               },
               {

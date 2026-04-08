@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { FileSignature } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -16,13 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
   modified: "Modificado",
 };
 
-function InfoCard({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
+function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-surface-200 rounded-xl p-5 shadow-card">
       <h3 className="font-semibold text-sm uppercase tracking-wide text-gray-500 mb-3">
@@ -43,14 +39,10 @@ function Field({
   mono?: boolean;
 }) {
   if (value == null || value === "") return null;
-  const displayValue =
-    String(value).toUpperCase() === "NULL" ? "Não aplicável" : value;
   return (
     <div>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p className={`text-sm text-gray-900 ${mono ? "font-mono" : ""}`}>
-        {displayValue}
-      </p>
+      <p className={`text-sm text-gray-900 ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }
@@ -72,9 +64,7 @@ function PriceField({
   return (
     <div>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
-      <p
-        className={`text-sm ${highlight ? "text-brand-700 font-bold" : "text-gray-900 font-medium"}`}
-      >
+      <p className={`text-sm ${highlight ? "text-brand-700 font-bold" : "text-gray-900 font-medium"}`}>
         {formatted} &euro;
       </p>
     </div>
@@ -103,73 +93,51 @@ export default async function ContractDetailPage({
     supabase.from("contracts").select("*").eq("id", id).single(),
     supabase
       .from("contract_modifications")
-      .select(
-        "id, modification_no, description, reason, previous_price, new_price, price_delta, modification_date, raw_hash",
-      )
+      .select("id, modification_no, description, reason, previous_price, new_price, price_delta, modification_date, raw_hash")
       .eq("contract_id", id)
       .order("modification_no", { ascending: true }),
   ]);
 
   if (!contract) notFound();
 
-  const cpvList: string[] = Array.isArray(contract.cpv_list)
-    ? contract.cpv_list
-    : [];
-  const entities: string[] = Array.isArray(contract.contracting_entities)
-    ? contract.contracting_entities
-    : [];
-  const winners: string[] = Array.isArray(contract.winners)
-    ? contract.winners
-    : [];
-  const locations: string[] = Array.isArray(contract.execution_locations)
-    ? contract.execution_locations
-    : [];
+  const cpvList: string[] = Array.isArray(contract.cpv_list) ? contract.cpv_list : [];
+  const entities: string[] = Array.isArray(contract.contracting_entities) ? contract.contracting_entities : [];
+  const winners: string[] = Array.isArray(contract.winners) ? contract.winners : [];
+  const locations: string[] = Array.isArray(contract.execution_locations) ? contract.execution_locations : [];
 
   // Calculate discount percentage
   let discountPct: number | null = null;
-  if (
-    contract.base_price != null &&
-    contract.contract_price != null &&
-    contract.base_price > 0
-  ) {
-    discountPct =
-      ((contract.base_price - contract.contract_price) / contract.base_price) *
-      100;
+  if (contract.base_price != null && contract.contract_price != null && contract.base_price > 0) {
+    discountPct = ((contract.base_price - contract.contract_price) / contract.base_price) * 100;
   }
 
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <Link
-          href="/contracts"
-          className="text-sm text-gray-400 hover:text-gray-600 mt-1 shrink-0"
-        >
-          &larr; Contratos
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            {contract.object || "Contrato sem objecto"}
-          </h1>
-          <div className="flex flex-wrap items-center gap-3 mt-1">
+      <PageHeader
+        icon={FileSignature}
+        title={contract.object || "Contrato sem objecto"}
+        backHref="/contracts"
+        backLabel="Contratos"
+        size="detail"
+        meta={
+          <>
             {contract.procedure_type && (
-              <span className="text-gray-500 text-sm">
-                {contract.procedure_type}
-              </span>
+              <span className="text-sm text-gray-500">{contract.procedure_type}</span>
             )}
             {contract.publication_date && (
-              <span className="text-gray-400 text-sm">
-                Publicado em {contract.publication_date}
-              </span>
+              <span className="text-sm text-gray-400">Publicado em {contract.publication_date}</span>
             )}
-          </div>
-        </div>
-        <span
-          className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_BADGE[contract.status] ?? "bg-gray-100 text-gray-600"}`}
-        >
-          {STATUS_LABEL[contract.status] ?? contract.status}
-        </span>
-      </div>
+          </>
+        }
+        badge={
+          <span
+            className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${STATUS_BADGE[contract.status] ?? "bg-gray-100 text-gray-600"}`}
+          >
+            {STATUS_LABEL[contract.status] ?? contract.status}
+          </span>
+        }
+      />
 
       {/* Price summary card */}
       <div className="bg-white border border-surface-200 rounded-xl p-5 shadow-card">
@@ -178,7 +146,7 @@ export default async function ContractDetailPage({
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-xs text-gray-400 mb-1">Preco Base</p>
+            <p className="text-xs text-gray-400 mb-1">Preço Base</p>
             <p className="text-lg font-medium text-gray-600">
               {contract.base_price != null
                 ? `${Number(contract.base_price).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} \u20AC`
@@ -186,7 +154,7 @@ export default async function ContractDetailPage({
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-400 mb-1">Preco Contratual</p>
+            <p className="text-xs text-gray-400 mb-1">Preço Contratual</p>
             <p className="text-lg font-bold text-brand-700">
               {contract.contract_price != null
                 ? `${Number(contract.contract_price).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} \u20AC`
@@ -194,10 +162,8 @@ export default async function ContractDetailPage({
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-400 mb-1">Preco Efectivo</p>
-            <p
-              className={`text-lg font-medium ${contract.status === "modified" ? "text-amber-700" : "text-gray-600"}`}
-            >
+            <p className="text-xs text-gray-400 mb-1">Preço Efectivo</p>
+            <p className={`text-lg font-medium ${contract.status === "modified" ? "text-amber-700" : "text-gray-600"}`}>
               {contract.effective_price != null
                 ? `${Number(contract.effective_price).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} \u20AC`
                 : "\u2014"}
@@ -206,11 +172,8 @@ export default async function ContractDetailPage({
           <div>
             <p className="text-xs text-gray-400 mb-1">Desconto</p>
             {discountPct != null ? (
-              <p
-                className={`text-lg font-medium ${discountPct > 0 ? "text-green-700" : "text-red-700"}`}
-              >
-                {discountPct > 0 ? "-" : "+"}
-                {Math.abs(discountPct).toFixed(1)}%
+              <p className={`text-lg font-medium ${discountPct > 0 ? "text-green-700" : "text-red-700"}`}>
+                {discountPct > 0 ? "-" : "+"}{Math.abs(discountPct).toFixed(1)}%
               </p>
             ) : (
               <p className="text-lg text-gray-300">&mdash;</p>
@@ -230,20 +193,16 @@ export default async function ContractDetailPage({
               <div key={i} className="flex items-start gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-brand-400 mt-2 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {extractName(raw)}
-                  </p>
-                  <p className="text-xs text-gray-400 font-mono">
-                    {extractNif(raw)}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{extractName(raw)}</p>
+                  <p className="text-xs text-gray-400 font-mono">{extractNif(raw)}</p>
                 </div>
               </div>
             ))
           )}
         </InfoCard>
 
-        {/* Entidades vencedoras */}
-        <InfoCard title="Entidade(s) Vencedora(s)">
+        {/* Empresas vencedoras */}
+        <InfoCard title="Empresa(s) Vencedora(s)">
           {winners.length === 0 ? (
             <p className="text-sm text-gray-400">Sem informação</p>
           ) : (
@@ -251,12 +210,8 @@ export default async function ContractDetailPage({
               <div key={i} className="flex items-start gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-400 mt-2 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {extractName(raw)}
-                  </p>
-                  <p className="text-xs text-gray-400 font-mono">
-                    {extractNif(raw)}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{extractName(raw)}</p>
+                  <p className="text-xs text-gray-400 font-mono">{extractNif(raw)}</p>
                 </div>
               </div>
             ))
@@ -269,14 +224,7 @@ export default async function ContractDetailPage({
           <Field label="Data de adjudicação" value={contract.award_date} />
           <Field label="Data de celebração" value={contract.signing_date} />
           <Field label="Data de fecho" value={contract.close_date} />
-          <Field
-            label="Prazo de execução"
-            value={
-              contract.execution_deadline_days
-                ? `${contract.execution_deadline_days} dias`
-                : null
-            }
-          />
+          <Field label="Prazo de execução" value={contract.execution_deadline_days ? `${contract.execution_deadline_days} dias` : null} />
         </InfoCard>
 
         {/* CPV */}
@@ -299,7 +247,7 @@ export default async function ContractDetailPage({
           )}
         </InfoCard>
 
-        {/* Local de execucao */}
+        {/* Local de execução */}
         {locations.length > 0 && (
           <InfoCard title="Local de Execução">
             {locations.map((loc, i) => (
@@ -322,17 +270,13 @@ export default async function ContractDetailPage({
           {contract.is_centralized && (
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Centralizado</p>
-              <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded">
-                Sim
-              </span>
+              <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded">Sim</span>
             </div>
           )}
           {contract.is_ecological && (
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Ecológico</p>
-              <span className="inline-block bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded">
-                Sim
-              </span>
+              <span className="inline-block bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded">Sim</span>
             </div>
           )}
         </InfoCard>
@@ -340,27 +284,15 @@ export default async function ContractDetailPage({
         {/* Documentos */}
         {contract.procedure_docs_url && (
           <div className="bg-brand-50/60 border border-brand-200/60 rounded-xl p-4">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-              Documentos
-            </p>
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Documentos</p>
             <a
               href={contract.procedure_docs_url}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-brand-600 hover:text-brand-700 font-medium text-sm hover:underline"
             >
-              <svg
-                className="w-4 h-4 shrink-0"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-                />
+              <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
               Peças do Procedimento / Contrato
             </a>
@@ -369,21 +301,9 @@ export default async function ContractDetailPage({
 
         {/* Referencias */}
         <InfoCard title="Referências">
-          <Field
-            label="ID Contrato BASE"
-            value={contract.base_contract_id}
-            mono
-          />
-          <Field
-            label="ID Procedimento"
-            value={contract.base_procedure_id}
-            mono
-          />
-          <Field
-            label="Nº Anúncio"
-            value={contract.base_announcement_no}
-            mono
-          />
+          <Field label="ID Contrato BASE" value={contract.base_contract_id} mono />
+          <Field label="ID Procedimento" value={contract.base_procedure_id} mono />
+          <Field label="Nº Anúncio" value={contract.base_announcement_no} mono />
           <Field label="ID INCM" value={contract.base_incm_id} mono />
           {contract.framework_agreement && (
             <Field label="Acordo Quadro" value={contract.framework_agreement} />
@@ -408,33 +328,27 @@ export default async function ContractDetailPage({
           <h3 className="font-semibold text-sm uppercase tracking-wide text-gray-500 mb-2">
             Concorrentes
           </h3>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap">
-            {contract.competitors}
-          </p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap">{contract.competitors}</p>
         </div>
       )}
 
-      {/* Descricao */}
+      {/* Descrição */}
       {contract.description && (
         <div className="bg-white border border-surface-200 rounded-xl p-5 shadow-card">
           <h3 className="font-semibold text-sm uppercase tracking-wide text-gray-500 mb-2">
             Descrição
           </h3>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-            {contract.description}
-          </p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{contract.description}</p>
         </div>
       )}
 
-      {/* Observacoes */}
+      {/* Observações */}
       {contract.observations && (
         <div className="bg-white border border-surface-200 rounded-xl p-5 shadow-card">
           <h3 className="font-semibold text-sm uppercase tracking-wide text-gray-500 mb-2">
             Observações
           </h3>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-            {contract.observations}
-          </p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{contract.observations}</p>
         </div>
       )}
 
@@ -448,32 +362,21 @@ export default async function ContractDetailPage({
         ) : (
           <div className="space-y-3">
             {(modifications ?? []).map((mod) => (
-              <div
-                key={mod.id}
-                className="border border-surface-100 rounded-lg p-3"
-              >
+              <div key={mod.id} className="border border-surface-100 rounded-lg p-3">
                 <div className="flex items-center gap-3 mb-2">
                   <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
                     {mod.modification_no}
                   </span>
                   {mod.modification_date && (
-                    <span className="text-xs text-gray-400">
-                      {mod.modification_date}
-                    </span>
+                    <span className="text-xs text-gray-400">{mod.modification_date}</span>
                   )}
                   {mod.price_delta != null && (
-                    <span
-                      className={`text-xs font-medium px-2 py-0.5 rounded ${
-                        mod.price_delta > 0
-                          ? "bg-red-50 text-red-700"
-                          : "bg-green-50 text-green-700"
-                      }`}
-                    >
-                      {mod.price_delta > 0 ? "+" : ""}
-                      {Number(mod.price_delta).toLocaleString("pt-PT", {
-                        minimumFractionDigits: 2,
-                      })}{" "}
-                      &euro;
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                      mod.price_delta > 0
+                        ? "bg-red-50 text-red-700"
+                        : "bg-green-50 text-green-700"
+                    }`}>
+                      {mod.price_delta > 0 ? "+" : ""}{Number(mod.price_delta).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} &euro;
                     </span>
                   )}
                 </div>
@@ -485,19 +388,9 @@ export default async function ContractDetailPage({
                 )}
                 {mod.previous_price != null && mod.new_price != null && (
                   <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                    <span>
-                      {Number(mod.previous_price).toLocaleString("pt-PT", {
-                        minimumFractionDigits: 2,
-                      })}{" "}
-                      &euro;
-                    </span>
+                    <span>{Number(mod.previous_price).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} &euro;</span>
                     <span className="text-gray-300">&rarr;</span>
-                    <span className="font-medium text-gray-700">
-                      {Number(mod.new_price).toLocaleString("pt-PT", {
-                        minimumFractionDigits: 2,
-                      })}{" "}
-                      &euro;
-                    </span>
+                    <span className="font-medium text-gray-700">{Number(mod.new_price).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} &euro;</span>
                   </div>
                 )}
               </div>

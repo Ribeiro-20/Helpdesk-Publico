@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -145,32 +147,30 @@ export default async function EntityDetailPage({
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <Link
-          href="/entities"
-          className="text-sm text-gray-400 hover:text-gray-600 mt-1 shrink-0"
-        >
-          &larr; Entidades
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            {entity.name}
-          </h1>
-          <div className="flex flex-wrap items-center gap-3 mt-1">
-            <span className="text-gray-400 text-sm font-mono">{entity.nif}</span>
+      <PageHeader
+        icon={Building2}
+        title={entity.name}
+        backHref="/entities"
+        backLabel="Entidades"
+        size="detail"
+        meta={
+          <>
+            <span className="text-sm font-mono text-gray-400">{entity.nif}</span>
             {entity.location && (
-              <span className="text-gray-400 text-sm">{entity.location}</span>
+              <span className="text-sm text-gray-400">{entity.location}</span>
             )}
-          </div>
-        </div>
-        {entity.entity_type && (
-          <span
-            className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${TYPE_BADGE[entity.entity_type] ?? "bg-gray-100 text-gray-600"}`}
-          >
-            {TYPE_LABEL[entity.entity_type] ?? entity.entity_type}
-          </span>
-        )}
-      </div>
+          </>
+        }
+        badge={
+          entity.entity_type ? (
+            <span
+              className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${TYPE_BADGE[entity.entity_type] ?? "bg-gray-100 text-gray-600"}`}
+            >
+              {TYPE_LABEL[entity.entity_type] ?? entity.entity_type}
+            </span>
+          ) : undefined
+        }
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import PageHeader from "@/components/layout/PageHeader";
+import SingleDatePicker from "@/components/SingleDatePicker";
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { FileSignature } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -52,10 +54,33 @@ function discountBadge(base: number | null, contract: number | null) {
   );
 }
 
-/** Extract first name from "NIF - Nome" format */
-function extractName(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? raw : raw.slice(idx + 3);
+/** Extract display name from contract party payloads (string or object). */
+function extractName(raw: unknown): string {
+  if (typeof raw === "string") {
+    const idx = raw.indexOf(" - ");
+    return idx === -1 ? raw : raw.slice(idx + 3);
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const directName = record.name;
+    if (typeof directName === "string" && directName.trim()) {
+      return directName;
+    }
+
+    const nif = record.nif;
+    const full = record.value ?? record.label ?? record.text;
+    if (typeof full === "string" && full.trim()) {
+      const idx = full.indexOf(" - ");
+      if (idx !== -1) return full.slice(idx + 3);
+      if (typeof nif === "string" && full.startsWith(`${nif} `)) {
+        return full.slice(nif.length).trim();
+      }
+      return full;
+    }
+  }
+
+  return "\u2014";
 }
 
 export default async function ContractsPage({
@@ -120,8 +145,8 @@ export default async function ContractsPage({
     effective_price: number | null;
     currency: string;
     status: string;
-    contracting_entities: string[];
-    winners: string[];
+    contracting_entities: unknown[];
+    winners: unknown[];
   }
 
   let contracts: ContractRow[] = [];
@@ -175,15 +200,11 @@ export default async function ContractsPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-3 mb-0.5">
-          <FileText className="w-5 h-5 text-brand-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Contratos</h1>
-        </div>
-        <p className="text-gray-500 text-sm">
-          {totalCount} contratos celebrados
-        </p>
-      </div>
+      <PageHeader
+        icon={FileSignature}
+        title="Contratos"
+        description={`${totalCount} contratos celebrados`}
+      />
 
       {/* Active NIF filter banner */}
       {(entityNifFilter || winnerNifFilter) && (
@@ -201,80 +222,77 @@ export default async function ContractsPage({
       )}
 
       {/* Filters */}
-      <form className="bg-white border border-surface-200 rounded-xl p-4 shadow-card space-y-3">
-        {/* Row 1: Text search filters */}
-        <div className="flex flex-wrap gap-3">
+      <form className="bg-white border border-surface-200 rounded-2xl p-4 md:p-5 shadow-card space-y-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <input
             name="cpv"
             defaultValue={cpvFilter}
             placeholder="CPV (ex: 45000000)"
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-44"
+            className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
           <input
             name="entity"
             defaultValue={entityFilter}
             placeholder="Entidade..."
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-48"
+            className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
           <input
             name="winner"
             defaultValue={winnerFilter}
             placeholder="Empresa vencedora..."
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-48"
+            className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
           <input
             name="procedure"
             defaultValue={procedureFilter}
             placeholder="Tipo procedimento..."
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-48"
+            className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
         </div>
-        {/* Row 2: Date, value, sort, and actions */}
-        <div className="flex flex-wrap items-end gap-3">
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 rounded-xl border border-surface-100 bg-surface-50/60 p-3">
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Data de</label>
-            <input
+            <label className="mb-1 block text-xs font-medium text-gray-500">Data de</label>
+            <SingleDatePicker
               name="from_date"
-              type="date"
               defaultValue={fromDate}
-              className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-36"
+              placeholder="Data início"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Data até</label>
-            <input
+            <label className="mb-1 block text-xs font-medium text-gray-500">Data até</label>
+            <SingleDatePicker
               name="to_date"
-              type="date"
               defaultValue={toDate}
-              className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-36"
+              placeholder="Data fim"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Valor min.</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Valor min.</label>
             <input
               name="min_value"
               type="number"
               defaultValue={minValue}
               placeholder="0"
-              className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-32"
+              className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Valor max.</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Valor max.</label>
             <input
               name="max_value"
               type="number"
               defaultValue={maxValue}
               placeholder="10000000"
-              className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-32"
+              className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-400 mb-1">Ordenar</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Ordenar</label>
             <select
               name="sort"
               defaultValue={sortField}
-              className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
+              className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
             >
               <option value="signing_date">Mais recentes</option>
               <option value="publication_date">Data publicação</option>
@@ -282,20 +300,22 @@ export default async function ContractsPage({
               <option value="value_asc">Menor valor</option>
             </select>
           </div>
-          <button
-            type="submit"
-            className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
-          >
-            Filtrar
-          </button>
-          {hasFilters && (
-            <Link
-              href="/contracts"
-              className="text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
+          <div className="flex items-end gap-2">
+            <button
+              type="submit"
+              className="w-full bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
             >
-              Limpar
-            </Link>
-          )}
+              Filtrar
+            </button>
+            {hasFilters && (
+              <Link
+                href="/contracts"
+                className="shrink-0 text-gray-500 text-sm font-medium px-4 py-2.5 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
+              >
+                Limpar
+              </Link>
+            )}
+          </div>
         </div>
       </form>
 
