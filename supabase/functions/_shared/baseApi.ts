@@ -57,15 +57,16 @@ function extractCpvCode(raw: string): string {
 
 /** Safely parse JSON from a BASE API response, handling plain-text errors. */
 async function safeParseJson(response: Response, label: string): Promise<unknown> {
-  const text = await response.text();
   if (!response.ok) {
+    const text = await response.text();
     throw new Error(`BASE API ${response.status}: ${text.slice(0, 300)}`);
   }
-  // The BASE API sometimes returns 200 with plain-text error (e.g. "Invalid Token")
+  // Parse directly from the response body to avoid duplicating large payloads
+  // in memory (response.text() + JSON.parse(text)).
   try {
-    return JSON.parse(text);
+    return await response.json();
   } catch {
-    throw new Error(`BASE API ${label}: resposta nao-JSON — ${text.slice(0, 200)}`);
+    throw new Error(`BASE API ${label}: resposta nao-JSON`);
   }
 }
 
@@ -125,18 +126,21 @@ export async function listAllAnnouncements(
 
   for (let year = fromYear; year <= toYear; year++) {
     const items = await fetchByYear(year);
+    let inRange = 0;
 
-    const filtered = items.filter((item) => {
+    for (const item of items) {
       const raw = item.dataPublicacao as string | undefined;
       const date = raw ? parsePtDate(raw) : null;
-      if (!date) return false;
-      return date >= fromDate && date <= toDate;
-    });
+      if (!date) continue;
+      if (date >= fromDate && date <= toDate) {
+        all.push(item);
+        inRange++;
+      }
+    }
 
     console.log(
-      `[BASE API] year=${year}: ${items.length} total, ${filtered.length} in range`,
+      `[BASE API] year=${year}: ${items.length} total, ${inRange} in range`,
     );
-    all.push(...filtered);
   }
 
   return all;
@@ -243,19 +247,22 @@ export async function listAllContracts(
 
   for (let year = fromYear; year <= toYear; year++) {
     const items = await fetchContractsByYear(year);
+    let inRange = 0;
 
-    const filtered = items.filter((item) => {
+    for (const item of items) {
       // Filter by signing date (dataCelebracaoContrato) — matches BASE website
       const rawSigning = item.dataCelebracaoContrato as string | undefined;
       const date = rawSigning ? parsePtDate(rawSigning) : null;
-      if (!date) return false;
-      return date >= fromDate && date <= toDate;
-    });
+      if (!date) continue;
+      if (date >= fromDate && date <= toDate) {
+        all.push(item);
+        inRange++;
+      }
+    }
 
     console.log(
-      `[BASE API] contracts year=${year}: ${items.length} total, ${filtered.length} in range [${fromDate}..${toDate}] (by signing date)`,
+      `[BASE API] contracts year=${year}: ${items.length} total, ${inRange} in range [${fromDate}..${toDate}] (by signing date)`,
     );
-    all.push(...filtered);
   }
 
   return all;

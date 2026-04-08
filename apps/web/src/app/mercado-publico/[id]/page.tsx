@@ -108,11 +108,13 @@ function Field({
   mono?: boolean;
 }) {
   if (value == null || value === "") return null;
+  const displayValue =
+    String(value).toUpperCase() === "NULL" ? "Não aplicável" : String(value);
   return (
     <div>
       <p className="text-xs text-gray-400 mb-0.5">{label}</p>
       <p className={`text-sm text-gray-900 ${mono ? "font-mono" : ""}`}>
-        {String(value)}
+        {displayValue}
       </p>
     </div>
   );
@@ -325,8 +327,8 @@ export default async function PublicContractDetailPage({
             )}
           </InfoCard>
 
-          {/* Empresa vencedora */}
-          <InfoCard title="Empresa(s) Vencedora(s)">
+          {/* Entidade vencedora */}
+          <InfoCard title="ENTIDADE(S) VENCEDORA(S)">
             {winners.length === 0 ? (
               <p className="text-sm text-gray-400">Sem informação</p>
             ) : (

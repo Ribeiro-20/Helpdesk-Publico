@@ -75,26 +75,26 @@ export default async function HomePage() {
     {
       icon: FileText,
       title: "Contratos Públicos",
-      description: "Consulte todos os dados referentes aos contratos públicos.",
+      description: "Consulte os dados e as informações dos contratos públicos.",
       href: "/mercado-publico",
     },
     {
       icon: Landmark,
-      title: "Estatísticas Adjudicantes",
+      title: "Adjudicantes",
       description:
-        "Consulte todas as informações sobre os adjudicantes no mercado público.",
+        "Consulte as informações das Entidades Adjudicantes ativas no mercado público.",
       href: "/estatisticas-publico",
     },
     {
       icon: Building2,
-      title: "Estatísticas Adjudicatarias",
+      title: "Adjudicatários",
       description:
-        "Consulte todas as informações sobre os adjudicatarias no mercado público.",
+        "Consulte as informações dos Adjudicatários ativos no mercado público.",
       href: "/estatisticas-privado",
     },
     {
       icon: FileSearch,
-      title: "Oportunidade no Mercado Público",
+      title: "Oportunidades no Mercado Público",
       description:
         "Consulte todas as oportunidades de negócio ativas no mercado público.",
       href: "/oportunidades",

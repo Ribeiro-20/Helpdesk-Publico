@@ -355,7 +355,9 @@ export default function ContractModal({
                         Acordo Quadro
                       </p>
                       <p className="text-sm text-gray-700">
-                        {contract.framework_agreement}
+                        {contract.framework_agreement?.toUpperCase() === "NULL"
+                          ? "Não aplicável"
+                          : contract.framework_agreement}
                       </p>
                     </div>
                   )}
@@ -589,7 +591,7 @@ export default function ContractModal({
                     {winners.length > 0 && (
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                          Empresa(s) Vencedora(s)
+                          ENTIDADE(S) VENCEDORA(S)
                         </p>
                         {winners.map((raw, i) => (
                           <div key={i} className="mb-1">
