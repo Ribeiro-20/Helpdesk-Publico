@@ -16,6 +16,48 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetryableStatus(status) {
+  return status === 546 || status === 429 || (status >= 500 && status <= 599);
+}
+
+async function fetchContractsFromBaseWithRetry(year, token, maxRetries = 4) {
+  const url = `https://www.base.gov.pt/APIBase2/GetInfoContrato?Ano=${year}`;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    console.log(`[ingest-direct] BASE attempt ${attempt}/${maxRetries}: ${url}`);
+    const response = await fetch(url, {
+      headers: { "_AcessToken": token },
+    });
+
+    if (response.ok) {
+      const rawPayload = await response.json().catch(() => null);
+      const payload = extractContractsArray(rawPayload);
+      if (!Array.isArray(payload)) {
+        throw new Error("BASE API response is not a JSON array.");
+      }
+      return payload;
+    }
+
+    const errBody = (await response.text().catch(() => "")).slice(0, 300);
+    const retryable = isRetryableStatus(response.status);
+    if (!retryable || attempt === maxRetries) {
+      throw new Error(`Failed to fetch: HTTP ${response.status}${errBody ? ` - ${errBody}` : ""}`);
+    }
+
+    const delayMs = 1500 * attempt;
+    console.warn(
+      `[ingest-direct] BASE returned HTTP ${response.status}; retrying in ${delayMs}ms...`,
+    );
+    await wait(delayMs);
+  }
+
+  throw new Error("Failed to fetch contracts from BASE API after retries.");
+}
+
 async function main() {
   // Parse CLI args
   let year = 2026;
@@ -80,23 +122,12 @@ async function main() {
     console.log(`[ingest-direct] Filtering by signing date in range ${fromDate}..${toDate}`);
   }
 
-  // Fetch from BASE API
-  const url = `https://www.base.gov.pt/APIBase2/GetInfoContrato?Ano=${year}`;
-  console.log(`[ingest-direct] Fetching: ${url}`);
-
-  const response = await fetch(url, {
-    headers: { "_AcessToken": token },
-  });
-
-  if (!response.ok) {
-    console.error(`Failed to fetch: HTTP ${response.status}`);
-    process.exit(1);
-  }
-
-  const rawPayload = await response.json().catch(() => null);
-  const payload = extractContractsArray(rawPayload);
-  if (!Array.isArray(payload)) {
-    console.error("BASE API response is not a JSON array.");
+  // Fetch from BASE API with retry for transient worker/limit failures.
+  let payload;
+  try {
+    payload = await fetchContractsFromBaseWithRetry(year, token);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 

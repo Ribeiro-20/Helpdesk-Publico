@@ -55,13 +55,21 @@ export default function AdminActions({
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? "";
 
-      const res = await fetch(`${supabaseUrl}/functions/v1/${fn}`, {
+      const isContractsIngest = fn === "ingest-contracts";
+      const endpoint = isContractsIngest
+        ? "/api/admin/ingest-contracts"
+        : `${supabaseUrl}/functions/v1/${fn}`;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (!isContractsIngest) {
+        headers.Authorization = `Bearer ${token}`;
+        headers.apikey = anonKey;
+      }
+
+      const res = await fetch(endpoint, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          apikey: anonKey,
-        },
+        headers,
         body: JSON.stringify(body),
       });
 
