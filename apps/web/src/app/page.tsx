@@ -4,7 +4,7 @@ import {
   Landmark,
   Building2,
   FileSearch,
-  Chrome,
+  ScanSearch,
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
@@ -100,7 +100,7 @@ export default async function HomePage() {
       href: "/oportunidades",
     },
     {
-      icon: Chrome,
+      icon: ScanSearch,
       title: "Market Intelligence",
       description:
         "Consulte todos os contratos públicos a terminar ou em fase de renovação (área reservada a subscritores do serviço).",
