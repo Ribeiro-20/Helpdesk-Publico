@@ -1,12 +1,13 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { FileText, Filter } from "lucide-react";
+import { FileText, Filter, House } from "lucide-react";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
 import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
 import MercadoMultiSelect from "@/components/MercadoMultiSelect";
+import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 import BackButton from "@/components/BackButton";
@@ -27,6 +28,7 @@ type MercadoSearchParams = {
   max_value?: string;
   from_date?: string;
   to_date?: string;
+  date_field?: string;
   sort?: string;
   limit?: string;
 };
@@ -95,6 +97,29 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+function closingDateIso(
+  signingDate: string | null,
+  deadlineDays: number | null | undefined,
+): string | null {
+  if (!signingDate || !deadlineDays || deadlineDays <= 0) return null;
+  const start = new Date(`${signingDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start);
+  end.setDate(end.getDate() + deadlineDays);
+  return end.toISOString().slice(0, 10);
+}
+
+function inDateRange(
+  value: string | null,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  if (!value) return false;
+  if (fromDate && value < fromDate) return false;
+  if (toDate && value > toDate) return false;
+  return true;
+}
+
 export default async function MercadoPublicoPage({
   searchParams,
 }: {
@@ -120,6 +145,11 @@ export default async function MercadoPublicoPage({
   const maxValue = (params.max_value ?? "").trim();
   const fromDate = (params.from_date ?? "").trim();
   const toDate = (params.to_date ?? "").trim();
+  const selectedDateField =
+    params.date_field === "publication_date" ||
+    params.date_field === "closing_date"
+      ? params.date_field
+      : "signing_date";
   const sortField = params.sort ?? "signing_date";
   const countryFilter = params.country ?? "all";
   const districtFilter = params.district ?? "all";
@@ -578,11 +608,16 @@ export default async function MercadoPublicoPage({
   let contracts: ContractRow[] = [];
 
   // -------------------------------------------------------------------
-  // If procedure or contract_type filters are active, query DB directly
-  // so that ALL matching rows are returned (RPC has a cap of 5000 rows).
+  // If procedure, contract_type OR CPV filters are active, query DB directly.
+  // This guarantees CPV prefix semantics (cpv%) instead of contains semantics.
   // -------------------------------------------------------------------
   const hasTypeFilters =
-    contractTypeFilters.length > 0 || procedureFilters.length > 0;
+    contractTypeFilters.length > 0 ||
+    procedureFilters.length > 0 ||
+    cpvFilter.length > 0 ||
+    selectedDateField !== "signing_date";
+
+  const requiresClientDateFiltering = selectedDateField === "closing_date";
 
   if (hasTypeFilters) {
     // Build a direct query applying exact filters at DB level
@@ -604,8 +639,13 @@ export default async function MercadoPublicoPage({
     if (cpvFilter) q = q.ilike("cpv_main", `${cpvFilter}%`);
     if (minValue) q = q.gte("contract_price", parseFloat(minValue));
     if (maxValue) q = q.lte("contract_price", parseFloat(maxValue));
-    if (fromDate) q = q.gte("signing_date", fromDate);
-    if (toDate) q = q.lte("signing_date", toDate);
+    if (selectedDateField === "signing_date") {
+      if (fromDate) q = q.gte("signing_date", fromDate);
+      if (toDate) q = q.lte("signing_date", toDate);
+    } else if (selectedDateField === "publication_date") {
+      if (fromDate) q = q.gte("publication_date", fromDate);
+      if (toDate) q = q.lte("publication_date", toDate);
+    }
 
     // Apply sort
     if (sortField === "value_desc")
@@ -617,7 +657,7 @@ export default async function MercadoPublicoPage({
     else q = q.order("signing_date", { ascending: false, nullsFirst: false });
 
     // If NO location filters are active, we can paginate directly in DB (performant for millions of rows)
-    if (!hasLocationFilters) {
+    if (!hasLocationFilters && !requiresClientDateFiltering) {
       // Apply pagination directly to query
       const offsetDB = (page - 1) * PAGE_SIZE;
       q = q.range(offsetDB, offsetDB + PAGE_SIZE - 1);
@@ -638,14 +678,25 @@ export default async function MercadoPublicoPage({
         execution_locations: toStringArray(row.execution_locations),
       })) as ContractRow[];
 
-      filteredDirect = filteredDirect.filter((row) =>
-        locationMatches(
+      filteredDirect = filteredDirect.filter((row) => {
+        const locationOk = locationMatches(
           row.execution_locations ?? [],
           selectedCountry,
           selectedDistrict,
           selectedMunicipality,
-        ),
-      );
+        );
+        if (!locationOk) return false;
+
+        if (selectedDateField === "closing_date") {
+          const closingDate = closingDateIso(
+            row.signing_date,
+            row.execution_deadline_days,
+          );
+          return inDateRange(closingDate, fromDate, toDate);
+        }
+
+        return true;
+      });
 
       totalCount = filteredDirect.length;
       const totalPagesF = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -804,6 +855,9 @@ export default async function MercadoPublicoPage({
   if (maxValue) qsParams.set("max_value", maxValue);
   if (fromDate) qsParams.set("from_date", fromDate);
   if (toDate) qsParams.set("to_date", toDate);
+  if (selectedDateField !== "signing_date") {
+    qsParams.set("date_field", selectedDateField);
+  }
   if (sortField) qsParams.set("sort", sortField);
   if (PAGE_SIZE !== 25) qsParams.set("limit", PAGE_SIZE.toString());
   const buildQsBase = qsParams.toString()
@@ -832,7 +886,16 @@ export default async function MercadoPublicoPage({
               </p>
             </div>
           </div>
-          <BackButton fallbackHref="/" className="w-fit shrink-0" />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+            >
+              <House className="h-4 w-4" />
+              Página inicial
+            </Link>
+            <BackButton fallbackHref="/" className="w-fit shrink-0" />
+          </div>
         </div>
 
         {/* Filters */}
@@ -885,29 +948,42 @@ export default async function MercadoPublicoPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Data de</label>
-                <InfoPopover text="Data inicial da celebracao dos contratos." />
+                <label className="block text-xs text-gray-400">De Data</label>
+                <InfoPopover text="Data inicial para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
             </div>
 
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Data até</label>
-                <InfoPopover text="Data final da celebracao dos contratos." />
+                <label className="block text-xs text-gray-400">Ate data</label>
+                <InfoPopover text="Data final para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="to_date" defaultValue={toDate} />
             </div>
 
             <div>
+              <MercadoSingleSelect
+                name="date_field"
+                label="Tipo de data"
+                defaultValue={selectedDateField}
+                options={[
+                  { value: "signing_date", label: "Data de celebração" },
+                  { value: "publication_date", label: "Data de contrato" },
+                  { value: "closing_date", label: "Data de feixo" },
+                ]}
+              />
+            </div>
+
+            <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor min.
+                  Valor mínimo
                 </label>
-                <InfoPopover text="Valor minimo do contrato em euros." />
+                <InfoPopover text="Valor mínimo do contrato em euros." />
               </div>
               <input
                 name="min_value"
@@ -918,12 +994,12 @@ export default async function MercadoPublicoPage({
               />
             </div>
 
-            <div>
+            <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor max.
+                  Valor máximo
                 </label>
-                <InfoPopover text="Valor maximo do contrato em euros." />
+                <InfoPopover text="Valor máximo do contrato em euros." />
               </div>
               <input
                 name="max_value"

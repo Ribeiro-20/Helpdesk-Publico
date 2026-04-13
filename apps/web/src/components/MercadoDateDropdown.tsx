@@ -51,9 +51,8 @@ export default function MercadoDateDropdown({
     setDay(nextDate.day);
   }, [defaultValue]);
 
-  const currentYear = new Date().getFullYear();
-  const minYear = startYear ?? 2000;
-  const maxYear = endYear ?? currentYear + 1;
+  const minYear = startYear ?? 2021;
+  const maxYear = endYear ?? 2026;
 
   const yearOptions = useMemo(() => {
     const years: string[] = [];

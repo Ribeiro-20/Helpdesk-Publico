@@ -203,7 +203,7 @@ export default function ContractsTable({
                   Adjudicatário
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                  Celebração
+                  Data
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider w-[110px]">
                   <span className="inline-flex items-center gap-1">
