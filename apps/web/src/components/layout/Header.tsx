@@ -41,14 +41,14 @@ export default function Header() {
         background: NAV_BG,
       }}
     >
-      <div className="max-w-screen-2xl mx-auto flex items-center px-12 py-0 h-[88px]">
+      <div className="max-w-screen-2xl mx-auto flex items-center px-12 py-0 h-[104px]">
         {/* ── Logo ── */}
         <Link href="/" className="shrink-0 mr-12">
           <Image
-            src="/logo-white.webp"
+            src="/logo.png"
             alt="Helpdesk Público"
-            width={180}
-            height={66}
+            width={300}
+            height={110}
             className="object-contain"
             priority
           />
