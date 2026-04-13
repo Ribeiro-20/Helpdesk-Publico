@@ -1,20 +1,11 @@
 /**
- * BASE (base.gov.pt) API v2 adapter.
- *
- * Endpoint: GET /APIBase2/GetInfoAnuncio?Ano=YYYY
- * Auth:     _AcessToken: <token>
- *
- * Response fields (actual):
- *   nAnuncio, IdIncm, dataPublicacao (DD/MM/YYYY), nifEntidade,
- *   designacaoEntidade, descricaoAnuncio, url, numDR, serie,
- *   tipoActo, tiposContrato[], PrecoBase, CPVs[], modeloAnuncio,
- *   Ano, PrazoPropostas, PecasProcedimento
+ * BASE API adapter.
  */
 
 export interface BaseAnnouncementMapped {
   base_announcement_id: string | null;
   dr_announcement_no: string | null;
-  publication_date: string; // YYYY-MM-DD
+  publication_date: string;
   title: string;
   description: string | null;
   entity_name: string | null;
@@ -33,122 +24,22 @@ export interface BaseAnnouncementMapped {
 }
 
 function getEnv(key: string): string {
-  return Deno.env.get(key) ?? "";
+  const denoEnv = (globalThis as typeof globalThis & {
+    Deno?: { env?: { get: (name: string) => string | undefined } };
+  }).Deno?.env;
+
+  return denoEnv?.get(key) ?? "";
 }
 
-function buildHeaders(): Record<string, string> {
-  return {
-    "_AcessToken": getEnv("BASE_API_TOKEN"),
-    "Accept": "application/json",
-  };
-}
-
-/** Parse DD/MM/YYYY → YYYY-MM-DD */
-function parsePtDate(str: string): string | null {
-  const m = str?.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  return `${m[3]}-${m[2]}-${m[1]}`;
-}
-
-/** Extract CPV code from "66510000-8 - Serviços de seguros" → "66510000-8" */
-function extractCpvCode(raw: string): string {
-  return raw.split(" - ")[0].trim();
-}
-
-/** Safely parse JSON from a BASE API response, handling plain-text errors. */
-async function safeParseJson(response: Response, label: string): Promise<unknown> {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`BASE API ${response.status}: ${text.slice(0, 300)}`);
-  }
-  // Parse directly from the response body to avoid duplicating large payloads
-  // in memory (response.text() + JSON.parse(text)).
-  try {
-    return await response.json();
-  } catch {
-    throw new Error(`BASE API ${label}: resposta nao-JSON`);
-  }
-}
-
-/**
- * Fetch with retry + exponential backoff.
- * The BASE API is unreliable — returns non-standard HTTP codes (e.g. 546)
- * and occasional timeouts. We retry up to 3 times with 2s/4s/8s delays.
- */
-async function fetchWithRetry(
-  url: string,
-  opts: RequestInit,
-  label: string,
-  maxRetries = 3,
-): Promise<unknown> {
-  let lastError: Error | null = null;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(url, opts);
-      return await safeParseJson(response, label);
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < maxRetries) {
-        const delayMs = 2000 * Math.pow(2, attempt); // 2s, 4s, 8s
-        console.warn(
-          `[BASE API] ${label} attempt ${attempt + 1} failed: ${lastError.message} — retrying in ${delayMs}ms`,
-        );
-        await new Promise((r) => setTimeout(r, delayMs));
-      }
-    }
-  }
-  throw lastError;
-}
-
-/** Fetch all announcements for a given year from the BASE API. */
-async function fetchByYear(year: number): Promise<Record<string, unknown>[]> {
-  const baseUrl = getEnv("BASE_API_URL") || "https://www.base.gov.pt/APIBase2";
-  const url = `${baseUrl}/GetInfoAnuncio?Ano=${year}`;
-
-  console.log(`[BASE API] GET ${url}`);
-
-  const data = await fetchWithRetry(url, { headers: buildHeaders() }, `GetInfoAnuncio?Ano=${year}`);
-  return Array.isArray(data) ? data : [];
-}
-
-/**
- * Fetch all announcements between fromDate and toDate (YYYY-MM-DD).
- * Queries by year and filters client-side by date.
- */
-export async function listAllAnnouncements(
-  fromDate: string,
-  toDate: string,
-): Promise<Record<string, unknown>[]> {
-  const fromYear = parseInt(fromDate.slice(0, 4));
-  const toYear = parseInt(toDate.slice(0, 4));
-
-  const all: Record<string, unknown>[] = [];
-
-  for (let year = fromYear; year <= toYear; year++) {
-    const items = await fetchByYear(year);
-    let inRange = 0;
-
-    for (const item of items) {
-      const raw = item.dataPublicacao as string | undefined;
-      const date = raw ? parsePtDate(raw) : null;
-      if (!date) continue;
-      if (date >= fromDate && date <= toDate) {
-        all.push(item);
-        inRange++;
-      }
-    }
-
-    console.log(
-      `[BASE API] year=${year}: ${items.length} total, ${inRange} in range`,
+function getBaseApiToken(): string {
+  const token = getEnv("BASE_API_TOKEN").trim();
+  if (!token || token === "<your BASE API token>") {
+    throw new Error(
+      "BASE_API_TOKEN nao configurado. Defina um token valido em supabase/functions/.env (ou via supabase secrets).",
     );
   }
-
-  return all;
+  return token;
 }
-
-// ---------------------------------------------------------------------------
-// Contracts – GetInfoContrato
-// ---------------------------------------------------------------------------
 
 export interface BaseContractMapped {
   base_contract_id: string | null;
@@ -186,14 +77,171 @@ export interface BaseContractMapped {
   raw_payload: Record<string, unknown>;
 }
 
-/**
- * Parse price string from BASE API.
- * Handles "123.456,78" (PT format) and "123456.78" (EN format).
- */
+function buildHeaders(): Record<string, string> {
+  return {
+    "_AcessToken": getBaseApiToken(),
+    "Accept": "application/json",
+  };
+}
+
+function parsePtDate(str: string): string | null {
+  if (!str) return null;
+  const value = String(str).trim();
+
+  // PT format: DD/MM/YYYY
+  const pt = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (pt) return `${pt[3]}-${pt[2]}-${pt[1]}`;
+
+  // Alternative PT format: DD-MM-YYYY
+  const ptDash = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (ptDash) return `${ptDash[3]}-${ptDash[2]}-${ptDash[1]}`;
+
+  // ISO date or datetime: YYYY-MM-DD[THH:mm:ss...]
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  return null;
+}
+
+function extractCpvCode(raw: string): string {
+  const value = raw.trim().toUpperCase();
+  if (!value || value === "-" || value === "—") return "";
+
+  const embedded = value.match(/\b\d{8}(?:-\d)?\b/);
+  if (embedded) return embedded[0];
+
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 9) return `${digits.slice(0, 8)}-${digits[8]}`;
+  if (digits.length === 8) return digits;
+
+  return "";
+}
+
+async function safeParseJson(response: Response, label: string, maxItems?: number): Promise<unknown> {
+  const contentLength = response.headers.get("content-length");
+  console.log(`[BASE API] ${label} response: status=${response.status} content-length=${contentLength ?? "unknown"}`);
+
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`BASE API ${response.status}: ${text.slice(0, 300)}`);
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    let data = Array.isArray(parsed) ? parsed : [];
+    
+    if (maxItems && data.length > maxItems) {
+      console.log(`[BASE API] ${label}: limiting ${data.length} items to ${maxItems}`);
+      data = data.slice(0, maxItems);
+    }
+    
+    const count = data.length;
+    console.log(`[BASE API] ${label} parsed OK: ${count} items`);
+    return data;
+  } catch {
+    const sample = text.replace(/\s+/g, " ").slice(0, 200);
+    throw new Error(`BASE API ${label}: resposta nao-JSON - ${sample}`);
+  }
+}
+
+async function fetchWithRetry(
+  url: string,
+  opts: RequestInit,
+  label: string,
+  maxRetries = 3,
+  maxItems?: number,
+): Promise<unknown> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const t0 = Date.now();
+    try {
+      console.log(`[BASE API] ${label} attempt ${attempt + 1}/${maxRetries + 1}: GET ${url}`);
+      const response = await fetch(url, opts);
+      const result = await safeParseJson(response, label, maxItems);
+      console.log(`[BASE API] ${label} attempt ${attempt + 1} succeeded in ${Date.now() - t0}ms`);
+      return result;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[BASE API] ${label} attempt ${attempt + 1} failed after ${Date.now() - t0}ms: ${lastError.message}`);
+      if (attempt < maxRetries) {
+        const delayMs = 2000 * Math.pow(2, attempt);
+        console.warn(`[BASE API] ${label} - retrying in ${delayMs}ms`);
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  console.error(`[BASE API] ${label} all ${maxRetries + 1} attempts failed`);
+  throw lastError;
+}
+
+async function fetchAnnouncementsByYear(year: number): Promise<Record<string, unknown>[]> {
+  const baseUrl = getEnv("BASE_API_URL") || "https://www.base.gov.pt/APIBase2";
+  const url = `${baseUrl}/GetInfoAnuncio?Ano=${year}`;
+  console.log(`[BASE API] GET ${url}`);
+  const data = await fetchWithRetry(url, { headers: buildHeaders() }, `GetInfoAnuncio?Ano=${year}`, 3);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function forEachAnnouncementsChunk(
+  fromDate: string,
+  toDate: string,
+  chunkSize: number,
+  onChunk: (chunk: Record<string, unknown>[]) => Promise<void>,
+): Promise<number> {
+  const fromYear = parseInt(fromDate.slice(0, 4));
+  const toYear = parseInt(toDate.slice(0, 4));
+  let totalFiltered = 0;
+
+  for (let year = fromYear; year <= toYear; year++) {
+    let items = await fetchAnnouncementsByYear(year);
+    const yearTotal = items.length;
+    const chunk: Record<string, unknown>[] = [];
+    let yearFiltered = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const raw = item.dataPublicacao as string | undefined;
+      const date = raw ? parsePtDate(raw) : null;
+      if (date && date >= fromDate && date <= toDate) {
+        chunk.push(item);
+        yearFiltered++;
+        totalFiltered++;
+      }
+
+      items[i] = null as unknown as Record<string, unknown>;
+
+      if (chunk.length >= chunkSize) {
+        await onChunk([...chunk]);
+        chunk.length = 0;
+      }
+    }
+
+    if (chunk.length > 0) {
+      await onChunk([...chunk]);
+      chunk.length = 0;
+    }
+
+    console.log(`[BASE API] year=${year}: ${yearTotal} total, ${yearFiltered} in range`);
+    items = null as unknown as Record<string, unknown>[];
+  }
+
+  return totalFiltered;
+}
+
+export async function listAllAnnouncements(
+  fromDate: string,
+  toDate: string,
+): Promise<Record<string, unknown>[]> {
+  const all: Record<string, unknown>[] = [];
+  await forEachAnnouncementsChunk(fromDate, toDate, 1000, async (chunk) => {
+    all.push(...chunk);
+  });
+  return all;
+}
+
 function parsePrice(val: unknown): number | null {
   if (val == null || val === "") return null;
   const s = String(val).replace(/\s/g, "");
-  // PT format: "1.234.567,89" → remove dots, replace comma with dot
   if (s.includes(",")) {
     const cleaned = s.replace(/\./g, "").replace(",", ".");
     const n = parseFloat(cleaned);
@@ -203,75 +251,83 @@ function parsePrice(val: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-/**
- * Parse a "NIF - Nome" string into { nif, name }.
- * Format: "509000001 - Empresa Exemplo, Lda."
- */
 export function parseNifNome(raw: string): { nif: string; name: string } {
   const idx = raw.indexOf(" - ");
   if (idx === -1) return { nif: raw.trim(), name: raw.trim() };
   return { nif: raw.slice(0, idx).trim(), name: raw.slice(idx + 3).trim() };
 }
 
-/**
- * Fetch all contracts for a given year from the BASE API.
- * Endpoint: GET /APIBase2/GetInfoContrato?Ano=YYYY
- */
 async function fetchContractsByYear(year: number): Promise<Record<string, unknown>[]> {
   const baseUrl = getEnv("BASE_API_URL") || "https://www.base.gov.pt/APIBase2";
   const url = `${baseUrl}/GetInfoContrato?Ano=${year}`;
-
-  console.log(`[BASE API] GET ${url}`);
-
-  const data = await fetchWithRetry(url, { headers: buildHeaders() }, `GetInfoContrato?Ano=${year}`);
-  return Array.isArray(data) ? data : [];
+  console.log(`[BASE API] fetchContractsByYear(${year}): GET ${url}`);
+  const t0 = Date.now();
+  const data = await fetchWithRetry(url, { headers: buildHeaders() }, `GetInfoContrato?Ano=${year}`, 3);
+  const items = Array.isArray(data) ? data : [];
+  console.log(`[BASE API] fetchContractsByYear(${year}): got ${items.length} contracts in ${Date.now() - t0}ms`);
+  return items;
 }
 
-/**
- * Fetch all contracts between fromDate and toDate (YYYY-MM-DD).
- * Queries by year and filters client-side by dataCelebracaoContrato
- * (signing date), which matches how the BASE website filters contracts.
- *
- * The API's Ano parameter groups by publication year, so we may need
- * to query multiple years if contracts signed in the requested range
- * were published in a different year (rare but possible).
- */
+export async function forEachContractsChunk(
+  fromDate: string,
+  toDate: string,
+  chunkSize: number,
+  onChunk: (chunk: Record<string, unknown>[]) => Promise<void>,
+  yearFilter?: number,
+): Promise<number> {
+  const fromYear = yearFilter ?? parseInt(fromDate.slice(0, 4));
+  const toYear = yearFilter ?? parseInt(toDate.slice(0, 4));
+  let totalFiltered = 0;
+
+  for (let year = fromYear; year <= toYear; year++) {
+    let items = await fetchContractsByYear(year);
+    const yearTotal = items.length;
+    const chunk: Record<string, unknown>[] = [];
+    let yearFiltered = 0;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const rawSigning = item.dataCelebracaoContrato as string | undefined;
+      const rawPublication = item.dataPublicacao as string | undefined;
+      const date = rawSigning ? parsePtDate(rawSigning) : (rawPublication ? parsePtDate(rawPublication) : null);
+      if (date && date >= fromDate && date <= toDate) {
+        chunk.push(item);
+        yearFiltered++;
+        totalFiltered++;
+      }
+
+      items[i] = null as unknown as Record<string, unknown>;
+
+      if (chunk.length >= chunkSize) {
+        await onChunk([...chunk]);
+        chunk.length = 0;
+      }
+    }
+
+    if (chunk.length > 0) {
+      await onChunk([...chunk]);
+      chunk.length = 0;
+    }
+
+    console.log(`[BASE API] contracts year=${year}: ${yearTotal} total, ${yearFiltered} in range [${fromDate}..${toDate}] (by signing date, fallback publication date)`);
+    items = null as unknown as Record<string, unknown>[];
+  }
+
+  return totalFiltered;
+}
+
 export async function listAllContracts(
   fromDate: string,
   toDate: string,
 ): Promise<Record<string, unknown>[]> {
-  const fromYear = parseInt(fromDate.slice(0, 4));
-  const toYear = parseInt(toDate.slice(0, 4));
-
   const all: Record<string, unknown>[] = [];
-
-  for (let year = fromYear; year <= toYear; year++) {
-    const items = await fetchContractsByYear(year);
-    let inRange = 0;
-
-    for (const item of items) {
-      // Filter by signing date (dataCelebracaoContrato) — matches BASE website
-      const rawSigning = item.dataCelebracaoContrato as string | undefined;
-      const date = rawSigning ? parsePtDate(rawSigning) : null;
-      if (!date) continue;
-      if (date >= fromDate && date <= toDate) {
-        all.push(item);
-        inRange++;
-      }
-    }
-
-    console.log(
-      `[BASE API] contracts year=${year}: ${items.length} total, ${inRange} in range [${fromDate}..${toDate}] (by signing date)`,
-    );
-  }
-
+  await forEachContractsChunk(fromDate, toDate, 1000, async (chunk) => {
+    all.push(...chunk);
+  });
   return all;
 }
 
-/** Map a raw BASE API contract payload to the DB schema. */
-export function mapToContract(
-  payload: Record<string, unknown>,
-): BaseContractMapped {
+export function mapToContract(payload: Record<string, unknown>): BaseContractMapped {
   const rawCpvs = Array.isArray(payload.cpv)
     ? (payload.cpv as string[]).map(extractCpvCode)
     : [];
@@ -281,11 +337,6 @@ export function mapToContract(
   const awardDate = parsePtDate(payload.dataDecisaoAdjudicacao as string) ?? null;
   const signingDate = parsePtDate(payload.dataCelebracaoContrato as string) ?? null;
   const closeDate = parsePtDate(payload.dataFechoContrato as string) ?? null;
-
-  // Use signing date (dataCelebracaoContrato) as the primary date for the record.
-  // This matches the BASE website, which filters/displays by signing date.
-  // publication_date in our DB stores this signing date for ordering/display.
-  // The BASE portal publication date (dataPublicacao) is stored in raw_payload.
   const effectiveDate = signingDate ?? publicationDate;
 
   const contractType = Array.isArray(payload.tipoContrato)
@@ -297,15 +348,12 @@ export function mapToContract(
   const contractingEntities = Array.isArray(payload.adjudicante)
     ? (payload.adjudicante as string[])
     : [];
-
   const winners = Array.isArray(payload.adjudicatarios)
     ? (payload.adjudicatarios as string[])
     : [];
-
   const executionLocations = Array.isArray(payload.localExecucao)
     ? (payload.localExecucao as string[])
     : [];
-
   const executionDays = typeof payload.prazoExecucao === "number"
     ? payload.prazoExecucao
     : payload.prazoExecucao
@@ -333,7 +381,7 @@ export function mapToContract(
     effective_price: parsePrice(payload.PrecoTotalEfetivo),
     currency: "EUR",
     contracting_entities: contractingEntities,
-    winners: winners,
+    winners,
     competitors: (payload.concorrentes as string | undefined) ?? null,
     cpv_main: cpvMain,
     cpv_list: rawCpvs,
@@ -349,71 +397,46 @@ export function mapToContract(
   };
 }
 
-// ---------------------------------------------------------------------------
-// Contract modifications – GetInfoModContrat
-// ---------------------------------------------------------------------------
-
-/**
- * Fetch contract modifications for a given year.
- * Endpoint: GET /APIBase2/GetInfoModContrat?Ano=YYYY
- */
 export async function fetchContractModsByYear(year: number): Promise<Record<string, unknown>[]> {
   const baseUrl = getEnv("BASE_API_URL") || "https://www.base.gov.pt/APIBase2";
   const url = `${baseUrl}/GetInfoModContrat?Ano=${year}`;
 
   console.log(`[BASE API] GET ${url}`);
-
   const data = await fetchWithRetry(url, { headers: buildHeaders() }, `GetInfoModContrat?Ano=${year}`);
   return Array.isArray(data) ? data : [];
 }
 
-// ---------------------------------------------------------------------------
-// Announcements – GetInfoAnuncio (existing)
-// ---------------------------------------------------------------------------
-
-/** Map a raw BASE API announcement payload to the DB schema. */
-export function mapToAnnouncement(
-  payload: Record<string, unknown>,
-): BaseAnnouncementMapped {
+export function mapToAnnouncement(payload: Record<string, unknown>): BaseAnnouncementMapped {
   const rawCpvs = Array.isArray(payload.CPVs)
     ? (payload.CPVs as string[]).map(extractCpvCode)
     : [];
-
   const cpvMain = rawCpvs[0] ?? null;
 
-  const publicationDate =
-    parsePtDate(payload.dataPublicacao as string) ??
-    new Date().toISOString().slice(0, 10);
-
+  const publicationDate = parsePtDate(payload.dataPublicacao as string) ?? new Date().toISOString().slice(0, 10);
   const contractType = Array.isArray(payload.tiposContrato)
     ? (payload.tiposContrato as string[])[0] ?? null
     : null;
-
   const basePrice = payload.PrecoBase
     ? parseFloat(String(payload.PrecoBase).replace(",", ".")) || null
     : null;
-
-  const deadlineDays =
-    typeof payload.PrazoPropostas === "number"
-      ? payload.PrazoPropostas
-      : payload.PrazoPropostas
-      ? parseInt(String(payload.PrazoPropostas)) || null
-      : null;
-
-  const deadlineAt =
-    deadlineDays !== null && publicationDate
-      ? (() => {
-          const d = new Date(publicationDate);
-          d.setDate(d.getDate() + deadlineDays);
-          return d.toISOString().slice(0, 10) + "T00:00:00Z";
-        })()
-      : null;
+  const deadlineDays = typeof payload.PrazoPropostas === "number"
+    ? payload.PrazoPropostas
+    : payload.PrazoPropostas
+    ? parseInt(String(payload.PrazoPropostas)) || null
+    : null;
+  const deadlineAt = deadlineDays !== null
+    ? (() => {
+        const d = new Date(publicationDate);
+        d.setDate(d.getDate() + deadlineDays);
+        return d.toISOString().slice(0, 10) + "T00:00:00Z";
+      })()
+    : null;
 
   return {
     base_announcement_id: payload.IdIncm ? String(payload.IdIncm) : null,
     dr_announcement_no: payload.nAnuncio ? String(payload.nAnuncio) : null,
     publication_date: publicationDate,
-    title: (payload.descricaoAnuncio as string | undefined)?.trim() || "Sem título",
+    title: (payload.descricaoAnuncio as string | undefined)?.trim() || "Sem titulo",
     description: null,
     entity_name: (payload.designacaoEntidade as string | undefined) ?? null,
     entity_nif: (payload.nifEntidade as string | undefined) ?? null,

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { Building2 } from "lucide-react";
 
@@ -111,15 +112,11 @@ export default async function EntitiesPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="flex items-center gap-3 mb-0.5">
-          <Building2 className="w-5 h-5 text-brand-600" />
-          <h1 className="text-2xl font-bold text-gray-900">Entidades Públicas</h1>
-        </div>
-        <p className="text-gray-500 text-sm">
-          {count ?? 0} entidades adjudicantes
-        </p>
-      </div>
+      <PageHeader
+        icon={Building2}
+        title="Entidades Públicas"
+        description={`${count ?? 0} entidades adjudicantes`}
+      />
 
       {/* Filters */}
       <form className="bg-white border border-surface-200 rounded-xl p-4 shadow-card space-y-3">
@@ -127,7 +124,7 @@ export default async function EntitiesPage({
           <input
             name="name"
             defaultValue={nameFilter}
-            placeholder="Nome ou NIF..."
+            placeholder="Nome ou NIPC..."
             className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-52"
           />
           <select

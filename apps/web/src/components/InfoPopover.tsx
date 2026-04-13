@@ -11,7 +11,7 @@ type InfoPopoverProps = {
 
 export default function InfoPopover({
   text,
-  ariaLabel = "Informacao",
+  ariaLabel = "INFO",
   placement = "side",
   side = "right",
 }: InfoPopoverProps) {
@@ -48,7 +48,7 @@ export default function InfoPopover({
           className={`absolute h-2 w-2 rotate-45 bg-white border-gray-200 ${arrowPositionClass}`}
         />
         <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">
-          Informacao
+          INFO
         </p>
         <p className="text-xs leading-5 text-gray-700">{text}</p>
       </div>

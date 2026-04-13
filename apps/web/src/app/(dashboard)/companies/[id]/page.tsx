@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Factory } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -109,38 +111,36 @@ export default async function CompanyDetailPage({
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-start gap-4">
-        <Link
-          href="/companies"
-          className="text-sm text-gray-400 hover:text-gray-600 mt-1 shrink-0"
-        >
-          &larr; Empresas
-        </Link>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            {company.name}
-          </h1>
-          <div className="flex flex-wrap items-center gap-3 mt-1">
-            <span className="text-gray-400 text-sm font-mono">{company.nif}</span>
+      <PageHeader
+        icon={Factory}
+        title={company.name}
+        backHref="/companies"
+        backLabel="Empresas"
+        size="detail"
+        meta={
+          <>
+            <span className="text-sm font-mono text-gray-400">{company.nif}</span>
             {company.location && (
-              <span className="text-gray-400 text-sm">{company.location}</span>
+              <span className="text-sm text-gray-400">{company.location}</span>
             )}
-          </div>
-        </div>
-        {company.win_rate != null && (
-          <span
-            className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${
-              company.win_rate >= 50
-                ? "bg-green-50 text-green-700 border border-green-100"
-                : company.win_rate >= 25
-                ? "bg-amber-50 text-amber-700 border border-amber-100"
-                : "bg-gray-100 text-gray-600 border border-gray-200"
-            }`}
-          >
-            {Number(company.win_rate).toFixed(0)}% taxa vitória
-          </span>
-        )}
-      </div>
+          </>
+        }
+        badge={
+          company.win_rate != null ? (
+            <span
+              className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${
+                company.win_rate >= 50
+                  ? "bg-green-50 text-green-700 border border-green-100"
+                  : company.win_rate >= 25
+                  ? "bg-amber-50 text-amber-700 border border-amber-100"
+                  : "bg-gray-100 text-gray-600 border border-gray-200"
+              }`}
+            >
+              {Number(company.win_rate).toFixed(0)}% taxa vitória
+            </span>
+          ) : undefined
+        }
+      />
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

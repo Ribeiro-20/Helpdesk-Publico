@@ -256,10 +256,10 @@ export default function ContractsTable({
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate text-xs">
+                    <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal">
                       {entityName}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate text-xs">
+                    <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal">
                       {winnerName}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">

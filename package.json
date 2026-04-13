@@ -4,21 +4,22 @@
   "description": "Sistema de monitorização de anúncios de contratação pública do portal BASE",
   "private": true,
   "scripts": {
-    "setup": "supabase start && supabase db reset && npx tsx scripts/import-cpvs.ts",
+    "setup:base": "npx supabase start && npx supabase db reset && npm run import-cpvs",
+    "setup": "npm run setup:base && copy /Y .env supabase\\functions\\.env && start \"BASE Monitor Functions\" cmd /k \"cd /d %CD% && npx supabase functions serve --env-file supabase/functions/.env\" && start \"BASE Monitor Web\" cmd /k \"cd /d %CD%\\apps\\web && npm install && npm run dev\"",
     "dev": "cd apps/web && npm install && npm run dev",
-    "functions": "supabase functions serve --env-file supabase/functions/.env",
+    "functions": "npx supabase functions serve --env-file supabase/functions/.env",
+    "import-cpvs": "cd scripts && npm install && npx tsx import-cpvs.ts",
     "cron": "cd supabase/cron && npm install && npx tsx run.ts",
-    "cron:once": "cd supabase/cron && npm install && npx tsx run.ts --once"
+    "cron:once": "cd supabase/cron && npm install && npx tsx run.ts --once",
+    "market:refresh": "node scripts/market-refresh.js",
+    "scrape-dr": "npm --prefix scripts run scrape-dr --",
+    "scrape-dr:upsert": "npm --prefix scripts run scrape-dr:upsert --"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.44.2",
     "@types/node": "^20.11.0",
     "dotenv": "^16.4.5",
-    "supabase": "latest",
+    "supabase": "^2.81.3",
     "tsx": "^4.19.1"
-  },
-  "dependencies": {
-    "@radix-ui/react-tooltip": "^1.2.8",
-    "lucide-react": "^0.577.0"
   }
 }

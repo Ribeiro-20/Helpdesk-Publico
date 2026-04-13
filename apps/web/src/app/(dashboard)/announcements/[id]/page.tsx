@@ -40,6 +40,55 @@ function Field({
   );
 }
 
+function pickRaw(payload: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = payload[key];
+    if (value == null || value === "") continue;
+    if (Array.isArray(value)) {
+      if (value.length > 0) return String(value[0]);
+      continue;
+    }
+    return String(value);
+  }
+  return null;
+}
+
+function extractProcedurePiecesUrl(payload: Record<string, unknown>): string | null {
+  const detalle = payload.detalhe_conteudo;
+  if (!detalle || typeof detalle !== "object") return null;
+
+  const texto = (detalle as Record<string, unknown>).Texto;
+  if (typeof texto !== "string" || !texto.trim()) return null;
+
+  const labeled = texto.match(/Link\s+para\s+acesso\s+[àa]\s*s\s*pe[cç]as\s+do\s+concurso\s*\(URL\)\s*:\s*(https?:\/\/\S+)/i)
+    ?? texto.match(/Link\s+para\s+acesso\s+[àa]s\s+pe[cç]as\s+do\s+concurso\s*\(URL\)\s*:\s*(https?:\/\/\S+)/i);
+  if (labeled) return labeled[1];
+
+  const acingov = texto.match(/https?:\/\/\S*downloadProcedurePiece\/\S+/i);
+  if (acingov) return acingov[0];
+
+  const generic = texto.match(/https?:\/\/\S+/i);
+  return generic ? generic[0] : null;
+}
+
+function normalizeCpvCode(raw: unknown): string | null {
+  const value = String(raw ?? "").trim().toUpperCase();
+  if (!value || value === "-" || value === "—") return null;
+
+  const embedded = value.match(/\b\d{8}(?:-\d)?\b/);
+  if (embedded) return embedded[0];
+
+  const digits = value.replace(/\D/g, "");
+  if (digits.length === 9) return `${digits.slice(0, 8)}-${digits[8]}`;
+  if (digits.length === 8) return digits;
+  return null;
+}
+
+function cpvCore8(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 8 ? digits.slice(0, 8) : "";
+}
+
 export default async function AnnouncementDetailPage({
   params,
 }: {
@@ -59,8 +108,55 @@ export default async function AnnouncementDetailPage({
 
   if (!ann) notFound();
 
-  const cpvList: string[] = Array.isArray(ann.cpv_list) ? ann.cpv_list : [];
+  const cpvListRaw: string[] = Array.isArray(ann.cpv_list) ? ann.cpv_list : [];
+  const normalizedMainCpv = normalizeCpvCode(ann.cpv_main);
+  const normalizedListCpvs = Array.from(
+    new Set(cpvListRaw.map((code) => normalizeCpvCode(code)).filter((code): code is string => Boolean(code))),
+  );
+
+  const cpvShortCodes = Array.from(
+    new Set(
+      [normalizedMainCpv, ...normalizedListCpvs].filter((code): code is string => Boolean(code && /^\d{8}$/.test(code))),
+    ),
+  );
+
+  const cpvDisplayMap = new Map<string, string>();
+  if (cpvShortCodes.length > 0) {
+    const orFilter = cpvShortCodes.map((code) => `id.ilike.${code}-%`).join(",");
+    const { data: cpvRows } = await supabase
+      .from("cpv_codes")
+      .select("id")
+      .or(orFilter)
+      .limit(Math.max(20, cpvShortCodes.length * 3));
+
+    for (const row of cpvRows ?? []) {
+      const id = String((row as { id?: unknown }).id ?? "").trim();
+      if (!id) continue;
+      const core = cpvCore8(id);
+      if (core && !cpvDisplayMap.has(core)) cpvDisplayMap.set(core, id);
+    }
+  }
+
+  const resolveCpvDisplay = (code: string | null | undefined): string | null => {
+    const normalized = normalizeCpvCode(code);
+    if (!normalized) return null;
+    if (/^\d{8}$/.test(normalized)) return cpvDisplayMap.get(normalized) ?? normalized;
+    return normalized;
+  };
+
+  const cpvMainDisplay = resolveCpvDisplay(normalizedMainCpv);
+  const cpvListDisplay = Array.from(
+    new Set(normalizedListCpvs.map((code) => resolveCpvDisplay(code)).filter((code): code is string => Boolean(code))),
+  );
   const displayStatus = effectiveStatus(ann);
+  const rawPayload = (ann.raw_payload ?? {}) as Record<string, unknown>;
+  const payloadRoot = (rawPayload.payload && typeof rawPayload.payload === "object")
+    ? (rawPayload.payload as Record<string, unknown>)
+    : rawPayload;
+  const piecesUrl =
+    pickRaw(payloadRoot, ["PecasProcedimento", "linkPecasProc"]) ??
+    extractProcedurePiecesUrl(payloadRoot) ??
+    ann.detail_url;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -118,12 +214,12 @@ export default async function AnnouncementDetailPage({
         </InfoCard>
 
         <InfoCard title="CPV">
-          <Field label="CPV principal" value={ann.cpv_main} mono />
-          {cpvList.length > 0 && (
+          <Field label="CPV principal" value={cpvMainDisplay} mono />
+          {cpvListDisplay.length > 0 && (
             <div>
               <p className="text-xs text-gray-400 mb-1">Lista CPV</p>
               <div className="flex flex-wrap gap-1">
-                {cpvList.map((c: string) => (
+                {cpvListDisplay.map((c: string) => (
                   <span
                     key={c}
                     className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono"
@@ -134,21 +230,23 @@ export default async function AnnouncementDetailPage({
               </div>
             </div>
           )}
+          {!cpvMainDisplay && cpvListDisplay.length === 0 && (
+            <p className="text-sm text-gray-400">Sem CPV identificado no anúncio de origem.</p>
+          )}
         </InfoCard>
 
         <InfoCard title="Referências">
-          <Field label="ID BASE" value={ann.base_announcement_id} mono />
           <Field label="Nº DR" value={ann.dr_announcement_no} />
-          {ann.detail_url && (
+          {piecesUrl && (
             <div>
-              <p className="text-xs text-gray-400 mb-0.5">Link original</p>
+              <p className="text-xs text-gray-400 mb-0.5">Peças do procedimento</p>
               <a
-                href={ann.detail_url}
+                href={piecesUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-brand-600 hover:underline text-sm break-all"
               >
-                {ann.detail_url}
+                {piecesUrl}
               </a>
             </div>
           )}
@@ -199,6 +297,15 @@ export default async function AnnouncementDetailPage({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="flex justify-end">
+        <Link
+          href={`/announcements/${id}/detalhes`}
+          className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+        >
+          Ver mais detalhes →
+        </Link>
       </div>
     </div>
   );

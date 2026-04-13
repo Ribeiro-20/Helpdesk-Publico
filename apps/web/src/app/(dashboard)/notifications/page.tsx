@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import NotificationsManager from "@/components/NotificationsManager";
+import PageHeader from "@/components/layout/PageHeader";
+import { Bell } from "lucide-react";
 
 const PAGE_SIZE = 30;
 
@@ -39,10 +41,11 @@ export default async function NotificationsPage({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Notificações</h1>
-        <p className="text-gray-500 text-sm mt-0.5">{count ?? 0} notificações</p>
-      </div>
+      <PageHeader
+        icon={Bell}
+        title="Notificações"
+        description={`${count ?? 0} notificações`}
+      />
       <NotificationsManager
         notifications={(notifications ?? []) as unknown as Parameters<typeof NotificationsManager>[0]["notifications"]}
         statusFilter={statusFilter}
