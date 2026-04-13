@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { FileText, Filter, House } from "lucide-react";
 import Header from "@/components/layout/Header";
@@ -160,14 +160,36 @@ export default async function MercadoPublicoPage({
 
   const supabase = await createAdminClient();
 
-  // Get first tenant (public access — no auth required)
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("id")
-    .limit(1)
-    .maybeSingle();
+  // Prefer the authenticated user's tenant (same behavior as dashboard).
+  // For anonymous visitors, fallback to the first tenant so the page remains public.
+  const authSupabase = await createClient();
+  const {
+    data: { user },
+  } = await authSupabase.auth.getUser();
 
-  const tenantId = tenant?.id ?? "00000000-0000-0000-0000-000000000000";
+  let tenantId = "00000000-0000-0000-0000-000000000000";
+
+  if (user?.id) {
+    const { data: appUser } = await supabase
+      .from("app_users")
+      .select("tenant_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (appUser?.tenant_id) {
+      tenantId = appUser.tenant_id;
+    }
+  }
+
+  if (tenantId === "00000000-0000-0000-0000-000000000000") {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    if (tenant?.id) tenantId = tenant.id;
+  }
 
   // Build facet options for contract type and hierarchical location filters.
   const { data: locationRows } = await supabase
