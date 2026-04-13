@@ -341,7 +341,11 @@ function getCorrectMunicipalityName(name: string): string {
 }
 
 function sortValues(values: string[]): string[] {
-  return [...values].sort((a, b) => a.localeCompare(b, "pt-PT"));
+  return [...values].sort((a, b) => {
+    if (a === "Portugal") return -1;
+    if (b === "Portugal") return 1;
+    return a.localeCompare(b, "pt-PT");
+  });
 }
 
 function getDistrictOptions(
