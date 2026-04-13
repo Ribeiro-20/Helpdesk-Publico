@@ -74,21 +74,13 @@ function resolveStatusBadge(contract: ContractRow): {
 
     if (progress != null && progress >= 100) {
       return {
-        label: "Prazo excedido",
+        label: "Terminado",
         className: "bg-red-100 text-red-700",
         title: `${progress.toFixed(0)}% do prazo de execucao`,
       };
     }
 
-    if (progress != null && progress >= 80) {
-      return {
-        label: "Aproxima prazo",
-        className: "bg-amber-100 text-amber-700",
-        title: `${progress.toFixed(0)}% do prazo de execucao`,
-      };
-    }
-
-    return { label: "Activo", className: "bg-green-100 text-green-700" };
+    return { label: "Ativo", className: "bg-green-100 text-green-700" };
   }
 
   return {
@@ -225,7 +217,7 @@ export default function ContractsTable({
                   <span className="inline-flex items-center gap-1">
                     CPV
                     <InfoPopover
-                      text="Passe o rato por cima do código CPV para ver a descrição."
+                      text="passe o rato por cima do código cpv para ver a descrição."
                       ariaLabel="Informação sobre coluna CPV"
                       placement="bottom"
                     />

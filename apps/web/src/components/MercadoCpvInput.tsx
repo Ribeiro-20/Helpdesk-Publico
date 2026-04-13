@@ -80,7 +80,7 @@ export default function MercadoCpvInput({
           CPV
         </label>
         <InfoPopover
-          text="Insira o código CPV. Escreva o inicio do codigo (ex: 331). A pesquisa filtra por prefixo de CPV, como no BASE."
+          text="Indique o código CPV que pretende pesquisar"
           ariaLabel="Ajuda CPV"
         />
       </div>
@@ -91,7 +91,7 @@ export default function MercadoCpvInput({
         value={value}
         onChange={(event) => handleChange(event.target.value)}
         autoComplete="off"
-        placeholder="insira o código CPV"
+        placeholder="Insira o código CPV"
         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
       />
     </div>

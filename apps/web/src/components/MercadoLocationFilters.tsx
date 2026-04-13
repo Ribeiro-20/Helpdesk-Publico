@@ -341,7 +341,11 @@ function getCorrectMunicipalityName(name: string): string {
 }
 
 function sortValues(values: string[]): string[] {
-  return [...values].sort((a, b) => a.localeCompare(b, "pt-PT"));
+  return [...values].sort((a, b) => {
+    if (a === "Portugal") return -1;
+    if (b === "Portugal") return 1;
+    return a.localeCompare(b, "pt-PT");
+  });
 }
 
 function getDistrictOptions(
@@ -455,6 +459,10 @@ export default function MercadoLocationFilters({
   const districtDisabled = country === "all" || districtOptions.length === 0;
   const municipalityDisabled =
     districtDisabled || district === "all" || municipalityOptions.length === 0;
+  const hasPortugal = countryOptions.includes("Portugal");
+  const otherCountryOptions = countryOptions.filter(
+    (option) => option !== "Portugal",
+  );
 
   return (
     <>
@@ -471,7 +479,13 @@ export default function MercadoLocationFilters({
           className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
         >
           <option value="all">Todos</option>
-          {countryOptions.map((option) => (
+          {hasPortugal && <option value="Portugal">Portugal</option>}
+          {hasPortugal && otherCountryOptions.length > 0 && (
+            <option value="__separator__" disabled>
+              --------------------
+            </option>
+          )}
+          {otherCountryOptions.map((option) => (
             <option key={option} value={option}>
               {option}
             </option>

@@ -11,7 +11,7 @@ export default function PublicFooter() {
           <div className="space-y-6">
             <Link href="/">
               <Image
-                src="/logo-white.webp"
+                src="/logo-white.png"
                 alt="Helpdesk Público"
                 width={200}
                 height={65}
