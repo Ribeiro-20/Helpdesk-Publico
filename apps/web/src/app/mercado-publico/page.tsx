@@ -1000,36 +1000,28 @@ export default async function MercadoPublicoPage({
               defaultMunicipality={selectedMunicipality}
             />
 
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Apresentar
-              </label>
-              <select
-                name="limit"
-                defaultValue={PAGE_SIZE.toString()}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
-              >
-                <option value="25">25 contratos</option>
-                <option value="50">50 contratos</option>
-                <option value="100">100 contratos</option>
-              </select>
-            </div>
+            <MercadoSingleSelect
+              name="limit"
+              label="Apresentar"
+              defaultValue={PAGE_SIZE.toString()}
+              options={[
+                { value: "25", label: "25 contratos" },
+                { value: "50", label: "50 contratos" },
+                { value: "100", label: "100 contratos" },
+              ]}
+            />
 
-            <div>
-              <label className="block text-xs text-gray-400 mb-1">
-                Ordenar
-              </label>
-              <select
-                name="sort"
-                defaultValue={sortField}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
-              >
-                <option value="signing_date">Mais recentes</option>
-                <option value="publication_date">Data publicação</option>
-                <option value="value_desc">Maior valor</option>
-                <option value="value_asc">Menor valor</option>
-              </select>
-            </div>
+            <MercadoSingleSelect
+              name="sort"
+              label="Ordenar"
+              defaultValue={sortField}
+              options={[
+                { value: "signing_date", label: "Mais recentes" },
+                { value: "publication_date", label: "Data publicação" },
+                { value: "value_desc", label: "Maior valor" },
+                { value: "value_asc", label: "Menor valor" },
+              ]}
+            />
 
             <button
               type="submit"

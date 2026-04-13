@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 
 type LocationOptionsByCountry = Record<string, Record<string, string[]>>;
 
@@ -459,84 +460,78 @@ export default function MercadoLocationFilters({
   const districtDisabled = country === "all" || districtOptions.length === 0;
   const municipalityDisabled =
     districtDisabled || district === "all" || municipalityOptions.length === 0;
+
   const hasPortugal = countryOptions.includes("Portugal");
-  const otherCountryOptions = countryOptions.filter(
-    (option) => option !== "Portugal",
-  );
+  const otherCountryOptions = countryOptions.filter((option) => option !== "Portugal");
+
+  const countrySelectOptions = [
+    { value: "all", label: "Todos" },
+    ...(hasPortugal ? [{ value: "Portugal", label: "Portugal" }] : []),
+    ...(hasPortugal && otherCountryOptions.length > 0
+      ? [{ value: "__separator__", label: "--------------------", disabled: true }]
+      : []),
+    ...otherCountryOptions.map((option) => ({ value: option, label: option })),
+  ];
+
+  const districtSelectOptions = districtDisabled
+    ? [{ value: "all", label: "Selecione um país" }]
+    : [
+        { value: "all", label: "Todos" },
+        ...districtOptions.map((option) => ({
+          value: option,
+          label: getCorrectDistrictName(option),
+        })),
+      ];
+
+  const municipalitySelectOptions = municipalityDisabled
+    ? [{ value: "all", label: "Selecione um distrito" }]
+    : [
+        { value: "all", label: "Todos" },
+        ...municipalityOptions.map((option) => ({
+          value: option,
+          label: getCorrectMunicipalityName(option),
+        })),
+      ];
 
   return (
     <>
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">País</label>
-        <select
-          name="country"
-          value={country}
-          onChange={(event) => {
-            setCountry(event.target.value);
-            setDistrict("all");
-            setMunicipality("all");
-          }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-        >
-          <option value="all">Todos</option>
-          {hasPortugal && <option value="Portugal">Portugal</option>}
-          {hasPortugal && otherCountryOptions.length > 0 && (
-            <option value="__separator__" disabled>
-              --------------------
-            </option>
-          )}
-          {otherCountryOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-      </div>
+      <MercadoSingleSelect
+        name="country"
+        label="País"
+        options={countrySelectOptions}
+        defaultValue={country}
+        value={country}
+        onChange={(nextCountry) => {
+          setCountry(nextCountry);
+          setDistrict("all");
+          setMunicipality("all");
+        }}
+      />
 
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Distrito</label>
-        <select
-          name="district"
-          value={district}
-          disabled={districtDisabled}
-          onChange={(event) => {
-            setDistrict(event.target.value);
-            setMunicipality("all");
-          }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
-        >
-          <option value="all">
-            {districtDisabled ? "Selecione um país" : "Todos"}
-          </option>
-          {districtOptions.map((option) => (
-            <option key={option} value={option}>
-              {getCorrectDistrictName(option)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <MercadoSingleSelect
+        name="district"
+        label="Distrito"
+        options={districtSelectOptions}
+        defaultValue={district}
+        value={district}
+        disabled={districtDisabled}
+        onChange={(nextDistrict) => {
+          setDistrict(nextDistrict);
+          setMunicipality("all");
+        }}
+      />
 
-      <div>
-        <label className="block text-xs text-gray-400 mb-1">Concelho</label>
-        <select
-          name="municipality"
-          value={municipality}
-          disabled={municipalityDisabled}
-          onChange={(event) => {
-            setMunicipality(event.target.value);
-          }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
-        >
-          <option value="all">
-            {municipalityDisabled ? "Selecione um distrito" : "Todos"}
-          </option>
-          {municipalityOptions.map((option) => (
-            <option key={option} value={option}>
-              {getCorrectMunicipalityName(option)}
-            </option>
-          ))}
-        </select>
-      </div>
+      <MercadoSingleSelect
+        name="municipality"
+        label="Concelho"
+        options={municipalitySelectOptions}
+        defaultValue={municipality}
+        value={municipality}
+        disabled={municipalityDisabled}
+        onChange={(nextMunicipality) => {
+          setMunicipality(nextMunicipality);
+        }}
+      />
     </>
   );
 }
