@@ -18,8 +18,8 @@ export interface ContractRow {
   contract_price: number | null;
   base_price: number | null;
   status: string;
-  contracting_entities: string[];
-  winners: string[];
+  contracting_entities: unknown[];
+  winners: unknown[];
 }
 
 function formatEur(val: number | null): string {
@@ -97,9 +97,25 @@ function resolveStatusBadge(contract: ContractRow): {
   };
 }
 
-function extractName(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? raw : raw.slice(idx + 3);
+function extractName(raw: unknown): string {
+  if (typeof raw === "string") {
+    const idx = raw.indexOf(" - ");
+    return idx === -1 ? raw : raw.slice(idx + 3);
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const directName = record.name;
+    if (typeof directName === "string" && directName.trim()) return directName;
+
+    const value = record.value ?? record.label ?? record.text;
+    if (typeof value === "string" && value.trim()) {
+      const idx = value.indexOf(" - ");
+      return idx === -1 ? value : value.slice(idx + 3);
+    }
+  }
+
+  return "—";
 }
 
 export default function ContractsTable({

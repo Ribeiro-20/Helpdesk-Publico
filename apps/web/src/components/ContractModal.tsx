@@ -31,8 +31,8 @@ interface Contract {
   contract_price: number | null;
   effective_price: number | null;
   status: string;
-  contracting_entities: string[];
-  winners: string[];
+  contracting_entities: unknown[];
+  winners: unknown[];
   competitors: string | null;
   cpv_main: string | null;
   cpv_list: string[];
@@ -50,13 +50,45 @@ interface Contract {
   base_incm_id: string | null;
 }
 
-function extractName(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? raw : raw.slice(idx + 3);
+function extractName(raw: unknown): string {
+  if (typeof raw === "string") {
+    const idx = raw.indexOf(" - ");
+    return idx === -1 ? raw : raw.slice(idx + 3);
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const directName = record.name;
+    if (typeof directName === "string" && directName.trim()) return directName;
+
+    const value = record.value ?? record.label ?? record.text;
+    if (typeof value === "string" && value.trim()) {
+      const idx = value.indexOf(" - ");
+      return idx === -1 ? value : value.slice(idx + 3);
+    }
+  }
+
+  return "—";
 }
-function extractNif(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? "" : raw.slice(0, idx);
+function extractNif(raw: unknown): string {
+  if (typeof raw === "string") {
+    const idx = raw.indexOf(" - ");
+    return idx === -1 ? "" : raw.slice(0, idx);
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const nif = record.nif;
+    if (typeof nif === "string" && nif.trim()) return nif;
+
+    const value = record.value ?? record.label ?? record.text;
+    if (typeof value === "string") {
+      const idx = value.indexOf(" - ");
+      return idx === -1 ? "" : value.slice(0, idx);
+    }
+  }
+
+  return "";
 }
 
 function parseCompetitors(raw: string): string[] {
