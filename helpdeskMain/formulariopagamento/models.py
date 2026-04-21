@@ -1,5 +1,6 @@
 from django.db import models
 
+# NEED TO CHANGE SERIALIZERS into their own file
 ## EUPAGO SERIALIZER (IN/OUT DTO)
 class transaction_status(models.IntegerChoices):
     PAID = 1
@@ -8,10 +9,12 @@ class transaction_status(models.IntegerChoices):
     CANCELED = 4
     EXPIRED = 5
 
+# May be removed
 class webhook(models.Model):
     endpoint = models.CharField(max_length=1023)
     method = models.CharField(max_length=63)
     status = transaction_status
+# -
 
 class transaction(models.Model):
     entity = models.IntegerField()
@@ -33,7 +36,7 @@ class amount(models.Model):
 class fees(models.Model):
     pass
 
-class direct_debit_payment(models.Models):
+class direct_debit_payment(models.Model):
     pass
 
 class multibanco_payment(models.Model):
