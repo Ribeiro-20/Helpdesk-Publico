@@ -5,11 +5,8 @@ from models import webhook_data
 
 # Create your views here.
 def webhook_payment_view(request):
-    requestDTO = webhook_data(
-        transaction = request.params[transaction],
-
-    )
-
+    #WIP
+    
     return HttpResponse("teste pagamento")
 
 def webhook_cancel_view(request):
