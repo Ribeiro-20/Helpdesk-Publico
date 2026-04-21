@@ -4,3 +4,6 @@
 
 - Receber subscrições exteriores
 - Armazenar dados exteriores na base de dados
+
+
+- Vasco
