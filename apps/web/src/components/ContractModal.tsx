@@ -708,7 +708,7 @@ export default function ContractModal({
                           </span>
                           <div>
                             <Link
-                              href={`/mercado-publico?winner=${encodeURIComponent(nif || name)}`}
+                              href={`/mercado-publico?winner=${encodeURIComponent((nif || name).match(/\d+/)?.[0] || (nif || name).trim())}`}
                               className="text-sm text-gray-900 hover:text-green-600 hover:underline font-medium transition-colors"
                               onClick={() => onClose()}
                             >
