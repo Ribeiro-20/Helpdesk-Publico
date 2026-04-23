@@ -706,7 +706,13 @@ export default function ContractModal({
                             {i + 1}
                           </span>
                           <div>
-                            <p className="text-sm text-gray-900">{name}</p>
+                            <Link
+                              href={`/mercado-publico?winner=${encodeURIComponent(nif || name)}`}
+                              className="text-sm text-gray-900 hover:text-green-600 hover:underline font-medium transition-colors"
+                              onClick={() => onClose()}
+                            >
+                              {name}
+                            </Link>
                             {nif && nif !== name && (
                               <p className="text-xs text-gray-400 font-mono">
                                 {nif}
