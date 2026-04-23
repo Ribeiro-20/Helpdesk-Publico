@@ -95,6 +95,14 @@ function parseCompetitors(raw: string): string[] {
   if (!raw) return [];
   const trimmed = raw.trim();
 
+  // 0. Primary check for semicolon-separated values (common in provided data)
+  if (trimmed.includes(";")) {
+    return trimmed
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
   // 1. Try standard JSON array ["a","b"]
   if (trimmed.startsWith("[")) {
     try {
