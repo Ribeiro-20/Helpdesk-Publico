@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { X, ExternalLink, Loader2, Calendar, Tag } from "lucide-react";
 
 interface Modification {
