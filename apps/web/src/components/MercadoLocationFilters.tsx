@@ -476,7 +476,7 @@ export default function MercadoLocationFilters({
             setDistrict("all");
             setMunicipality("all");
           }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full h-[42px] appearance-none"
         >
           <option value="all">Todos</option>
           {hasPortugal && <option value="Portugal">Portugal</option>}
@@ -503,7 +503,7 @@ export default function MercadoLocationFilters({
             setDistrict(event.target.value);
             setMunicipality("all");
           }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px] appearance-none disabled:bg-gray-100 disabled:text-gray-400"
         >
           <option value="all">
             {districtDisabled ? "Selecione um país" : "Todos"}
@@ -525,7 +525,7 @@ export default function MercadoLocationFilters({
           onChange={(event) => {
             setMunicipality(event.target.value);
           }}
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full disabled:bg-gray-100 disabled:text-gray-400"
+          className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px] appearance-none disabled:bg-gray-100 disabled:text-gray-400"
         >
           <option value="all">
             {municipalityDisabled ? "Selecione um distrito" : "Todos"}

@@ -28,7 +28,10 @@ export default function MercadoSingleSelect({
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     }
@@ -50,19 +53,26 @@ export default function MercadoSingleSelect({
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all text-left"
       >
-        <span className="truncate pr-2 text-gray-700">{selectedOption.label}</span>
+        <span className="truncate pr-2 text-gray-700">
+          {selectedOption.label}
+        </span>
         <svg
           className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="2"
+            d="M19 9l-7 7-7-7"
+          />
         </svg>
       </button>
 
       {open && (
-        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden w-full md:min-w-[200px]">
           {options.map((opt) => {
             const isActive = selectedOption.value === opt.value;
             return (
@@ -75,7 +85,9 @@ export default function MercadoSingleSelect({
                 }}
                 className="flex items-center justify-between px-3 w-full cursor-pointer hover:bg-gray-50 min-h-[36px] text-left"
               >
-                <span className="text-xs text-gray-700 leading-snug">{opt.label}</span>
+                <span className="text-xs text-gray-700 leading-snug">
+                  {opt.label}
+                </span>
                 {isActive && (
                   <svg
                     className="w-3.5 h-3.5 text-green-500"
