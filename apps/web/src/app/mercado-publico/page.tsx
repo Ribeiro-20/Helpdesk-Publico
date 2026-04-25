@@ -853,13 +853,13 @@ export default async function MercadoPublicoPage({
       <Header />
 
       {/* ── MAIN ── */}
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {/* Title */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6 text-green-500" />
+            <FileText className="w-6 h-6 text-green-500 shrink-0" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
                 Estatísticas de Mercado
               </h1>
               <p className="text-gray-500 text-sm">
@@ -867,7 +867,7 @@ export default async function MercadoPublicoPage({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <Link
               href="/"
               className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
@@ -992,7 +992,7 @@ export default async function MercadoPublicoPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1fr_1.2fr_auto_auto] items-end gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <MercadoLocationFilters
               locationOptionsByCountry={locationOptionsByCountry}
               defaultCountry={selectedCountry}
@@ -1000,32 +1000,42 @@ export default async function MercadoPublicoPage({
               defaultMunicipality={selectedMunicipality}
             />
 
-            <MercadoSingleSelect
-              name="limit"
-              label="Apresentar"
-              defaultValue={PAGE_SIZE.toString()}
-              options={[
-                { value: "25", label: "25 contratos" },
-                { value: "50", label: "50 contratos" },
-                { value: "100", label: "100 contratos" },
-              ]}
-            />
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Apresentar
+              </label>
+              <select
+                name="limit"
+                defaultValue={PAGE_SIZE.toString()}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
+              >
+                <option value="25">25 contratos</option>
+                <option value="50">50 contratos</option>
+                <option value="100">100 contratos</option>
+              </select>
+            </div>
 
-            <MercadoSingleSelect
-              name="sort"
-              label="Ordenar"
-              defaultValue={sortField}
-              options={[
-                { value: "signing_date", label: "Mais recentes" },
-                { value: "publication_date", label: "Data publicação" },
-                { value: "value_desc", label: "Maior valor" },
-                { value: "value_asc", label: "Menor valor" },
-              ]}
-            />
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Ordenar
+              </label>
+              <select
+                name="sort"
+                defaultValue={sortField}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
+              >
+                <option value="signing_date">Mais recentes</option>
+                <option value="publication_date">Data publicação</option>
+                <option value="value_desc">Maior valor</option>
+                <option value="value_asc">Menor valor</option>
+              </select>
+            </div>
+          </div>
 
+          <div className="flex items-center gap-2 pt-2 md:pt-0">
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-1 px-5 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1 px-6 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[42px]"
               style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
             >
               <Filter className="w-4 h-4" />
@@ -1034,7 +1044,7 @@ export default async function MercadoPublicoPage({
             {hasFilters && (
               <Link
                 href="/mercado-publico"
-                className="text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
+                className="flex-1 md:flex-none inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar
               </Link>

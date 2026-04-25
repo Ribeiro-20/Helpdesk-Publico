@@ -159,18 +159,18 @@ export default async function HomePage() {
           }}
         />
 
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
-          <h1 className="text-[2.6rem] font-extrabold text-gray-900 text-center mb-12 tracking-tight">
+        <div className="relative z-10 max-w-6xl mx-auto px-6 py-12 md:py-16">
+          <h1 className="text-3xl md:text-[2.6rem] font-extrabold text-gray-900 text-center mb-8 md:mb-12 tracking-tight">
             Mercado Público
           </h1>
 
-          <div className="grid grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             {cards.slice(0, 3).map((c) => (
               <Card key={c.href} {...c} green={GREEN} />
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-6 w-2/3 mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:w-2/3 mx-auto">
             {cards.slice(3).map((c) => (
               <Card key={c.href} {...c} green={GREEN} />
             ))}
@@ -199,11 +199,11 @@ function Card({
   return (
     <Link
       href={href}
-      className="bg-white rounded-2xl flex flex-col items-center text-center p-12 gap-5 shadow-sm hover:shadow-lg transition-all duration-200 group border border-gray-100"
+      className="bg-white rounded-2xl flex flex-col items-center text-center p-8 md:p-12 gap-4 md:gap-5 shadow-sm hover:shadow-lg transition-all duration-200 group border border-gray-100 h-full"
     >
-      <div className="flex items-center justify-center w-20 h-20 rounded-2xl transition-colors">
+      <div className="flex items-center justify-center w-16 h-16 md:w-20 md:h-20 rounded-2xl transition-colors">
         <Icon
-          className="w-10 h-10"
+          className="w-8 h-8 md:w-10 md:h-10"
           style={{ color: green }}
           strokeWidth={1.5}
         />
@@ -211,7 +211,9 @@ function Card({
 
       <h2 className="text-lg font-bold text-gray-900 leading-snug">{title}</h2>
 
-      <p className="text-base text-gray-500 leading-relaxed">{description}</p>
+      <p className="text-sm md:text-base text-gray-500 leading-relaxed">
+        {description}
+      </p>
     </Link>
   );
 }

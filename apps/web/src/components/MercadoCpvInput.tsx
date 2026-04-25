@@ -17,10 +17,7 @@ export default function MercadoCpvInput({
   const pathname = usePathname();
 
   useEffect(() => {
-    setValue((current) => {
-      if (defaultValue === "" && current !== "") return "";
-      return current;
-    });
+    setValue(defaultValue);
   }, [defaultValue]);
 
   function submitForm(delayMs: number, overrideCpv?: string) {

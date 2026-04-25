@@ -41,15 +41,15 @@ export default function Header() {
         background: NAV_BG,
       }}
     >
-      <div className="max-w-screen-2xl mx-auto flex items-center px-12 py-0 h-[104px]">
+      <div className="max-w-screen-2xl mx-auto flex items-center px-6 md:px-12 py-0 h-20 md:h-[104px]">
         {/* ── Logo ── */}
-        <Link href="/" className="shrink-0 mr-12">
+        <Link href="/" className="shrink-0 mr-4 md:mr-12">
           <Image
             src="/logo.png"
             alt="Helpdesk Público"
             width={300}
             height={110}
-            className="object-contain"
+            className="object-contain w-[180px] md:w-[300px]"
             priority
           />
         </Link>
@@ -57,7 +57,7 @@ export default function Header() {
         <div className="flex-1" />
 
         {/* ── Right menu ── */}
-        <div className="shrink-0 ml-8" ref={menuRef}>
+        <div className="shrink-0 ml-2 md:ml-8" ref={menuRef}>
           <button
             type="button"
             aria-haspopup="menu"
@@ -65,9 +65,9 @@ export default function Header() {
             onClick={() => setMenuOpen((prev) => !prev)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
           >
-            <span className="text-sm font-medium">Menu</span>
+            <span className="text-sm font-medium hidden md:inline">Menu</span>
             <ChevronDown
-              className={`w-4 h-4 transition-transform ${menuOpen ? "rotate-180" : ""}`}
+              className={`w-5 h-5 md:w-4 md:h-4 transition-transform ${menuOpen ? "rotate-180" : ""}`}
               strokeWidth={1.8}
             />
           </button>
@@ -75,7 +75,7 @@ export default function Header() {
           {menuOpen && (
             <div
               role="menu"
-              className="absolute right-6 mt-2 w-60 rounded-xl border border-white/10 bg-[#202329] p-1.5 shadow-xl"
+              className="absolute right-4 md:right-12 mt-2 w-60 rounded-xl border border-white/10 bg-[#202329] p-1.5 shadow-xl"
             >
               <a
                 href="mailto:supcom@helpdeskpublico.pt"
