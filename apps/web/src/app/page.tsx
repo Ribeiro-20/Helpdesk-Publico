@@ -9,6 +9,7 @@ import {
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
 import { createAdminClient } from "@/lib/supabase/server";
+import InfoPopover from "@/components/InfoPopover";
 import type { ElementType } from "react";
 
 export const dynamic = "force-dynamic";
@@ -75,33 +76,34 @@ export default async function HomePage() {
     {
       icon: FileText,
       title: "Contratos Públicos",
-      description: "Consulte os dados e as informações dos contratos públicos.",
+      description: "Consulte a informação detalhada dos contratos públicos",
       href: "/mercado-publico",
     },
     {
       icon: Landmark,
       title: "Adjudicantes",
       description:
-        "Consulte as informações das Entidades Adjudicantes ativas no mercado público.",
+        "Consulte as Entidades Adjudicantes com contratos públicos publicados",
       href: "/estatisticas-publico",
     },
     {
       icon: Building2,
       title: "Adjudicatários",
       description:
-        "Consulte as informações dos Adjudicatários ativos no mercado público.",
+        "Consulte os Adjudicatários envolvidos em contratos públicos",
       href: "/estatisticas-privado",
     },
     {
       icon: FileSearch,
-      title: "Oportunidades no Mercado Público",
+      title: "Oportunidades\nno Mercado Público",
       description:
-        "Consulte todas as oportunidades de negócio ativas no mercado público.",
+        "Consulte oportunidades de negócio agregadas a partir de múltiplas fontes do mercado público",
       href: "/oportunidades",
     },
     {
       icon: ScanSearch,
       title: "Market Intelligence",
+      italicTitle: true,
       description:
         "Consulte todos os contratos públicos a terminar ou em fase de renovação (área reservada a subscritores do serviço).",
       href: "/outros",
@@ -160,9 +162,16 @@ export default async function HomePage() {
         />
 
         <div className="relative z-10 max-w-6xl mx-auto px-6 py-12 md:py-16">
-          <h1 className="text-3xl md:text-[2.6rem] font-extrabold text-gray-900 text-center mb-8 md:mb-12 tracking-tight">
-            Mercado Público
-          </h1>
+          <div className="flex items-center justify-center gap-2 mb-8 md:mb-12">
+            <h1 className="text-3xl md:text-[2.6rem] font-extrabold text-gray-900 text-center tracking-tight">
+              Mercado Público
+            </h1>
+            <InfoPopover
+              text="A informação apresentada resulta da agregação de dados provenientes de fontes oficiais do mercado público, no âmbito do enquadramento legal da Contratação Pública em Portugal. Parte da informação é tratada pelo Helpdesk Público com recurso a tecnologia e modelos próprios de análise, incluindo inteligência artificial aplicada ao tratamento e interpretação de dados. A sua consulta não dispensa a validação junto das fontes oficiais."
+              ariaLabel="Informação sobre os dados apresentados"
+              placement="bottom"
+            />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             {cards.slice(0, 3).map((c) => (
@@ -189,12 +198,14 @@ function Card({
   description,
   href,
   green,
+  italicTitle,
 }: {
   icon: ElementType;
   title: string;
   description: string;
   href: string;
   green: string;
+  italicTitle?: boolean;
 }) {
   return (
     <Link
@@ -209,7 +220,11 @@ function Card({
         />
       </div>
 
-      <h2 className="text-lg font-bold text-gray-900 leading-snug">{title}</h2>
+      <h2
+        className={`text-lg font-bold text-gray-900 leading-snug whitespace-pre-line ${italicTitle ? "italic" : ""}`}
+      >
+        {title}
+      </h2>
 
       <p className="text-sm md:text-base text-gray-500 leading-relaxed">
         {description}

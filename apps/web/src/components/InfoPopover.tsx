@@ -42,7 +42,7 @@ export default function InfoPopover({
       <div
         role="tooltip"
         aria-label={ariaLabel}
-        className={`pointer-events-none absolute z-50 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible font-normal normal-case ${tooltipPositionClass}`}
+        className={`pointer-events-none absolute z-[80] w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible font-normal normal-case ${tooltipPositionClass}`}
       >
         <span
           className={`absolute h-2 w-2 rotate-45 bg-white border-gray-200 ${arrowPositionClass}`}
