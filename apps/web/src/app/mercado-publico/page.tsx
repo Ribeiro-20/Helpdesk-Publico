@@ -886,7 +886,7 @@ export default async function MercadoPublicoPage({
             <div>
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Entidade adjudicante
+                  Entidade Adjudicante
                 </label>
                 <InfoPopover text="Indique nome ou NIPC da Entidade que pretende pesquisar" />
               </div>
@@ -900,7 +900,7 @@ export default async function MercadoPublicoPage({
             <div>
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Entidade adjudicatária
+                  Adjudicatário
                 </label>
                 <InfoPopover text="Indique o nome ou NIPC do Adjudicatário que pretende pesquisar" />
               </div>
@@ -932,7 +932,7 @@ export default async function MercadoPublicoPage({
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">De Data</label>
+                <label className="block text-xs text-gray-400">Data de início</label>
                 <InfoPopover text="Data inicial para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
@@ -940,7 +940,7 @@ export default async function MercadoPublicoPage({
 
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Ate data</label>
+                <label className="block text-xs text-gray-400">Data de fim</label>
                 <InfoPopover text="Data final para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="to_date" defaultValue={toDate} />
@@ -949,12 +949,12 @@ export default async function MercadoPublicoPage({
             <div>
               <MercadoSingleSelect
                 name="date_field"
-                label="Tipo de data"
+                label="Critério de data"
                 defaultValue={selectedDateField}
                 options={[
                   { value: "signing_date", label: "Data de celebração" },
                   { value: "publication_date", label: "Data de contrato" },
-                  { value: "closing_date", label: "Data de feixo" },
+                  { value: "closing_date", label: "Data de encerramento" },
                 ]}
               />
             </div>
@@ -962,7 +962,7 @@ export default async function MercadoPublicoPage({
             <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor mínimo
+                  Preço contratual mínimo
                 </label>
                 <InfoPopover text="Valor mínimo do contrato em euros." />
               </div>
@@ -978,7 +978,7 @@ export default async function MercadoPublicoPage({
             <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor máximo
+                  Preço contratual máximo
                 </label>
                 <InfoPopover text="Valor máximo do contrato em euros." />
               </div>
@@ -1017,7 +1017,7 @@ export default async function MercadoPublicoPage({
 
             <div>
               <label className="block text-xs text-gray-400 mb-1">
-                Ordenar
+                Ordenar por
               </label>
               <select
                 name="sort"
@@ -1025,26 +1025,26 @@ export default async function MercadoPublicoPage({
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
               >
                 <option value="signing_date">Mais recentes</option>
-                <option value="publication_date">Data publicação</option>
-                <option value="value_desc">Maior valor</option>
-                <option value="value_asc">Menor valor</option>
+                <option value="publication_date">Data de publicação</option>
+                <option value="value_desc">Maior preço contratual</option>
+                <option value="value_asc">Menor preço contratual</option>
               </select>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-2 md:pt-0">
+          <div className="flex items-center justify-center gap-2 pt-2 md:pt-0">
             <button
               type="submit"
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1 px-6 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[42px]"
+              className="w-full md:w-[360px] inline-flex items-center justify-center gap-1 px-6 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[42px]"
               style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
             >
               <Filter className="w-4 h-4" />
-              Pesquisar
+              Aplicar filtros selecionados
             </button>
             {hasFilters && (
               <Link
                 href="/mercado-publico"
-                className="flex-1 md:flex-none inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar
               </Link>
