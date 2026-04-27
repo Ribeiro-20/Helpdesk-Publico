@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import AdminActions from "@/components/AdminActions";
+import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
+import { LayoutDashboard } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -180,10 +182,11 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-400 text-sm mt-1">Visão geral do sistema</p>
-      </div>
+      <PageHeader
+        icon={LayoutDashboard}
+        title="Dashboard"
+        description="Visão geral do sistema"
+      />
 
       {/* Warning when not initialised */}
       {!isInitialised && (
@@ -203,7 +206,7 @@ export default async function DashboardPage() {
 
       {isInitialised && (
         <>
-          {/* Anuncios section */}
+          {/* Anúncios section */}
           <div className="space-y-3">
             <SectionHeader
               title="Anúncios"
@@ -254,21 +257,6 @@ export default async function DashboardPage() {
               <KpiCard label="Enviadas" value={notifications.sent} variant="success" />
               <KpiCard label="Falhadas" value={notifications.failed} variant="danger" />
             </div>
-          </div>
-
-          {/* Como começar */}
-          <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-            <h2 className="font-semibold text-gray-900 mb-3">
-              Como começar
-            </h2>
-            <ol className="text-sm text-gray-500 space-y-2 list-decimal list-inside">
-              <li>Clique <strong className="text-gray-700">Ingerir Anúncios</strong> para importar anúncios da BASE API</li>
-              <li>Clique <strong className="text-gray-700">Ingerir Contratos</strong> para importar contratos celebrados</li>
-              <li>Clique <strong className="text-gray-700">Extrair Entidades</strong> e <strong className="text-gray-700">Extrair Empresas</strong> para gerar perfis</li>
-              <li>Vá a <strong className="text-gray-700">Clientes</strong> e adicione um cliente com regras CPV</li>
-              <li>Clique <strong className="text-gray-700">Processar CPV</strong> para fazer matching de anúncios</li>
-              <li>Clique <strong className="text-gray-700">Enviar Emails</strong> para notificar os clientes</li>
-            </ol>
           </div>
 
           {/* Administração */}

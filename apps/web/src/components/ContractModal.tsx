@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { X, ExternalLink, Loader2, Calendar, Tag } from "lucide-react";
 
 interface Modification {
@@ -31,8 +32,8 @@ interface Contract {
   contract_price: number | null;
   effective_price: number | null;
   status: string;
-  contracting_entities: string[];
-  winners: string[];
+  contracting_entities: unknown[];
+  winners: unknown[];
   competitors: string | null;
   cpv_main: string | null;
   cpv_list: string[];
@@ -50,18 +51,58 @@ interface Contract {
   base_incm_id: string | null;
 }
 
-function extractName(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? raw : raw.slice(idx + 3);
+function extractName(raw: unknown): string {
+  if (typeof raw === "string") {
+    const idx = raw.indexOf(" - ");
+    return idx === -1 ? raw : raw.slice(idx + 3);
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const directName = record.name;
+    if (typeof directName === "string" && directName.trim()) return directName;
+
+    const value = record.value ?? record.label ?? record.text;
+    if (typeof value === "string" && value.trim()) {
+      const idx = value.indexOf(" - ");
+      return idx === -1 ? value : value.slice(idx + 3);
+    }
+  }
+
+  return "—";
 }
-function extractNif(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? "" : raw.slice(0, idx);
+function extractNif(raw: unknown): string {
+  if (typeof raw === "string") {
+    const idx = raw.indexOf(" - ");
+    return idx === -1 ? "" : raw.slice(0, idx);
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const nif = record.nif;
+    if (typeof nif === "string" && nif.trim()) return nif;
+
+    const value = record.value ?? record.label ?? record.text;
+    if (typeof value === "string") {
+      const idx = value.indexOf(" - ");
+      return idx === -1 ? "" : value.slice(0, idx);
+    }
+  }
+
+  return "";
 }
 
 function parseCompetitors(raw: string): string[] {
   if (!raw) return [];
   const trimmed = raw.trim();
+
+  // 0. Primary check for semicolon-separated values (common in provided data)
+  if (trimmed.includes(";")) {
+    return trimmed
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
 
   // 1. Try standard JSON array ["a","b"]
   if (trimmed.startsWith("[")) {
@@ -223,10 +264,10 @@ export default function ContractModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
+      <div className="relative w-full max-w-4xl h-full md:h-auto md:max-h-[92vh] flex flex-col md:rounded-2xl overflow-hidden shadow-2xl bg-white">
         {/* ── HEADER ── */}
         <div
-          className="shrink-0 px-6 pt-5 pb-5 pr-16"
+          className="shrink-0 px-6 pt-6 pb-6 pr-16"
           style={{ background: HEADER_BG }}
         >
           {contract?.base_contract_id && (
@@ -281,45 +322,53 @@ export default function ContractModal({
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-5">
                   {contract.contract_type && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
                         Tipo de Contrato
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
-                        {contract.contract_type}
-                      </span>
+                      <div className="flex flex-wrap">
+                        <span className="text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700 leading-normal">
+                          {contract.contract_type}
+                        </span>
+                      </div>
                     </div>
                   )}
                   {contract.procedure_type && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
                         Tipo de Procedimento
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
-                        {contract.procedure_type}
-                      </span>
+                      <div className="flex flex-wrap">
+                        <span className="text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700 leading-normal">
+                          {contract.procedure_type}
+                        </span>
+                      </div>
                     </div>
                   )}
                   {contract.announcement_type && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
                         Tipo de Anúncio
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700">
-                        {contract.announcement_type}
-                      </span>
+                      <div className="flex flex-wrap">
+                        <span className="text-sm px-3 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700 leading-normal">
+                          {contract.announcement_type}
+                        </span>
+                      </div>
                     </div>
                   )}
                   {contract.legal_regime && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
                         Regime Jurídico
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-700">
-                        {contract.legal_regime}
-                      </span>
+                      <div className="flex flex-wrap">
+                        <span className="text-sm px-3 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-700 leading-normal">
+                          {contract.legal_regime}
+                        </span>
+                      </div>
                     </div>
                   )}
                   {contract.legal_basis && (
@@ -365,12 +414,15 @@ export default function ContractModal({
               </div>
 
               {/* ── PRICES ── */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     Preço Base
                   </p>
-                  <p className="text-xl font-bold" style={{ color: GREEN }}>
+                  <p
+                    className="text-lg md:text-xl font-bold"
+                    style={{ color: GREEN }}
+                  >
                     {fmtEur(contract.base_price)}
                   </p>
                 </div>
@@ -378,7 +430,10 @@ export default function ContractModal({
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     Preço Contratual
                   </p>
-                  <p className="text-xl font-bold" style={{ color: GREEN }}>
+                  <p
+                    className="text-lg md:text-xl font-bold"
+                    style={{ color: GREEN }}
+                  >
                     {fmtEur(contract.contract_price)}
                   </p>
                 </div>
@@ -386,7 +441,10 @@ export default function ContractModal({
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     Preço Total Efectivo
                   </p>
-                  <p className="text-xl font-bold" style={{ color: GREEN }}>
+                  <p
+                    className="text-lg md:text-xl font-bold"
+                    style={{ color: GREEN }}
+                  >
                     {fmtEur(contract.effective_price)}
                   </p>
                 </div>
@@ -649,7 +707,13 @@ export default function ContractModal({
                             {i + 1}
                           </span>
                           <div>
-                            <p className="text-sm text-gray-900">{name}</p>
+                            <Link
+                              href={`/mercado-publico?winner=${encodeURIComponent((nif || name).match(/\d+/)?.[0] || (nif || name).trim())}`}
+                              className="text-sm text-gray-900 hover:text-green-600 hover:underline font-medium transition-colors"
+                              onClick={() => onClose()}
+                            >
+                              {name}
+                            </Link>
                             {nif && nif !== name && (
                               <p className="text-xs text-gray-400 font-mono">
                                 {nif}

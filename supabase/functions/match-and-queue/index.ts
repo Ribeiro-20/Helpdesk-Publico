@@ -27,6 +27,224 @@ const CORS = {
   "Content-Type": "application/json",
 };
 
+const REGION_LABELS = [
+  "Aveiro",
+  "Beja",
+  "Braga",
+  "Bragança",
+  "Castelo Branco",
+  "Coimbra",
+  "Évora",
+  "Faro",
+  "Guarda",
+  "Leiria",
+  "Lisboa",
+  "Portalegre",
+  "Porto",
+  "Santarém",
+  "Setúbal",
+  "Viana do Castelo",
+  "Vila Real",
+  "Viseu",
+  "Região Autónoma dos Açores",
+  "Região Autónoma da Madeira",
+];
+
+const REGION_NORMALIZED = new Set(REGION_LABELS.map(normalizeRegion));
+
+function normalizeRegion(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normalizeCpvPattern(value: unknown): string {
+  const raw = String(value ?? "").trim().toUpperCase();
+  if (!raw) return "";
+  const match = raw.match(/\b\d{8}(?:-\d)?\b/);
+  if (match) return match[0];
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length >= 8) return digits.slice(0, 8);
+  return raw;
+}
+
+function inferMatchTypeFromPattern(pattern: string): "EXACT" | "PREFIX" {
+  const digits = pattern.replace(/\D/g, "");
+  return digits.length >= 8 ? "EXACT" : "PREFIX";
+}
+
+function collectFromObject(
+  obj: Record<string, unknown>,
+  target: Set<string>,
+) {
+  const fields = ["Distrito", "distrito", "District", "district"];
+  for (const field of fields) {
+    const raw = obj[field];
+    const values = Array.isArray(raw) ? raw : [raw];
+    for (const item of values) {
+      if (!item) continue;
+      const value = String(item).trim();
+      if (!value) continue;
+
+      const normalized = normalizeRegion(value);
+      if (normalized === "todos") {
+        target.add("todos");
+        continue;
+      }
+
+      if (REGION_NORMALIZED.has(normalized)) {
+        target.add(normalized);
+      }
+
+      // Handle values like "Portugal, Lisboa, Lisboa".
+      for (const part of value.split(/[;,]/)) {
+        const p = normalizeRegion(part);
+        if (REGION_NORMALIZED.has(p)) target.add(p);
+      }
+    }
+  }
+}
+
+function extractRegionsFromText(text: string, target: Set<string>) {
+  const districtRegex = /Distrito:\s*([^\r\n]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = districtRegex.exec(text)) !== null) {
+    const value = String(match[1] ?? "").trim();
+    if (!value) continue;
+    const normalized = normalizeRegion(value);
+
+    if (normalized === "todos") {
+      target.add("todos");
+      continue;
+    }
+
+    if (REGION_NORMALIZED.has(normalized)) {
+      target.add(normalized);
+    }
+  }
+}
+
+function extractAnnouncementRegions(rawPayload: unknown): Set<string> {
+  const regions = new Set<string>();
+  if (!rawPayload || typeof rawPayload !== "object") return regions;
+
+  const root = rawPayload as Record<string, unknown>;
+  collectFromObject(root, regions);
+
+  const payload = root.payload && typeof root.payload === "object"
+    ? root.payload as Record<string, unknown>
+    : null;
+  if (payload) collectFromObject(payload, regions);
+
+  const detail = payload?.detalhe_conteudo && typeof payload.detalhe_conteudo === "object"
+    ? payload.detalhe_conteudo as Record<string, unknown>
+    : root.detalhe_conteudo && typeof root.detalhe_conteudo === "object"
+    ? root.detalhe_conteudo as Record<string, unknown>
+    : null;
+
+  if (detail) {
+    collectFromObject(detail, regions);
+    const detailText = detail.Texto;
+    if (typeof detailText === "string" && detailText.trim()) {
+      extractRegionsFromText(detailText, regions);
+    }
+  }
+
+  return regions;
+}
+
+function clientMatchesAnnouncementRegions(
+  clientRegions: string[] | null | undefined,
+  announcementRegions: Set<string>,
+): boolean {
+  const normalizedClient = (clientRegions ?? [])
+    .map((item) => normalizeRegion(String(item)))
+    .filter(Boolean);
+
+  if (normalizedClient.length === 0 || normalizedClient.includes("todos")) {
+    return true;
+  }
+
+  if (announcementRegions.has("todos")) return true;
+  if (announcementRegions.size === 0) return false;
+
+  return normalizedClient.some((region) => announcementRegions.has(region));
+}
+
+function isMissingNotificationRegionsError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const message = String((error as { message?: unknown }).message ?? "");
+  const details = String((error as { details?: unknown }).details ?? "");
+  const hint = String((error as { hint?: unknown }).hint ?? "");
+  const combined = `${message} ${details} ${hint}`.toLowerCase();
+  return combined.includes("notification_regions") && combined.includes("clients");
+}
+
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      type: "Error",
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const record = error as Record<string, unknown>;
+    return {
+      type: "Object",
+      message: typeof record.message === "string" ? record.message : undefined,
+      details: typeof record.details === "string" ? record.details : undefined,
+      hint: typeof record.hint === "string" ? record.hint : undefined,
+      code: typeof record.code === "string" ? record.code : undefined,
+      raw: record,
+    };
+  }
+
+  return {
+    type: typeof error,
+    message: String(error),
+  };
+}
+
+async function loadActiveClientsWithRegions(
+  supabase: ReturnType<typeof createClient>,
+  tenantId: string,
+) {
+  const withRegions = await supabase
+    .from("clients")
+    .select("id, notification_regions, cpv_s_alerta_concursos_publicos")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+
+  if (!withRegions.error) return withRegions;
+
+  if (!isMissingNotificationRegionsError(withRegions.error)) {
+    return withRegions;
+  }
+
+  console.warn(
+    "[match-and-queue] coluna clients.notification_regions ausente; fallback para todos os distritos",
+  );
+
+  const withoutRegions = await supabase
+    .from("clients")
+    .select("id, cpv_s_alerta_concursos_publicos")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true);
+
+  return {
+    data: (withoutRegions.data ?? []).map((row) => ({
+      ...(row as Record<string, unknown>),
+      notification_regions: ["todos"],
+    })),
+    error: withoutRegions.error,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS });
@@ -73,12 +291,58 @@ Deno.serve(async (req) => {
       CpvRule & { clients: { is_active: boolean } }
     >).filter((r) => r.clients?.is_active !== false) as CpvRule[];
 
-    console.log(`[match-and-queue] ${activeRules.length} active CPV rules`);
+    const { data: activeClients, error: clientsErr } =
+      await loadActiveClientsWithRegions(supabase, tenantId);
+
+    if (clientsErr) throw clientsErr;
+
+    const clientRegionsMap = new Map<string, string[]>();
+    const clientBaseCpvMap = new Map<string, string>();
+    for (const row of activeClients ?? []) {
+      const record = row as {
+        id: string;
+        notification_regions?: unknown;
+        cpv_s_alerta_concursos_publicos?: unknown;
+      };
+      const regions = Array.isArray(record.notification_regions)
+        ? record.notification_regions.map((v) => String(v))
+        : [];
+      clientRegionsMap.set(record.id, regions);
+
+      const baseCpv = normalizeCpvPattern(record.cpv_s_alerta_concursos_publicos ?? "");
+      if (baseCpv) {
+        clientBaseCpvMap.set(record.id, baseCpv);
+      }
+    }
+
+    const clientsWithInclusionRule = new Set(
+      activeRules
+        .filter((rule) => !rule.is_exclusion)
+        .map((rule) => rule.client_id),
+    );
+
+    const fallbackRules: CpvRule[] = [];
+    for (const [clientId, baseCpv] of clientBaseCpvMap.entries()) {
+      if (clientsWithInclusionRule.has(clientId)) continue;
+      fallbackRules.push({
+        id: `auto-base-${clientId}`,
+        client_id: clientId,
+        pattern: baseCpv,
+        match_type: inferMatchTypeFromPattern(baseCpv),
+        is_exclusion: false,
+      });
+    }
+
+    const effectiveRules = [...activeRules, ...fallbackRules];
+
+    console.log(
+      `[match-and-queue] ${activeRules.length} active CPV rules (+${fallbackRules.length} fallback base rules)`,
+    );
 
     // Build announcement query
     let annQuery = supabase
       .from("announcements")
-      .select("id, cpv_main, cpv_list")
+      .select("id, cpv_main, cpv_list, raw_payload")
       .eq("tenant_id", tenantId)
       .eq("status", "active");
 
@@ -119,10 +383,21 @@ Deno.serve(async (req) => {
         const matchedClientIds = matchClientsForAnnouncement(
           cpvMain,
           cpvList,
-          activeRules,
+          effectiveRules,
         );
 
-        for (const clientId of matchedClientIds) {
+        const announcementRegions = extractAnnouncementRegions(
+          (ann as Record<string, unknown>).raw_payload,
+        );
+
+        const regionFilteredClientIds = matchedClientIds.filter((clientId) =>
+          clientMatchesAnnouncementRegions(
+            clientRegionsMap.get(clientId),
+            announcementRegions,
+          )
+        );
+
+        for (const clientId of regionFilteredClientIds) {
           const { error: insertErr } = await supabase
             .from("notifications")
             .insert({
@@ -155,9 +430,10 @@ Deno.serve(async (req) => {
     console.log("[match-and-queue] done:", stats);
     return new Response(JSON.stringify(stats), { status: 200, headers: CORS });
   } catch (err) {
-    console.error("[match-and-queue] fatal:", err);
+    const serialized = serializeError(err);
+    console.error("[match-and-queue] fatal:", serialized);
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: serialized }),
       { status: 500, headers: CORS },
     );
   }

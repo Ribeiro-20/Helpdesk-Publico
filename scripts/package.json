@@ -4,14 +4,21 @@
   "description": "Utility scripts for BASE Monitor",
   "type": "module",
   "scripts": {
-    "import-cpvs": "tsx import-cpvs.ts"
+    "import-cpvs": "tsx import-cpvs.ts",
+    "scrape-dr": "tsx scrape-dr-contracts.ts",
+    "scrape-dr:upsert": "tsx scrape-dr-contracts.ts --upsert",
+    "ingest-contracts:direct": "node ingest-direct.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.44.2",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "playwright": "^1.53.0",
+    "postgres": "^3.4.8",
+    "stream-chain": "^3.4.0",
+    "stream-json": "^1.9.1"
   },
   "devDependencies": {
-    "tsx": "^4.19.1",
-    "@types/node": "^20.11.0"
+    "@types/node": "^20.11.0",
+    "tsx": "^4.19.1"
   }
 }

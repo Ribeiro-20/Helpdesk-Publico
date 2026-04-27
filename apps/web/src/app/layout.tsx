@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Base Monitor | Helpdesk Público",
   description: "Monitorização de anúncios de contratação pública",
   icons: {
-    icon: "/favicon.svg",
+    icon: "/android-chrome-57x57.png",
   },
 };
 

@@ -18,8 +18,8 @@ export interface ContractRow {
   contract_price: number | null;
   base_price: number | null;
   status: string;
-  contracting_entities: string[];
-  winners: string[];
+  contracting_entities: unknown[];
+  winners: unknown[];
 }
 
 function formatEur(val: number | null): string {
@@ -74,21 +74,13 @@ function resolveStatusBadge(contract: ContractRow): {
 
     if (progress != null && progress >= 100) {
       return {
-        label: "Prazo excedido",
+        label: "Terminado",
         className: "bg-red-100 text-red-700",
         title: `${progress.toFixed(0)}% do prazo de execucao`,
       };
     }
 
-    if (progress != null && progress >= 80) {
-      return {
-        label: "Aproxima prazo",
-        className: "bg-amber-100 text-amber-700",
-        title: `${progress.toFixed(0)}% do prazo de execucao`,
-      };
-    }
-
-    return { label: "Activo", className: "bg-green-100 text-green-700" };
+    return { label: "Ativo", className: "bg-green-100 text-green-700" };
   }
 
   return {
@@ -97,9 +89,25 @@ function resolveStatusBadge(contract: ContractRow): {
   };
 }
 
-function extractName(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? raw : raw.slice(idx + 3);
+function extractName(raw: unknown): string {
+  if (typeof raw === "string") {
+    const idx = raw.indexOf(" - ");
+    return idx === -1 ? raw : raw.slice(idx + 3);
+  }
+
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const directName = record.name;
+    if (typeof directName === "string" && directName.trim()) return directName;
+
+    const value = record.value ?? record.label ?? record.text;
+    if (typeof value === "string" && value.trim()) {
+      const idx = value.indexOf(" - ");
+      return idx === -1 ? value : value.slice(idx + 3);
+    }
+  }
+
+  return "—";
 }
 
 export default function ContractsTable({
@@ -203,13 +211,13 @@ export default function ContractsTable({
                   Adjudicatário
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                  Celebração
+                  Data
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider w-[110px]">
                   <span className="inline-flex items-center gap-1">
                     CPV
                     <InfoPopover
-                      text="Passe o rato por cima do código CPV para ver a descrição."
+                      text="passe o rato por cima do código cpv para ver a descrição."
                       ariaLabel="Informação sobre coluna CPV"
                       placement="bottom"
                     />

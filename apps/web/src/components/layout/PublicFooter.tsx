@@ -4,14 +4,14 @@ import { Mail, User } from "lucide-react";
 
 export default function PublicFooter() {
   return (
-    <footer className="bg-[#1a1b1f] text-gray-300 py-16 px-12">
+    <footer className="bg-[#1a1b1f] text-gray-300 py-12 md:py-16 px-6 md:px-12">
       <div className="max-w-7xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* Coluna 1: Logo e Descrição */}
           <div className="space-y-6">
             <Link href="/">
               <Image
-                src="/logo-white.webp"
+                src="/logo-white.png"
                 alt="Helpdesk Público"
                 width={200}
                 height={65}

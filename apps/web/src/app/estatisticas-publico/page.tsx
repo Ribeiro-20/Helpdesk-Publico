@@ -1,7 +1,14 @@
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { createAdminClient } from "@/lib/supabase/server";
-import { BarChart2, Building2, Filter, Search } from "lucide-react";
+import {
+  BarChart2,
+  Building2,
+  ChevronDown,
+  Filter,
+  House,
+  Search,
+} from "lucide-react";
 import BackButton from "@/components/BackButton";
 import PublicFooter from "@/components/layout/PublicFooter";
 
@@ -327,11 +334,11 @@ export default async function EstatisticasPublicoPage({
 
   return (
     <PageShell>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <BarChart2 className="w-6 h-6 text-green-500" />
+          <BarChart2 className="w-6 h-6 text-green-500 shrink-0" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
               Estatisticas de Entidades Adjudicantes
             </h1>
             <p className="text-gray-500 text-sm">
@@ -339,7 +346,16 @@ export default async function EstatisticasPublicoPage({
             </p>
           </div>
         </div>
-        <BackButton fallbackHref="/" className="w-fit shrink-0" />
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+          <Link
+            href="/"
+            className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+          >
+            <House className="h-4 w-4" />
+            Página inicial
+          </Link>
+          <BackButton fallbackHref="/" className="w-fit shrink-0" />
+        </div>
       </div>
 
       <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
@@ -366,46 +382,44 @@ export default async function EstatisticasPublicoPage({
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
             />
           </div>
-          <div className="w-full md:w-36">
+          <div className="w-full md:w-48">
             <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
               Ano
             </label>
-            <select
-              name="year"
-              defaultValue={yearFilter}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
-            >
-              <option value="">Todos</option>
-              {Array.from(
-                { length: 10 },
-                (_, i) => new Date().getFullYear() - i,
-              ).map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <div className="relative overflow-hidden rounded-xl border border-gray-200">
+              <select
+                name="year"
+                defaultValue={yearFilter}
+                className="h-[42px] w-full appearance-none border-none px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
+              >
+                <option value="">Todos</option>
+                {Array.from({ length: 6 }, (_, i) => 2026 - i).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+            </div>
           </div>
-          <div>
+          <div className="flex items-center gap-2 pt-2 md:pt-0">
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[38px]"
+              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[42px]"
               style={{ background: GREEN, color: "#1a1a1a" }}
             >
               <Filter className="w-4 h-4" />
               Pesquisar
             </button>
-          </div>
-          {hasFilters ? (
-            <div>
+            {hasFilters ? (
               <Link
                 href="/estatisticas-publico"
-                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[38px]"
+                className="flex-1 md:flex-none inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar
               </Link>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </form>
 
@@ -536,7 +550,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
       <Header />
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {children}
       </main>
       <PublicFooter />

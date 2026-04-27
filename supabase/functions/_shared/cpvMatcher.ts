@@ -15,17 +15,47 @@ export interface CpvRule {
   is_exclusion: boolean;
 }
 
+function normalizeCpvText(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+function cpvDigits(value: string): string {
+  return normalizeCpvText(value).replace(/\D/g, "");
+}
+
+function cpvCore8(value: string): string {
+  const digits = cpvDigits(value);
+  return digits.length >= 8 ? digits.slice(0, 8) : "";
+}
+
 /** Returns true if a single CPV code matches the given rule. */
 export function matchesCpv(cpv: string, rule: CpvRule): boolean {
-  const normalized = cpv.trim();
+  const normalized = normalizeCpvText(cpv);
+  const normalizedPattern = normalizeCpvText(rule.pattern);
+
   if (rule.match_type === "EXACT") {
-    return normalized === rule.pattern;
+    if (normalized === normalizedPattern) return true;
+
+    // Accept source variants with or without check digit (e.g. 63510000 vs 63510000-7).
+    const cpv8 = cpvCore8(normalized);
+    const pattern8 = cpvCore8(normalizedPattern);
+    return Boolean(cpv8 && pattern8 && cpv8 === pattern8);
   }
+
   if (rule.match_type === "PREFIX") {
     // Strip trailing asterisks from the pattern
-    const prefix = rule.pattern.replace(/\*+$/, "");
-    return normalized.startsWith(prefix);
+    const prefix = normalizedPattern.replace(/\*+$/, "");
+    if (normalized.startsWith(prefix)) return true;
+
+    const cpvNum = cpvDigits(normalized);
+    const prefixNum = cpvDigits(prefix);
+    if (cpvNum && prefixNum) {
+      return cpvNum.startsWith(prefixNum);
+    }
+
+    return false;
   }
+
   return false;
 }
 

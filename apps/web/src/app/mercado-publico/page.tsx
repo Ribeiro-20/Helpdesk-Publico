@@ -1,12 +1,13 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import Link from "next/link";
-import { FileText, Filter } from "lucide-react";
+import { FileText, Filter, House } from "lucide-react";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
 import ContractsTable, { type ContractRow } from "@/components/ContractsTable";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
 import MercadoMultiSelect from "@/components/MercadoMultiSelect";
+import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 import BackButton from "@/components/BackButton";
@@ -27,6 +28,7 @@ type MercadoSearchParams = {
   max_value?: string;
   from_date?: string;
   to_date?: string;
+  date_field?: string;
   sort?: string;
   limit?: string;
 };
@@ -95,6 +97,29 @@ function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+function closingDateIso(
+  signingDate: string | null,
+  deadlineDays: number | null | undefined,
+): string | null {
+  if (!signingDate || !deadlineDays || deadlineDays <= 0) return null;
+  const start = new Date(`${signingDate}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = new Date(start);
+  end.setDate(end.getDate() + deadlineDays);
+  return end.toISOString().slice(0, 10);
+}
+
+function inDateRange(
+  value: string | null,
+  fromDate: string,
+  toDate: string,
+): boolean {
+  if (!value) return false;
+  if (fromDate && value < fromDate) return false;
+  if (toDate && value > toDate) return false;
+  return true;
+}
+
 export default async function MercadoPublicoPage({
   searchParams,
 }: {
@@ -120,6 +145,11 @@ export default async function MercadoPublicoPage({
   const maxValue = (params.max_value ?? "").trim();
   const fromDate = (params.from_date ?? "").trim();
   const toDate = (params.to_date ?? "").trim();
+  const selectedDateField =
+    params.date_field === "publication_date" ||
+    params.date_field === "closing_date"
+      ? params.date_field
+      : "signing_date";
   const sortField = params.sort ?? "signing_date";
   const countryFilter = params.country ?? "all";
   const districtFilter = params.district ?? "all";
@@ -130,14 +160,36 @@ export default async function MercadoPublicoPage({
 
   const supabase = await createAdminClient();
 
-  // Get first tenant (public access — no auth required)
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("id")
-    .limit(1)
-    .maybeSingle();
+  // Prefer the authenticated user's tenant (same behavior as dashboard).
+  // For anonymous visitors, fallback to the first tenant so the page remains public.
+  const authSupabase = await createClient();
+  const {
+    data: { user },
+  } = await authSupabase.auth.getUser();
 
-  const tenantId = tenant?.id ?? "00000000-0000-0000-0000-000000000000";
+  let tenantId = "00000000-0000-0000-0000-000000000000";
+
+  if (user?.id) {
+    const { data: appUser } = await supabase
+      .from("app_users")
+      .select("tenant_id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (appUser?.tenant_id) {
+      tenantId = appUser.tenant_id;
+    }
+  }
+
+  if (tenantId === "00000000-0000-0000-0000-000000000000") {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("id")
+      .limit(1)
+      .maybeSingle();
+
+    if (tenant?.id) tenantId = tenant.id;
+  }
 
   // Build facet options for contract type and hierarchical location filters.
   const { data: locationRows } = await supabase
@@ -163,60 +215,41 @@ export default async function MercadoPublicoPage({
     "Aquisição de serviços",
     "Concessão de obras públicas",
     "Concessão de serviços públicos",
-    "Empreitada de obras públicas",
     "Empreitadas de obras públicas",
     "Locação de bens móveis",
-    "Locação de serviços",
     "Sociedade",
-    "Trabalhos de conceção",
-    "Trabalhos de conceção e execução",
-    "Transferência de quotas",
     "Outros",
   ]);
 
   const procedureTypeSet = new Set<string>([
+    "Consulta Prévia",
     "Ajuste Direto Regime Geral",
-    "Ajuste Direto Regime Geral ao abrigo do artigo 7º da Lei n.º 30/2021, de 21.05",
-    "Ajuste direto simplificado",
-    "Ajuste direto simplificado ao abrigo da Lei n.º 30/2021, de 21.05",
+    "Concurso público",
+    "Concurso limitado por prévia qualificação",
+    "Procedimento de negociação",
+    "Diálogo concorrencial",
     "Ao abrigo de acordo-quadro (art.º 258.º)",
     "Ao abrigo de acordo-quadro (art.º 259.º)",
+    "Parceria para a inovação",
+    "Disponibilização de bens móveis",
+    "Serviços sociais e outros serviços específicos",
     "Concurso de conceção simplificado",
     "Concurso de ideias simplificado",
-    "Concurso limitado por prévia qualificação",
-    "Concurso limitado por prévia qualificação simplificado",
-    "Concurso público",
-    "Concurso público simplificado",
-    "Consulta Prévia",
-    "Consulta prévia ao abrigo do artigo 7º da Lei n.º 30/2021, de 21.05",
     "Consulta Prévia Simplificada",
-    "Contratação excluída I",
-    "Contratação excluída II",
-    "Diálogo concorrencial",
-    "Disponibilização de bens móveis",
-    "Parceria para a inovação",
-    "Procedimento de negociação",
-    "Serviços sociais e outros serviços específicos",
+    "Concurso público simplificado",
+    "Concurso limitado por prévia qualificação simplificado",
+    "Ajuste Direto Regime Geral ao abrigo do artigo 7º da Lei n.º 30/2021, de 21.05",
+    "Consulta prévia ao abrigo do artigo 7º da Lei n.º 30/2021, de 21.05",
+    "Ajuste direto simplificado",
+    "Ajuste direto simplificado ao abrigo da Lei n.º 30/2021, de 21.05",
     "Setores especiais – isenção parte II",
-    "Concurso público urgente",
-    "Declaração de retificação de anúncio",
-    "Aviso de prorrogação de prazo",
-    "Anúncio de Alteração",
-    "Concurso de concepção",
-    "Anúncio simplificado",
-    "Instituição de sistema de qualificação",
-    "Intenção de celebração de empreitadas de obras publicas por concessionários que não sejam entidades adjudicantes",
-    "Concurso de ideias",
-    "Instituição de sistema de aquisição dinâmico",
-    "Hasta Pública de Alienação de Bens Móveis",
-    "Anúncio de Adjudicação de Aquisição de Serviços Sociais e de Outros Serviços Específicos",
+    "Contratação excluída II",
   ]);
 
   const locationTree = new Map<string, Map<string, Set<string>>>();
   // Pre-seed with standard countries from Portal BASE
   [
     "Portugal",
-    "Espanha",
     "Afeganistão",
     "África do Sul",
     "Albânia",
@@ -224,8 +257,9 @@ export default async function MercadoPublicoPage({
     "Andorra",
     "Angola",
     "Anguila",
-    "Antártida",
-    "Antiga e Barbuda",
+    "Antárctida",
+    "Antígua e Barbuda",
+    "Antilhas Holandesas",
     "Arábia Saudita",
     "Argélia",
     "Argentina",
@@ -244,11 +278,10 @@ export default async function MercadoPublicoPage({
     "Bermudas",
     "Bielorrússia",
     "Bolívia",
-    "Bonaire, Santo Eustáquio e Saba",
-    "Bósnia-Herzegovina",
+    "Bósnia e Herzegovina",
     "Botsuana",
     "Brasil",
-    "Brunei Darussalame",
+    "Brunei",
     "Bulgária",
     "Burquina Faso",
     "Burundi",
@@ -260,21 +293,18 @@ export default async function MercadoPublicoPage({
     "Catar",
     "Cazaquistão",
     "Chade",
-    "Checa, República",
     "Chile",
     "China",
     "Chipre",
     "Colômbia",
     "Comores",
     "Congo",
-    "Congo, República Democrática do",
-    "Coreia, República da",
-    "Coreia, República Popular Democrática da",
+    "Coreia do Norte",
+    "Coreia do Sul",
     "Costa do Marfim",
     "Costa Rica",
     "Croácia",
     "Cuba",
-    "Curaçau",
     "Dinamarca",
     "Djibuti",
     "Dominica",
@@ -285,6 +315,7 @@ export default async function MercadoPublicoPage({
     "Eritreia",
     "Eslováquia",
     "Eslovénia",
+    "Espanha",
     "Estados Unidos",
     "Estónia",
     "Etiópia",
@@ -296,19 +327,17 @@ export default async function MercadoPublicoPage({
     "Gâmbia",
     "Gana",
     "Geórgia",
-    "Geórgia do Sul e Ilhas Sandwich do Sul",
     "Gibraltar",
     "Granada",
     "Grécia",
     "Gronelândia",
     "Guame",
     "Guatemala",
-    "Guernsey",
     "Guiana",
     "Guiana Francesa",
     "Guiné",
-    "Guiné Bissau",
     "Guiné Equatorial",
+    "Guiné-Bissau",
     "Haiti",
     "Honduras",
     "Hong Kong",
@@ -316,25 +345,24 @@ export default async function MercadoPublicoPage({
     "Iémen",
     "Ilha Bouvet",
     "Ilha Christmas",
-    "Ilha de Man",
     "Ilha Norfolk",
-    "Ilhas Alanda",
     "Ilhas Caimão",
     "Ilhas Cocos (Keeling)",
     "Ilhas Cook",
+    "Ilhas Malvinas (Falkland)",
     "Ilhas Faroé",
     "Ilhas Heard e McDonald",
-    "Ilhas Malvinas",
     "Ilhas Marianas do Norte",
     "Ilhas Marshall",
     "Ilhas Menores Distantes dos Estados Unidos",
     "Ilhas Salomão",
     "Ilhas Turcas e Caicos",
-    "Ilhas Virgens Americanas",
     "Ilhas Virgens Britânicas",
+    "Ilhas Virgens dos Estados Unidos",
+    "Ilhas Wallis e Futuna",
     "Índia",
     "Indonésia",
-    "Irão, República Islâmica do",
+    "Irão",
     "Iraque",
     "Irlanda",
     "Islândia",
@@ -342,11 +370,10 @@ export default async function MercadoPublicoPage({
     "Itália",
     "Jamaica",
     "Japão",
-    "Jersey",
     "Jordânia",
     "Kiribati",
-    "Koweit",
-    "Laos, República Democrática Popular do",
+    "Kuwait",
+    "Laos",
     "Lesoto",
     "Letónia",
     "Líbano",
@@ -356,7 +383,7 @@ export default async function MercadoPublicoPage({
     "Lituânia",
     "Luxemburgo",
     "Macau",
-    "Macedónia, Antiga República Jugoslava da",
+    "Macedónia",
     "Madagáscar",
     "Malásia",
     "Maláui",
@@ -369,14 +396,13 @@ export default async function MercadoPublicoPage({
     "Mauritânia",
     "Maiote",
     "México",
-    "Mianmar",
-    "Micronésia, Estados Federados da",
+    "Micronésia",
     "Moçambique",
-    "Moldávia, República da",
+    "Moldávia",
     "Mónaco",
     "Mongólia",
-    "Montenegro",
     "Monserrate",
+    "Mianmar",
     "Namíbia",
     "Nauru",
     "Nepal",
@@ -392,7 +418,7 @@ export default async function MercadoPublicoPage({
     "Palau",
     "Palestina",
     "Panamá",
-    "Papua-Nova Guiné",
+    "Papua Nova Guiné",
     "Paquistão",
     "Paraguai",
     "Peru",
@@ -403,36 +429,33 @@ export default async function MercadoPublicoPage({
     "Quirguizistão",
     "Reino Unido",
     "República Centro-Africana",
+    "República Checa",
+    "República Democrática do Congo",
     "República Dominicana",
     "Reunião",
     "Roménia",
     "Ruanda",
-    "Rússia, Federação da",
+    "Rússia",
     "Saara Ocidental",
     "Samoa",
     "Samoa Americana",
     "Santa Helena",
     "Santa Lúcia",
-    "Santa Sé (Estado da Cidade do Vaticano)",
-    "São Bartolomeu",
     "São Cristóvão e Neves",
-    "São Marinho",
-    "São Martinho (Parte Francesa)",
-    "São Martinho (Parte Holandesa)",
-    "São Pedro e Miquelon",
+    "São Marino",
+    "São Pedro e Miquelão",
     "São Tomé e Príncipe",
     "São Vicente e Granadinas",
-    "Seicheles",
     "Senegal",
     "Serra Leoa",
-    "Sérvia",
+    "Sérvia e Montenegro",
+    "Seicheles",
     "Singapura",
-    "Síria, República Árabe da",
+    "Síria",
     "Somália",
     "Sri Lanca",
     "Suazilândia",
     "Sudão",
-    "Sudão do Sul",
     "Suécia",
     "Suíça",
     "Suriname",
@@ -440,12 +463,12 @@ export default async function MercadoPublicoPage({
     "Tailândia",
     "Taiwan",
     "Tajiquistão",
-    "Tanzânia, República Unida da",
+    "Tanzânia",
     "Território Britânico do Oceano Índico",
     "Territórios Franceses do Sul",
     "Timor-Leste",
     "Togo",
-    "Toquelau",
+    "Tokelau",
     "Tonga",
     "Trindade e Tobago",
     "Tunísia",
@@ -457,22 +480,12 @@ export default async function MercadoPublicoPage({
     "Uruguai",
     "Usbequistão",
     "Vanuatu",
+    "Vaticano",
     "Venezuela",
     "Vietname",
-    "Wallis e Futuna",
     "Zâmbia",
     "Zimbabué",
   ].forEach((country) => locationTree.set(country, new Map()));
-
-  for (const row of contractTypeRows ?? []) {
-    const contractType = (row.contract_type as string | null) ?? null;
-    if (contractType) contractTypeSet.add(contractType);
-  }
-
-  for (const row of procedureRows ?? []) {
-    const procedureType = (row.procedure_type as string | null) ?? null;
-    if (procedureType) procedureTypeSet.add(procedureType);
-  }
 
   for (const row of locationRows ?? []) {
     for (const rawLocation of toStringArray(row.execution_locations)) {
@@ -497,16 +510,14 @@ export default async function MercadoPublicoPage({
     }
   }
 
-  const contractTypeOptions = Array.from(contractTypeSet).sort((a, b) =>
-    a.localeCompare(b, "pt-PT"),
-  );
-  const procedureTypeOptions = Array.from(procedureTypeSet).sort((a, b) =>
-    a.localeCompare(b, "pt-PT"),
-  );
+  const contractTypeOptions = Array.from(contractTypeSet);
+  const procedureTypeOptions = Array.from(procedureTypeSet);
 
-  const countryOptions = Array.from(locationTree.keys()).sort((a, b) =>
-    a.localeCompare(b, "pt-PT"),
-  );
+  const countryOptions = Array.from(locationTree.keys()).sort((a, b) => {
+    if (a === "Portugal") return -1;
+    if (b === "Portugal") return 1;
+    return a.localeCompare(b, "pt-PT");
+  });
   const locationOptionsByCountry: Record<string, Record<string, string[]>> = {};
 
   for (const [country, districtMap] of Array.from(locationTree.entries()).sort(
@@ -578,11 +589,16 @@ export default async function MercadoPublicoPage({
   let contracts: ContractRow[] = [];
 
   // -------------------------------------------------------------------
-  // If procedure or contract_type filters are active, query DB directly
-  // so that ALL matching rows are returned (RPC has a cap of 5000 rows).
+  // If procedure, contract_type OR CPV filters are active, query DB directly.
+  // This guarantees CPV prefix semantics (cpv%) instead of contains semantics.
   // -------------------------------------------------------------------
   const hasTypeFilters =
-    contractTypeFilters.length > 0 || procedureFilters.length > 0;
+    contractTypeFilters.length > 0 ||
+    procedureFilters.length > 0 ||
+    cpvFilter.length > 0 ||
+    selectedDateField !== "signing_date";
+
+  const requiresClientDateFiltering = selectedDateField === "closing_date";
 
   if (hasTypeFilters) {
     // Build a direct query applying exact filters at DB level
@@ -604,8 +620,13 @@ export default async function MercadoPublicoPage({
     if (cpvFilter) q = q.ilike("cpv_main", `${cpvFilter}%`);
     if (minValue) q = q.gte("contract_price", parseFloat(minValue));
     if (maxValue) q = q.lte("contract_price", parseFloat(maxValue));
-    if (fromDate) q = q.gte("signing_date", fromDate);
-    if (toDate) q = q.lte("signing_date", toDate);
+    if (selectedDateField === "signing_date") {
+      if (fromDate) q = q.gte("signing_date", fromDate);
+      if (toDate) q = q.lte("signing_date", toDate);
+    } else if (selectedDateField === "publication_date") {
+      if (fromDate) q = q.gte("publication_date", fromDate);
+      if (toDate) q = q.lte("publication_date", toDate);
+    }
 
     // Apply sort
     if (sortField === "value_desc")
@@ -617,7 +638,7 @@ export default async function MercadoPublicoPage({
     else q = q.order("signing_date", { ascending: false, nullsFirst: false });
 
     // If NO location filters are active, we can paginate directly in DB (performant for millions of rows)
-    if (!hasLocationFilters) {
+    if (!hasLocationFilters && !requiresClientDateFiltering) {
       // Apply pagination directly to query
       const offsetDB = (page - 1) * PAGE_SIZE;
       q = q.range(offsetDB, offsetDB + PAGE_SIZE - 1);
@@ -638,14 +659,25 @@ export default async function MercadoPublicoPage({
         execution_locations: toStringArray(row.execution_locations),
       })) as ContractRow[];
 
-      filteredDirect = filteredDirect.filter((row) =>
-        locationMatches(
+      filteredDirect = filteredDirect.filter((row) => {
+        const locationOk = locationMatches(
           row.execution_locations ?? [],
           selectedCountry,
           selectedDistrict,
           selectedMunicipality,
-        ),
-      );
+        );
+        if (!locationOk) return false;
+
+        if (selectedDateField === "closing_date") {
+          const closingDate = closingDateIso(
+            row.signing_date,
+            row.execution_deadline_days,
+          );
+          return inDateRange(closingDate, fromDate, toDate);
+        }
+
+        return true;
+      });
 
       totalCount = filteredDirect.length;
       const totalPagesF = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -804,6 +836,9 @@ export default async function MercadoPublicoPage({
   if (maxValue) qsParams.set("max_value", maxValue);
   if (fromDate) qsParams.set("from_date", fromDate);
   if (toDate) qsParams.set("to_date", toDate);
+  if (selectedDateField !== "signing_date") {
+    qsParams.set("date_field", selectedDateField);
+  }
   if (sortField) qsParams.set("sort", sortField);
   if (PAGE_SIZE !== 25) qsParams.set("limit", PAGE_SIZE.toString());
   const buildQsBase = qsParams.toString()
@@ -818,13 +853,13 @@ export default async function MercadoPublicoPage({
       <Header />
 
       {/* ── MAIN ── */}
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {/* Title */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6 text-green-500" />
+            <FileText className="w-6 h-6 text-green-500 shrink-0" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
                 Estatísticas de Mercado
               </h1>
               <p className="text-gray-500 text-sm">
@@ -832,7 +867,16 @@ export default async function MercadoPublicoPage({
               </p>
             </div>
           </div>
-          <BackButton fallbackHref="/" className="w-fit shrink-0" />
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+            <Link
+              href="/"
+              className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+            >
+              <House className="h-4 w-4" />
+              Página inicial
+            </Link>
+            <BackButton fallbackHref="/" className="w-fit shrink-0" />
+          </div>
         </div>
 
         {/* Filters */}
@@ -842,7 +886,7 @@ export default async function MercadoPublicoPage({
             <div>
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Entidade adjudicante
+                  Entidade Adjudicante
                 </label>
                 <InfoPopover text="Indique nome ou NIPC da Entidade que pretende pesquisar" />
               </div>
@@ -856,9 +900,9 @@ export default async function MercadoPublicoPage({
             <div>
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Entidade adjudicatária
+                  Adjudicatário
                 </label>
-                <InfoPopover text="Filtre por nome ou NIPC da entidade adjudicataria." />
+                <InfoPopover text="Indique o nome ou NIPC do Adjudicatário que pretende pesquisar" />
               </div>
               <input
                 name="winner"
@@ -885,29 +929,42 @@ export default async function MercadoPublicoPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Data de</label>
-                <InfoPopover text="Data inicial da celebracao dos contratos." />
+                <label className="block text-xs text-gray-400">Data de início</label>
+                <InfoPopover text="Data inicial para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
             </div>
 
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Data até</label>
-                <InfoPopover text="Data final da celebracao dos contratos." />
+                <label className="block text-xs text-gray-400">Data de fim</label>
+                <InfoPopover text="Data final para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="to_date" defaultValue={toDate} />
             </div>
 
             <div>
+              <MercadoSingleSelect
+                name="date_field"
+                label="Critério de data"
+                defaultValue={selectedDateField}
+                options={[
+                  { value: "signing_date", label: "Data de celebração" },
+                  { value: "publication_date", label: "Data de contrato" },
+                  { value: "closing_date", label: "Data de encerramento" },
+                ]}
+              />
+            </div>
+
+            <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor min.
+                  Preço contratual mínimo
                 </label>
-                <InfoPopover text="Valor minimo do contrato em euros." />
+                <InfoPopover text="Valor mínimo do contrato em euros." />
               </div>
               <input
                 name="min_value"
@@ -918,12 +975,12 @@ export default async function MercadoPublicoPage({
               />
             </div>
 
-            <div>
+            <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor max.
+                  Preço contratual máximo
                 </label>
-                <InfoPopover text="Valor maximo do contrato em euros." />
+                <InfoPopover text="Valor máximo do contrato em euros." />
               </div>
               <input
                 name="max_value"
@@ -935,7 +992,7 @@ export default async function MercadoPublicoPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1fr_1.2fr_auto_auto] items-end gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <MercadoLocationFilters
               locationOptionsByCountry={locationOptionsByCountry}
               defaultCountry={selectedCountry}
@@ -950,7 +1007,7 @@ export default async function MercadoPublicoPage({
               <select
                 name="limit"
                 defaultValue={PAGE_SIZE.toString()}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
               >
                 <option value="25">25 contratos</option>
                 <option value="50">50 contratos</option>
@@ -960,32 +1017,34 @@ export default async function MercadoPublicoPage({
 
             <div>
               <label className="block text-xs text-gray-400 mb-1">
-                Ordenar
+                Ordenar por
               </label>
               <select
                 name="sort"
                 defaultValue={sortField}
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full"
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
               >
                 <option value="signing_date">Mais recentes</option>
-                <option value="publication_date">Data publicação</option>
-                <option value="value_desc">Maior valor</option>
-                <option value="value_asc">Menor valor</option>
+                <option value="publication_date">Data de publicação</option>
+                <option value="value_desc">Maior preço contratual</option>
+                <option value="value_asc">Menor preço contratual</option>
               </select>
             </div>
+          </div>
 
+          <div className="flex items-center justify-center gap-2 pt-2 md:pt-0">
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-1 px-5 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
+              className="w-full md:w-[360px] inline-flex items-center justify-center gap-1 px-6 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[42px]"
               style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
             >
               <Filter className="w-4 h-4" />
-              Pesquisar
+              Aplicar filtros selecionados
             </button>
             {hasFilters && (
               <Link
                 href="/mercado-publico"
-                className="text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar
               </Link>

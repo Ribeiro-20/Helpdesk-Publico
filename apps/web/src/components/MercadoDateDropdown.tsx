@@ -51,9 +51,8 @@ export default function MercadoDateDropdown({
     setDay(nextDate.day);
   }, [defaultValue]);
 
-  const currentYear = new Date().getFullYear();
-  const minYear = startYear ?? 2000;
-  const maxYear = endYear ?? currentYear + 1;
+  const minYear = startYear ?? 2021;
+  const maxYear = endYear ?? 2026;
 
   const yearOptions = useMemo(() => {
     const years: string[] = [];
@@ -87,7 +86,8 @@ export default function MercadoDateDropdown({
   }, [day, maxDay]);
 
   const dayOptions = useMemo(
-    () => Array.from({ length: maxDay }, (_, i) => String(i + 1).padStart(2, "0")),
+    () =>
+      Array.from({ length: maxDay }, (_, i) => String(i + 1).padStart(2, "0")),
     [maxDay],
   );
 
@@ -96,15 +96,14 @@ export default function MercadoDateDropdown({
     [],
   );
 
-  const formattedDate =
-    year && month && day ? `${year}-${month}-${day}` : "";
+  const formattedDate = year && month && day ? `${year}-${month}-${day}` : "";
 
   return (
     <div className="grid grid-cols-3 gap-2">
       <select
         value={day}
         onChange={(event) => setDay(event.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
+        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 h-[42px] text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white appearance-none"
         aria-label="Dia"
       >
         <option value="">Dia</option>
@@ -118,7 +117,7 @@ export default function MercadoDateDropdown({
       <select
         value={month}
         onChange={(event) => setMonth(event.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
+        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 h-[42px] text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white appearance-none"
         aria-label="Mes"
       >
         <option value="">Mes</option>
@@ -132,7 +131,7 @@ export default function MercadoDateDropdown({
       <select
         value={year}
         onChange={(event) => setYear(event.target.value)}
-        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
+        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 h-[42px] text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white appearance-none"
         aria-label="Ano"
       >
         <option value="">Ano</option>
@@ -143,7 +142,12 @@ export default function MercadoDateDropdown({
         ))}
       </select>
 
-      <input type="hidden" name={name} value={formattedDate} disabled={!formattedDate} />
+      <input
+        type="hidden"
+        name={name}
+        value={formattedDate}
+        disabled={!formattedDate}
+      />
     </div>
   );
 }
