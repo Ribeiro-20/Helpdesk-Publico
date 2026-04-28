@@ -932,7 +932,9 @@ export default async function MercadoPublicoPage({
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Data de início</label>
+                <label className="block text-xs text-gray-400">
+                  Data de início
+                </label>
                 <InfoPopover text="Data inicial para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
@@ -940,7 +942,9 @@ export default async function MercadoPublicoPage({
 
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Data de fim</label>
+                <label className="block text-xs text-gray-400">
+                  Data de fim
+                </label>
                 <InfoPopover text="Data final para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="to_date" defaultValue={toDate} />

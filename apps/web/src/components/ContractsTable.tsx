@@ -217,7 +217,7 @@ export default function ContractsTable({
                   <span className="inline-flex items-center gap-1">
                     CPV
                     <InfoPopover
-                      text="passe o rato por cima do código cpv para ver a descrição."
+                      text="Passe o cursor sobre o código CPV para visualizar a descrição"
                       ariaLabel="Informação sobre coluna CPV"
                       placement="bottom"
                     />
