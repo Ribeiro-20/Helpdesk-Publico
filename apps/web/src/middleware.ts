@@ -8,9 +8,10 @@ const PUBLIC_PATHS = [
   "/estatisticas-publico",
   "/estatisticas-privado",
   "/oportunidades",
-  "/outros",
   "/api/contracts",
-  "/api/cpv-search",
+  "/login-mi",
+  "/api/mi-login",
+  "/api/mi-verify",
 ];
 
 // Also allow any sub-paths of the above
@@ -26,6 +27,17 @@ export async function middleware(request: NextRequest) {
 
   // Skip auth check entirely for public pages — no Supabase call needed
   if (isPublicPath(pathname)) {
+    return NextResponse.next({ request });
+  }
+
+  // Market Intelligence Protection
+  if (pathname.startsWith("/outros")) {
+    const miSession = request.cookies.get("mi-session")?.value;
+    if (!miSession) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login-mi";
+      return NextResponse.redirect(url);
+    }
     return NextResponse.next({ request });
   }
 
