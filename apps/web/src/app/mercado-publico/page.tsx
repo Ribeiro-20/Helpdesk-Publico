@@ -853,13 +853,13 @@ export default async function MercadoPublicoPage({
       <Header />
 
       {/* ── MAIN ── */}
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {/* Title */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <FileText className="w-6 h-6 text-green-500" />
+            <FileText className="w-6 h-6 text-green-500 shrink-0" />
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
+              <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
                 Estatísticas de Mercado
               </h1>
               <p className="text-gray-500 text-sm">
@@ -867,7 +867,7 @@ export default async function MercadoPublicoPage({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <Link
               href="/"
               className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
@@ -886,7 +886,7 @@ export default async function MercadoPublicoPage({
             <div>
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Entidade adjudicante
+                  Entidade Adjudicante
                 </label>
                 <InfoPopover text="Indique nome ou NIPC da Entidade que pretende pesquisar" />
               </div>
@@ -900,7 +900,7 @@ export default async function MercadoPublicoPage({
             <div>
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Entidade adjudicatária
+                  Adjudicatário
                 </label>
                 <InfoPopover text="Indique o nome ou NIPC do Adjudicatário que pretende pesquisar" />
               </div>
@@ -932,7 +932,9 @@ export default async function MercadoPublicoPage({
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">De Data</label>
+                <label className="block text-xs text-gray-400">
+                  Data de início
+                </label>
                 <InfoPopover text="Data inicial para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
@@ -940,7 +942,9 @@ export default async function MercadoPublicoPage({
 
             <div className="rounded-xl border border-gray-200 bg-white p-3">
               <div className="flex items-center gap-1 mb-2">
-                <label className="block text-xs text-gray-400">Ate data</label>
+                <label className="block text-xs text-gray-400">
+                  Data de fim
+                </label>
                 <InfoPopover text="Data final para o tipo de data selecionado." />
               </div>
               <MercadoDateDropdown name="to_date" defaultValue={toDate} />
@@ -949,12 +953,12 @@ export default async function MercadoPublicoPage({
             <div>
               <MercadoSingleSelect
                 name="date_field"
-                label="Tipo de data"
+                label="Critério de data"
                 defaultValue={selectedDateField}
                 options={[
                   { value: "signing_date", label: "Data de celebração" },
                   { value: "publication_date", label: "Data de contrato" },
-                  { value: "closing_date", label: "Data de feixo" },
+                  { value: "closing_date", label: "Data de encerramento" },
                 ]}
               />
             </div>
@@ -962,7 +966,7 @@ export default async function MercadoPublicoPage({
             <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor mínimo
+                  Preço contratual mínimo
                 </label>
                 <InfoPopover text="Valor mínimo do contrato em euros." />
               </div>
@@ -978,7 +982,7 @@ export default async function MercadoPublicoPage({
             <div className="w-full">
               <div className="flex items-center gap-1 mb-1">
                 <label className="block text-xs text-gray-400">
-                  Valor máximo
+                  Preço contratual máximo
                 </label>
                 <InfoPopover text="Valor máximo do contrato em euros." />
               </div>
@@ -992,7 +996,7 @@ export default async function MercadoPublicoPage({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_1fr_1.2fr_auto_auto] items-end gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <MercadoLocationFilters
               locationOptionsByCountry={locationOptionsByCountry}
               defaultCountry={selectedCountry}
@@ -1000,41 +1004,51 @@ export default async function MercadoPublicoPage({
               defaultMunicipality={selectedMunicipality}
             />
 
-            <MercadoSingleSelect
-              name="limit"
-              label="Apresentar"
-              defaultValue={PAGE_SIZE.toString()}
-              options={[
-                { value: "25", label: "25 contratos" },
-                { value: "50", label: "50 contratos" },
-                { value: "100", label: "100 contratos" },
-              ]}
-            />
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Apresentar
+              </label>
+              <select
+                name="limit"
+                defaultValue={PAGE_SIZE.toString()}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
+              >
+                <option value="25">25 contratos</option>
+                <option value="50">50 contratos</option>
+                <option value="100">100 contratos</option>
+              </select>
+            </div>
 
-            <MercadoSingleSelect
-              name="sort"
-              label="Ordenar"
-              defaultValue={sortField}
-              options={[
-                { value: "signing_date", label: "Mais recentes" },
-                { value: "publication_date", label: "Data publicação" },
-                { value: "value_desc", label: "Maior valor" },
-                { value: "value_asc", label: "Menor valor" },
-              ]}
-            />
+            <div>
+              <label className="block text-xs text-gray-400 mb-1">
+                Ordenar por
+              </label>
+              <select
+                name="sort"
+                defaultValue={sortField}
+                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
+              >
+                <option value="signing_date">Mais recentes</option>
+                <option value="publication_date">Data de publicação</option>
+                <option value="value_desc">Maior preço contratual</option>
+                <option value="value_asc">Menor preço contratual</option>
+              </select>
+            </div>
+          </div>
 
+          <div className="flex items-center justify-center gap-2 pt-2 md:pt-0">
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-1 px-5 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
+              className="w-full md:w-[360px] inline-flex items-center justify-center gap-1 px-6 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[42px]"
               style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
             >
               <Filter className="w-4 h-4" />
-              Pesquisar
+              Aplicar filtros selecionados
             </button>
             {hasFilters && (
               <Link
                 href="/mercado-publico"
-                className="text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar
               </Link>
