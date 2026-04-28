@@ -104,7 +104,7 @@ export default async function HomePage() {
       title: "Market Intelligence",
       description:
         "Consulte todos os contratos públicos a terminar ou em fase de renovação (área reservada a subscritores do serviço).",
-      href: "/outros",
+      href: "/login-mi",
     },
   ];
 

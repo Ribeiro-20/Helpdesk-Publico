@@ -7,6 +7,7 @@ type InfoPopoverProps = {
   ariaLabel?: string;
   placement?: "side" | "bottom";
   side?: "left" | "right";
+  align?: "start" | "center" | "end";
 };
 
 export default function InfoPopover({
@@ -14,20 +15,32 @@ export default function InfoPopover({
   ariaLabel = "INFO",
   placement = "side",
   side = "right",
+  align = "center",
 }: InfoPopoverProps) {
-  const tooltipPositionClass =
-    placement === "bottom"
-      ? "left-1/2 top-[calc(100%+8px)] -translate-x-1/2"
-      : side === "left"
-        ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
-        : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
+  let tooltipPositionClass = "";
+  let arrowPositionClass = "";
 
-  const arrowPositionClass =
-    placement === "bottom"
-      ? "left-1/2 -top-1 -translate-x-1/2 border-l border-t"
-      : side === "left"
-        ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
-        : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
+  if (placement === "bottom") {
+    arrowPositionClass = "left-1/2 -top-1 -translate-x-1/2 border-l border-t";
+    
+    if (align === "start") {
+      tooltipPositionClass = "left-0 top-[calc(100%+8px)]";
+      arrowPositionClass = "left-2 -top-1 border-l border-t";
+    } else if (align === "end") {
+      tooltipPositionClass = "right-0 top-[calc(100%+8px)]";
+      arrowPositionClass = "right-2 -top-1 border-l border-t";
+    } else {
+      tooltipPositionClass = "left-1/2 top-[calc(100%+8px)] -translate-x-1/2";
+    }
+  } else {
+    tooltipPositionClass = side === "left"
+      ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
+      : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
+    
+    arrowPositionClass = side === "left"
+      ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
+      : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
+  }
 
   return (
     <div className="relative inline-flex group">
@@ -47,10 +60,10 @@ export default function InfoPopover({
         <span
           className={`absolute h-2 w-2 rotate-45 bg-white border-gray-200 ${arrowPositionClass}`}
         />
-        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">
+        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1 text-left w-full">
           INFO
         </p>
-        <p className="text-xs leading-5 text-gray-700 font-normal normal-case">{text}</p>
+        <p className="text-xs leading-5 text-gray-700 font-normal normal-case text-left">{text}</p>
       </div>
     </div>
   );
