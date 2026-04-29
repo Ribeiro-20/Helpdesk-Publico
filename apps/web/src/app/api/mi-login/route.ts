@@ -24,6 +24,8 @@ export async function POST(request: Request) {
     });
 
     console.log(`[MI-LOGIN] Code for ${email}: ${code}`);
+    console.log(`[MI-LOGIN] BREVO_API_KEY exists: ${!!process.env.BREVO_API_KEY}, length: ${(process.env.BREVO_API_KEY || '').length}`);
+    console.log(`[MI-LOGIN] BREVO_SENDER_EMAIL: ${process.env.BREVO_SENDER_EMAIL}`);
 
     // Send email using Brevo API
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
