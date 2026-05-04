@@ -1,43 +1,29 @@
 from django.db import models
+import uuid
 
-# NEED TO CHANGE SERIALIZERS into their own file
-## EUPAGO SERIALIZER (IN/OUT DTO)
-class transaction_status(models.IntegerChoices):
+
+# Eupago Transaction to store in Database
+class TransactionStatus(models.IntegerChoices):
     PAID = 1
     REFUNDED = 2
     ERROR = 3
     CANCELED = 4
     EXPIRED = 5
 
-# May be removed
-class webhook(models.Model):
-    endpoint = models.CharField(max_length=1023)
-    method = models.CharField(max_length=63)
-    status = transaction_status
-# -
-
-class transaction(models.Model):
+class Transaction(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     entity = models.IntegerField()
     reference = models.IntegerField()
     identifier = models.CharField(max_length=255)
     method = models.CharField(max_length=255)
-    #amount
-    #fees
-    date = models.DateTimeField()
-    trid = models.IntegerField()
-    status = models.CharField(max_length=63)
 
-class channel(models.Model):
-    name = models.CharField(max_length=255)
-    
-class amount(models.Model):
-    pass
+    amount_value = models.DecimalField(max_digits=15, decimal_places=2)
+    amount_currency = models.CharField(max_length=31)
 
-class fees(models.Model):
-    pass
+    fees_value = models.DecimalField(max_digits=15, decimal_places=2)
+    fees_currency = models.CharField(max_length=31)
 
-class direct_debit_payment(models.Model):
-    pass
+    date = models.DateTimeField(db_index=True)
+    trid = models.IntegerField(unique=True, db_index=True)
 
-class multibanco_payment(models.Model):
-    pass
+    status = models.IntegerField(choices=TransactionStatus.choices, db_index=True)

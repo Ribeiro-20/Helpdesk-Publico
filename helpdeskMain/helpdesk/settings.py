@@ -25,7 +25,9 @@ SECRET_KEY = 'django-insecure-(8$d3dkd*@6yp9w3^n@q^upr)0(bqm%-i3!+=*f!t!9z6dc&9d
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "platinum-gibberish-spirits.ngrok-free.dev", # To me removed in prod
+]
 
 
 # Application definition
@@ -39,6 +41,9 @@ INSTALLED_APPS = [
 	'django.contrib.staticfiles',
 	'rest_framework',
 	'api',
+
+    # CORE MAIN APPS
+    'formulariopagamento',
 ]
 
 MIDDLEWARE = [

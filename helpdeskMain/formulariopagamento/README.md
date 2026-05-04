@@ -9,3 +9,14 @@
 
 ## Responsabilidade
 - Diogo
+
+## Lista de Tarefas
+
+
+- [X] Implementar endpoint de webhook
+- [X] Criar serializer do pagamento
+- [X] Criar service de processamento de transações
+- [X] Integrar Eupago API
+- [ ] Implementar sistema de emails de aviso
+- [ ] Adicionar testes ao webhook
+- [ ] Validar idempotência dos pagamentos

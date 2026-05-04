@@ -13,8 +13,8 @@ class transactionSerializer(serializers.Serializer):
     reference = serializers.IntegerField()
     identifier = serializers.CharField(max_length=255)
     method = serializers.CharField(max_length=255)
-    amount = amountSerializer() # WIP
-    fees = feesSerializer() #WIP
+    amount = amountSerializer()
+    fees = feesSerializer()
     date = serializers.DateTimeField()
     trid = serializers.IntegerField()
     status = serializers.CharField(max_length=63)
@@ -23,6 +23,6 @@ class channelSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
 
 class webhook_dataSerializer(serializers.Serializer):
-    transaction = transactionSerializer() # TO BE ADDED PARAMS
-    channel = channelSerializer() # TO BE ADDED PARAMS
+    transaction = transactionSerializer()
+    channel = channelSerializer()
     data = serializers.CharField(max_length=255)
