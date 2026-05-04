@@ -29,7 +29,7 @@ class payment:
 def update(request):
     request_transaction = request["transaction"]
 
-    print(request_transaction["entity"])
+    # Saves/Update transaction to DB.
     models.Transaction.objects.update_or_create(
         entity=request_transaction["entity"],
         reference=request_transaction["reference"],
@@ -43,3 +43,15 @@ def update(request):
         trid=request_transaction["trid"],
         status=STATUS_MAP.get(request_transaction["status"]),
     )
+
+    match request_transaction["status"]:
+        case "PAID":
+            pass
+        case "REFUNDED":
+            pass
+        case "ERROR":
+            pass
+        case "CANCELED":
+            pass
+        case "EXPIRED":
+            pass
