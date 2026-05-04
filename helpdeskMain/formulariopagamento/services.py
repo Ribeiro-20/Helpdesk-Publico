@@ -9,7 +9,7 @@ STATUS_MAP = {
     "EXPIRED": models.TransactionStatus.EXPIRED,
 }
 
-# TEMP
+# TEMP - May be removed
 '''
 class payment:
     def expiration(request):
@@ -27,4 +27,19 @@ class payment:
 
 # Single point entry for Webhook
 def update(request):
-    print(request)
+    request_transaction = request["transaction"]
+
+    print(request_transaction["entity"])
+    models.Transaction.objects.update_or_create(
+        entity=request_transaction["entity"],
+        reference=request_transaction["reference"],
+        identifier=request_transaction["identifier"],
+        method=request_transaction["method"],
+        amount_value=request_transaction["amount"]["amount"],
+        amount_currency=request_transaction["amount"]["currency"],
+        fees_value=request_transaction["fees"]["amount"],
+        fees_currency=request_transaction["fees"]["currency"],
+        date=request_transaction["date"],
+        trid=request_transaction["trid"],
+        status=STATUS_MAP.get(request_transaction["status"]),
+    )
