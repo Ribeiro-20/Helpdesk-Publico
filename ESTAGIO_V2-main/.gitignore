@@ -1,0 +1,53 @@
+# Node.js
+node_modules/
+.env
+.env.local
+.env.*
+
+# Next.js
+.next/
+out/
+
+# Supabase
+supabase/.env
+supabase/functions/.env
+supabase/migrations/*.sql
+supabase/__pycache__/
+
+# Python
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Ignore build outputs
+build/
+dist/
+
+# Ignore test coverage
+coverage/
+
+# Ignore lock files (optional)
+pnpm-lock.yaml
+yarn.lock
+
+# Ignore backups
+*.bak
+
+# Ignore temp
+*.tmp
