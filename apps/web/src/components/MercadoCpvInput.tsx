@@ -4,11 +4,23 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import InfoPopover from "@/components/InfoPopover";
 
+type MercadoCpvInputProps = {
+  defaultValue: string;
+  label?: string;
+  placeholder?: string;
+  infoText?: string;
+  inputClassName?: string;
+  debounceMs?: number;
+};
+
 export default function MercadoCpvInput({
   defaultValue,
-}: {
-  defaultValue: string;
-}) {
+  label = "CPV",
+  placeholder = "Insira o código CPV",
+  infoText = "Indique o código CPV que pretende pesquisar",
+  inputClassName = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all",
+  debounceMs = 0,
+}: MercadoCpvInputProps) {
   const [value, setValue] = useState(defaultValue);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const submitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -17,7 +29,10 @@ export default function MercadoCpvInput({
   const pathname = usePathname();
 
   useEffect(() => {
-    setValue(defaultValue);
+    setValue((current) => {
+      if (defaultValue === "" && current !== "") return "";
+      return current;
+    });
   }, [defaultValue]);
 
   function submitForm(delayMs: number, overrideCpv?: string) {
@@ -67,19 +82,16 @@ export default function MercadoCpvInput({
     setValue(nextValue);
 
     // Auto-search without reloading the page or losing focus
-    submitForm(0, nextValue);
+    submitForm(debounceMs, nextValue);
   }
 
   return (
     <div ref={wrapperRef} className="relative">
       <div className="flex items-center gap-1 mb-1">
         <label htmlFor="mercado-cpv" className="block text-xs text-gray-400">
-          CPV
+          {label}
         </label>
-        <InfoPopover
-          text="Indique o código CPV que pretende pesquisar"
-          ariaLabel="Ajuda CPV"
-        />
+        <InfoPopover text={infoText} ariaLabel="Ajuda CPV" />
       </div>
 
       <input
@@ -88,8 +100,8 @@ export default function MercadoCpvInput({
         value={value}
         onChange={(event) => handleChange(event.target.value)}
         autoComplete="off"
-        placeholder="Insira o código CPV"
-        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+        placeholder={placeholder}
+        className={inputClassName}
       />
     </div>
   );

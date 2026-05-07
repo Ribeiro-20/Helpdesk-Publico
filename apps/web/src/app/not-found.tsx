@@ -1,4 +1,5 @@
 import Link from "next/link";
+import BackButton from "@/components/BackButton";
 
 export default function NotFound() {
   return (
@@ -11,12 +12,15 @@ export default function NotFound() {
         <p className="text-gray-500 text-sm mb-6">
           A página que procura não existe ou foi movida.
         </p>
-        <Link
-          href="/dashboard"
-          className="inline-block bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md"
-        >
-          Voltar ao Dashboard
-        </Link>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <BackButton fallbackHref="/" />
+          <Link
+            href="/"
+            className="inline-block bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md"
+          >
+            Voltar à Página Inicial
+          </Link>
+        </div>
       </div>
     </div>
   );

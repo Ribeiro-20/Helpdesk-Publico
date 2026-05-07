@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "Helpdesk Público | Informação do Mercado Público",
   description: "Helpdesk Público | Informação do Mercado Público",
   icons: {
-    icon: "/android-chrome-57x57_1.png",
+    icon: "/android-chrome-57x57.png",
   },
 };
 

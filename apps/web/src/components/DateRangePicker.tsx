@@ -21,6 +21,11 @@ function dateToIso(d: Date): string {
   ].join("-");
 }
 
+function monthLabel(date: Date): string {
+  const value = format(date, "LLLL yyyy", { locale: pt });
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export interface DateRangePickerProps {
   from: string;
   to: string;
@@ -89,16 +94,42 @@ export default function DateRangePicker({
 
       {/* Popover */}
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-2 rounded-2xl border border-surface-200 bg-white p-5 shadow-xl">
+        <div className="absolute left-0 top-full z-50 mt-2 rounded-2xl border border-surface-200 bg-white p-4 shadow-xl">
           <DayPicker
             mode="range"
             selected={range}
             onSelect={handleSelect}
             locale={pt}
-            numberOfMonths={2}
-            captionLayout="dropdown"
+            numberOfMonths={1}
+            captionLayout="label"
+            formatters={{
+              formatCaption: monthLabel,
+            }}
             startMonth={new Date(2020, 0)}
             endMonth={new Date(2030, 11)}
+            classNames={{
+              root: "!font-sans",
+              month_caption: "flex items-center justify-center py-1.5 mb-1",
+              caption_label: "text-base font-semibold text-slate-800",
+              nav: "flex items-center justify-between w-full absolute top-4 px-3",
+              button_previous:
+                "h-8 w-8 flex items-center justify-center rounded-lg text-slate-800 hover:bg-slate-100 transition-colors",
+              button_next:
+                "h-8 w-8 flex items-center justify-center rounded-lg text-slate-800 hover:bg-slate-100 transition-colors",
+              weekdays: "grid grid-cols-7 mb-2",
+              weekday: "text-center text-[13px] font-semibold lowercase text-slate-400 py-1",
+              weeks: "space-y-1",
+              week: "grid grid-cols-7",
+              day: "flex items-center justify-center",
+              day_button:
+                "h-9 w-9 flex items-center justify-center rounded-xl text-sm text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none",
+              range_start: "[&>button]:!bg-brand-600 [&>button]:!text-white [&>button]:font-semibold",
+              range_end: "[&>button]:!bg-brand-600 [&>button]:!text-white [&>button]:font-semibold",
+              range_middle: "[&>button]:!bg-brand-50 [&>button]:!text-brand-700",
+              today: "[&>button]:text-brand-600 [&>button]:font-bold",
+              outside: "[&>button]:text-slate-300",
+              disabled: "[&>button]:opacity-30 [&>button]:cursor-not-allowed",
+            }}
           />
           {/* Quick actions */}
           <div className="mt-3 flex items-center justify-between border-t border-surface-100 pt-3">

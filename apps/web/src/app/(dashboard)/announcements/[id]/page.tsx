@@ -187,7 +187,7 @@ export default async function AnnouncementDetailPage({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <InfoCard title="Entidade e procedimento">
           <Field label="Entidade" value={ann.entity_name} />
-          <Field label="NIF" value={ann.entity_nif} mono />
+          <Field label="NIPC" value={ann.entity_nif} mono />
           <Field label="Tipo de procedimento" value={ann.procedure_type} />
           <Field label="Tipo de acto" value={ann.act_type} />
           <Field label="Tipo de contrato" value={ann.contract_type} />

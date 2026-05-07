@@ -119,9 +119,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (days > 30) {
+    if (days > 15) {
       return NextResponse.json(
-        { error: "Intervalo demasiado grande para contratos. Use blocos de até 30 dias." },
+        { error: "Intervalo demasiado grande para contratos. Use blocos de até 15 dias." },
         { status: 400 },
       );
     }

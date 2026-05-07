@@ -8,13 +8,12 @@ const PUBLIC_PATHS = [
   "/estatisticas-publico",
   "/estatisticas-privado",
   "/oportunidades",
-  "/api/contracts",
   "/login-mi",
+  "/outros",
+  "/api/contracts",
   "/api/mi-login",
   "/api/mi-verify",
 ];
-
-// Also allow any sub-paths of the above
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
@@ -22,15 +21,56 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
+function isPrefetchRequest(request: NextRequest): boolean {
+  return (
+    request.headers.get("next-router-prefetch") !== null ||
+    request.headers.get("purpose") === "prefetch"
+  );
+}
+
+function createMiddlewareSupabaseClient(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request });
+  const { url, anonKey } = getSupabasePublicEnv("Supabase middleware");
+
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      get(name: string) {
+        return request.cookies.get(name)?.value;
+      },
+      set(name: string, value: string, options: object) {
+        request.cookies.set(name, value);
+        supabaseResponse = NextResponse.next({ request });
+        supabaseResponse.cookies.set(
+          name,
+          value,
+          options as Parameters<typeof supabaseResponse.cookies.set>[2],
+        );
+      },
+      remove(name: string, options: object) {
+        request.cookies.set(name, "");
+        supabaseResponse = NextResponse.next({ request });
+        supabaseResponse.cookies.set(
+          name,
+          "",
+          options as Parameters<typeof supabaseResponse.cookies.set>[2],
+        );
+      },
+    },
+  });
+
+  return {
+    supabase,
+    getResponse: () => supabaseResponse,
+  };
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip auth check entirely for public pages — no Supabase call needed
   if (isPublicPath(pathname)) {
     return NextResponse.next({ request });
   }
 
-  // Market Intelligence Protection
   if (pathname.startsWith("/outros")) {
     const miSession = request.cookies.get("mi-session")?.value;
     if (!miSession) {
@@ -44,38 +84,12 @@ export async function middleware(request: NextRequest) {
   const isLoginPage = pathname.startsWith("/login");
   const isAuthCallback = pathname.startsWith("/auth");
 
-  let supabaseResponse = NextResponse.next({ request });
-  const { url, anonKey } = getSupabasePublicEnv("Supabase middleware");
+  const { supabase, getResponse } = createMiddlewareSupabaseClient(request);
 
-  const supabase = createServerClient(
-    url,
-    anonKey,
-    {
-      cookies: {
-        get(name: string) {
-          return request.cookies.get(name)?.value;
-        },
-        set(name: string, value: string, options: object) {
-          request.cookies.set(name, value);
-          supabaseResponse = NextResponse.next({ request });
-          supabaseResponse.cookies.set(
-            name,
-            value,
-            options as Parameters<typeof supabaseResponse.cookies.set>[2],
-          );
-        },
-        remove(name: string, options: object) {
-          request.cookies.set(name, "");
-          supabaseResponse = NextResponse.next({ request });
-          supabaseResponse.cookies.set(
-            name,
-            "",
-            options as Parameters<typeof supabaseResponse.cookies.set>[2],
-          );
-        },
-      },
-    },
-  );
+  if (isLoginPage && request.method === "GET" && !isPrefetchRequest(request)) {
+    await supabase.auth.signOut();
+    return getResponse();
+  }
 
   const {
     data: { user },
@@ -87,13 +101,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isLoginPage) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
-
-  return supabaseResponse;
+  return getResponse();
 }
 
 export const config = {

@@ -1,14 +1,7 @@
 import Link from "next/link";
 import Header from "@/components/layout/Header";
 import { createAdminClient } from "@/lib/supabase/server";
-import {
-  BarChart2,
-  Building2,
-  ChevronDown,
-  Filter,
-  House,
-  Search,
-} from "lucide-react";
+import { BarChart2, Building2, ChevronDown, Filter, House, Search } from "lucide-react";
 import BackButton from "@/components/BackButton";
 import PublicFooter from "@/components/layout/PublicFooter";
 
@@ -334,11 +327,11 @@ export default async function EstatisticasPublicoPage({
 
   return (
     <PageShell>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <BarChart2 className="w-6 h-6 text-green-500 shrink-0" />
+          <BarChart2 className="w-6 h-6 text-green-500" />
           <div>
-            <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
+            <h1 className="text-2xl font-bold text-gray-900">
               Estatisticas de Entidades Adjudicantes
             </h1>
             <p className="text-gray-500 text-sm">
@@ -346,7 +339,7 @@ export default async function EstatisticasPublicoPage({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
+        <div className="flex items-center gap-2">
           <Link
             href="/"
             className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
@@ -386,11 +379,11 @@ export default async function EstatisticasPublicoPage({
             <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
               Ano
             </label>
-            <div className="relative overflow-hidden rounded-xl border border-gray-200">
+            <div className="relative">
               <select
                 name="year"
                 defaultValue={yearFilter}
-                className="h-[42px] w-full appearance-none border-none px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
+                className="h-[42px] w-full appearance-none border border-gray-200 rounded-xl px-3 pr-9 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
               >
                 <option value="">Todos</option>
                 {Array.from({ length: 6 }, (_, i) => 2026 - i).map((y) => (
@@ -402,24 +395,26 @@ export default async function EstatisticasPublicoPage({
               <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
             </div>
           </div>
-          <div className="flex items-center gap-2 pt-2 md:pt-0">
+          <div>
             <button
               type="submit"
-              className="flex-1 md:flex-none inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[42px]"
+              className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[38px]"
               style={{ background: GREEN, color: "#1a1a1a" }}
             >
               <Filter className="w-4 h-4" />
               Pesquisar
             </button>
-            {hasFilters ? (
+          </div>
+          {hasFilters ? (
+            <div>
               <Link
                 href="/estatisticas-publico"
-                className="flex-1 md:flex-none inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[42px]"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[38px]"
               >
                 Limpar
               </Link>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       </form>
 
@@ -550,7 +545,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
       <Header />
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
         {children}
       </main>
       <PublicFooter />

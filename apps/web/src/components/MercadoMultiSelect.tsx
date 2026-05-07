@@ -28,10 +28,7 @@ export default function MercadoMultiSelect({
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (
-        wrapperRef.current &&
-        !wrapperRef.current.contains(e.target as Node)
-      ) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
@@ -53,7 +50,7 @@ export default function MercadoMultiSelect({
         : `${selected.length} selecionados`;
 
   return (
-    <div ref={wrapperRef} className="relative z-10">
+    <div ref={wrapperRef} className={`relative ${open ? "z-[120]" : "z-10"}`}>
       <label className="block text-xs text-gray-400 mb-1">{label}</label>
 
       {/*
@@ -78,19 +75,14 @@ export default function MercadoMultiSelect({
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M19 9l-7 7-7-7"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {/* Dropdown list */}
       {open && (
         <div
-          className="absolute z-50 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto w-full md:min-w-[240px]"
+          className="absolute z-[130] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto"
           style={{ maxHeight: "calc(8 * 36px)" }}
         >
           {options.length === 0 && (
@@ -131,9 +123,7 @@ export default function MercadoMultiSelect({
                     </svg>
                   )}
                 </span>
-                <span className="text-xs text-gray-700 leading-snug">
-                  {opt}
-                </span>
+                <span className="text-xs text-gray-700 leading-snug">{opt}</span>
               </button>
             );
           })}
