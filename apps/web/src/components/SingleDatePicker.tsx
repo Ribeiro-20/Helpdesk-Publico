@@ -26,6 +26,11 @@ function isoToDisplay(iso: string): string {
   return d ? format(d, "dd/MM/yyyy") : "";
 }
 
+function monthLabel(date: Date): string {
+  const value = format(date, "LLLL yyyy", { locale: pt });
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 export interface SingleDatePickerProps {
   /** HTML form field name – renders a hidden input when provided */
   name?: string;
@@ -148,7 +153,7 @@ export default function SingleDatePicker({
       {open && (
         <div className="absolute left-0 top-full z-50 mt-2 rounded-2xl border border-surface-200 bg-white shadow-xl"
              style={{ width: 268 }}>
-          <div className="p-4 pb-0">
+          <div className="p-4 pb-1">
             <DayPicker
               mode="single"
               selected={selectedDate}
@@ -158,27 +163,30 @@ export default function SingleDatePicker({
               onMonthChange={setMonth}
               locale={pt}
               captionLayout="label"
+              formatters={{
+                formatCaption: monthLabel,
+              }}
               startMonth={new Date(2020, 0)}
               endMonth={new Date(2030, 11)}
               classNames={{
                 root: "!font-sans",
-                month_caption: "flex items-center justify-center py-1 mb-1",
-                caption_label: "text-sm font-semibold text-gray-800 capitalize",
-                nav: "flex items-center justify-between w-full absolute top-4 px-4",
+                month_caption: "flex items-center justify-center py-1.5 mb-1",
+                caption_label: "text-base font-semibold text-slate-800",
+                nav: "flex items-center justify-between w-full absolute top-4 px-3",
                 button_previous:
-                  "h-7 w-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-surface-100 transition-colors",
+                  "h-8 w-8 flex items-center justify-center rounded-lg text-slate-800 hover:bg-slate-100 transition-colors",
                 button_next:
-                  "h-7 w-7 flex items-center justify-center rounded-lg text-gray-500 hover:bg-surface-100 transition-colors",
-                weekdays: "grid grid-cols-7 mb-1",
-                weekday: "text-center text-[11px] font-medium text-gray-400 py-1",
-                weeks: "space-y-0.5",
+                  "h-8 w-8 flex items-center justify-center rounded-lg text-slate-800 hover:bg-slate-100 transition-colors",
+                weekdays: "grid grid-cols-7 mb-2",
+                weekday: "text-center text-[13px] font-semibold lowercase text-slate-400 py-1",
+                weeks: "space-y-1",
                 week: "grid grid-cols-7",
                 day: "flex items-center justify-center",
                 day_button:
-                  "h-8 w-8 flex items-center justify-center rounded-full text-sm text-gray-700 transition-colors hover:bg-brand-50 hover:text-brand-700 focus:outline-none",
-                selected: "[&>button]:!bg-brand-600 [&>button]:!text-white [&>button]:font-semibold",
-                today: "[&>button]:font-bold [&>button]:text-brand-600",
-                outside: "[&>button]:text-gray-300",
+                  "h-9 w-9 flex items-center justify-center rounded-xl text-sm text-slate-700 transition-colors hover:bg-slate-100 focus:outline-none",
+                selected: "[&>button]:!bg-transparent [&>button]:!text-brand-600 [&>button]:font-bold",
+                today: "[&>button]:text-brand-600 [&>button]:font-bold",
+                outside: "[&>button]:text-slate-300",
                 disabled: "[&>button]:opacity-30 [&>button]:cursor-not-allowed",
               }}
             />
@@ -192,7 +200,7 @@ export default function SingleDatePicker({
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
               placeholder="dd/mm/aaaa"
-              className="min-w-0 flex-1 rounded-xl border border-surface-200 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
             <button
               type="button"

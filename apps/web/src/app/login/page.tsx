@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -120,6 +121,13 @@ export default function LoginPage() {
                   ? "Entrar"
                   : "Criar conta"}
             </button>
+
+            <Link
+              href="/"
+              className="w-full inline-flex items-center justify-center border border-surface-200 bg-white hover:bg-surface-50 text-gray-700 font-medium py-2.5 rounded-xl transition-all text-sm"
+            >
+              Voltar à página principal
+            </Link>
           </form>
 
           <p className="text-center text-sm text-gray-400 mt-6">

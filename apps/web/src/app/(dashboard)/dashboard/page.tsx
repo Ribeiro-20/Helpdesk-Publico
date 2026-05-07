@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import AdminActions from "@/components/AdminActions";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
-import { LayoutDashboard } from "lucide-react";
+import { House, LayoutDashboard } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -182,11 +182,21 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <PageHeader
-        icon={LayoutDashboard}
-        title="Dashboard"
-        description="Visão geral do sistema"
-      />
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <PageHeader
+          icon={LayoutDashboard}
+          title="Dashboard"
+          description="Visão geral do sistema"
+        />
+
+        <Link
+          href="/"
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-surface-100 hover:text-gray-900"
+        >
+          <House className="h-4 w-4" />
+          Página principal
+        </Link>
+      </div>
 
       {/* Warning when not initialised */}
       {!isInitialised && (

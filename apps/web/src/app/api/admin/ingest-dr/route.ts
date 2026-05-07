@@ -106,14 +106,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
+    const tsxCliCandidates = [
+      path.join(scriptsDir, "node_modules", "tsx", "dist", "cli.mjs"),
+      path.join(scriptsDir, "node_modules", ".bin", "tsx"),
+      path.join(scriptsDir, "node_modules", ".bin", "tsx.cmd"),
+    ];
+
+    const tsxCli = tsxCliCandidates.find((p) => existsSync(p));
+
+    if (!tsxCli) {
+      return NextResponse.json(
+        {
+          error:
+            `Não foi possível localizar o executável tsx em ${scriptsDir}. ` +
+            "Execute 'npm install --prefix scripts' e tente novamente.",
+        },
+        { status: 500 },
+      );
+    }
 
     const { stdout, stderr } = await execFileAsync(
-      npmCmd,
+      process.execPath,
       [
-        "run",
-        "scrape-dr:upsert",
-        "--",
+        tsxCli,
+        "scrape-dr-contracts.ts",
+        "--upsert",
         "--from-date",
         fromDate,
         "--to-date",
@@ -126,7 +143,7 @@ export async function POST(req: NextRequest) {
       {
         cwd: scriptsDir,
         timeout: 30 * 60 * 1000,
-        shell: process.platform === "win32",
+        shell: false,
         windowsHide: true,
         maxBuffer: 1024 * 1024 * 10,
       },

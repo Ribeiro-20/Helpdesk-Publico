@@ -57,9 +57,9 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
   }
 
   return (
-    <aside className="w-64 bg-white border-r border-surface-200 flex flex-col shrink-0">
+    <aside className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-surface-200">
+      <div className="px-5 py-5 border-b border-slate-200 bg-slate-100/70">
         <div className="flex items-center gap-3">
           <Image
             src="/logo.webp"
@@ -80,13 +80,13 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-5 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto">
         {NAV_SECTIONS.map((section) => (
           <div key={section.title}>
-            <p className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-300">
+            <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-300">
               {section.title}
             </p>
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {section.items.map(({ href, label, icon: Icon }) => {
                 const isActive =
                   href === "/dashboard"
@@ -98,13 +98,13 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
                     key={href}
                     href={href}
                     className={clsx(
-                      "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
+                      "flex items-center gap-3 px-3 py-2.5 rounded-2xl text-sm font-medium transition-all duration-150",
                       isActive
-                        ? "bg-brand-50 text-brand-700 shadow-sm"
-                        : "text-gray-500 hover:bg-surface-100 hover:text-gray-900",
+                        ? "bg-emerald-100/80 text-emerald-700"
+                        : "text-slate-600 hover:bg-white hover:text-slate-900",
                     )}
                   >
-                    <Icon className={clsx("w-[18px] h-[18px] shrink-0", isActive ? "text-brand-600" : "")} />
+                    <Icon className={clsx("w-[17px] h-[17px] shrink-0", isActive ? "text-emerald-600" : "text-slate-500")} />
                     {label}
                   </Link>
                 );
@@ -115,13 +115,18 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
       </nav>
 
       {/* User */}
-      <div className="px-4 py-4 border-t border-surface-200">
-        <p className="text-gray-400 text-xs truncate mb-2">{userEmail}</p>
+      <div className="m-3 mt-2 rounded-2xl border border-slate-300/80 bg-slate-100/60 p-3">
+        <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+          Sessão ativa
+        </p>
+        <p className="mb-2 truncate rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-700">
+          {userEmail}
+        </p>
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 text-gray-400 hover:text-accent-500 text-xs font-medium transition-colors"
+          className="flex items-center gap-2 px-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"
         >
-          <LogOut className="w-3.5 h-3.5" />
+          <LogOut className="h-3.5 w-3.5" />
           Sair
         </button>
       </div>

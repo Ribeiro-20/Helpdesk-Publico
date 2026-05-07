@@ -21,17 +21,14 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+function isPrefetchRequest(request: NextRequest): boolean {
+  return (
+    request.headers.get("next-router-prefetch") !== null ||
+    request.headers.get("purpose") === "prefetch"
+  );
+}
 
-  // Skip auth check entirely for public pages — no Supabase call needed
-  if (isPublicPath(pathname)) {
-    return NextResponse.next({ request });
-  }
-
-  const isLoginPage = pathname.startsWith("/login");
-  const isAuthCallback = pathname.startsWith("/auth");
-
+function createMiddlewareSupabaseClient(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
   const { url, anonKey } = getSupabasePublicEnv("Supabase middleware");
 
@@ -65,6 +62,33 @@ export async function middleware(request: NextRequest) {
     },
   );
 
+  return {
+    supabase,
+    getResponse: () => supabaseResponse,
+  };
+}
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isPublic = isPublicPath(pathname);
+
+  // Skip auth check entirely for public pages — no Supabase call needed
+  if (isPublic) {
+    return NextResponse.next({ request });
+  }
+
+  const isLoginPage = pathname.startsWith("/login");
+  const isAuthCallback = pathname.startsWith("/auth");
+
+  const { supabase, getResponse } = createMiddlewareSupabaseClient(request);
+
+  // Always require credentials in "Area de utilizador".
+  // Opening /login invalidates any existing session and shows login form again.
+  if (isLoginPage && request.method === "GET" && !isPrefetchRequest(request)) {
+    await supabase.auth.signOut();
+    return getResponse();
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -75,13 +99,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && isLoginPage) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
-  }
-
-  return supabaseResponse;
+  return getResponse();
 }
 
 export const config = {

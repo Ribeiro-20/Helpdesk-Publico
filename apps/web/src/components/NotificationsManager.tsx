@@ -4,6 +4,15 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import {
+  CircleAlert,
+  CircleCheckBig,
+  CircleX,
+  Clock3,
+  Inbox,
+  Send,
+  TriangleAlert,
+} from "lucide-react";
 
 type Notification = {
   id: string;
@@ -31,6 +40,23 @@ const STATUS_COLORS: Record<string, string> = {
   FAILED: "bg-red-100 text-red-700",
   SKIPPED: "bg-gray-100 text-gray-500",
   RATE_LIMITED: "bg-orange-100 text-orange-700",
+};
+
+const STATUS_META: Record<string, { label: string; icon: typeof Inbox }> = {
+  "": { label: "Todos", icon: Inbox },
+  PENDING: { label: "Pendente", icon: Clock3 },
+  SENT: { label: "Enviadas", icon: CircleCheckBig },
+  FAILED: { label: "Falhadas", icon: CircleX },
+  SKIPPED: { label: "Ignoradas", icon: CircleAlert },
+  RATE_LIMITED: { label: "Limitadas", icon: TriangleAlert },
+};
+
+const STATUS_BADGE_META: Record<string, { icon: typeof Inbox }> = {
+  PENDING: { icon: Clock3 },
+  SENT: { icon: CircleCheckBig },
+  FAILED: { icon: CircleX },
+  SKIPPED: { icon: CircleAlert },
+  RATE_LIMITED: { icon: TriangleAlert },
 };
 
 export default function NotificationsManager({
@@ -72,13 +98,18 @@ export default function NotificationsManager({
           <Link
             key={s}
             href={`/notifications?status=${s}&page=1`}
-            className={`text-sm px-3.5 py-1.5 rounded-xl font-medium transition-all ${
+            className={`inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium transition-all ${
               statusFilter === s
                 ? "bg-brand-600 text-white shadow-sm"
                 : "bg-white border border-surface-200 text-gray-500 hover:bg-surface-50 hover:text-gray-700 shadow-card"
             }`}
           >
-            {s || "Todos"}
+            {(() => {
+              const meta = STATUS_META[s];
+              const Icon = meta.icon;
+              return <Icon className="h-4 w-4 shrink-0" />;
+            })()}
+            <span>{STATUS_META[s].label}</span>
           </Link>
         ))}
       </div>
@@ -140,6 +171,11 @@ export default function NotificationsManager({
                       <span
                         className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[n.status] ?? "bg-gray-100 text-gray-600"}`}
                       >
+                        {(() => {
+                          const meta = STATUS_BADGE_META[n.status];
+                          const Icon = meta?.icon;
+                          return Icon ? <Icon className="mr-1 inline h-3.5 w-3.5 align-[-2px]" /> : null;
+                        })()}
                         {n.status}
                       </span>
                     </td>
@@ -156,9 +192,10 @@ export default function NotificationsManager({
                         <button
                           onClick={() => resend(n.id)}
                           disabled={resending === n.id}
-                          className="text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50"
                         >
-                          {resending === n.id ? "..." : "Reenviar"}
+                          <Send className="h-3.5 w-3.5" />
+                          {resending === n.id ? "A enviar" : "Reenviar"}
                         </button>
                       )}
                     </td>
