@@ -1,4 +1,5 @@
 from . import models
+from notifications import services
 
 # Maps to the Database Models
 STATUS_MAP = {
@@ -9,49 +10,31 @@ STATUS_MAP = {
     "EXPIRED": models.TransactionStatus.EXPIRED,
 }
 
-# TEMP - May be removed
-'''
-class payment:
-    def expiration(request):
-        pass
-
-    def error(request):
-        pass
-
-    def cancelled(request):
-        pass
-
-    def confirmed(request):
-        print(request)
-'''
-
 # Single point entry for Webhook
 def update(request):
     request_transaction = request["transaction"]
 
-    # Saves/Update transaction to DB.
-    models.Transaction.objects.update_or_create(
-        entity=request_transaction["entity"],
-        reference=request_transaction["reference"],
-        identifier=request_transaction["identifier"],
-        method=request_transaction["method"],
-        amount_value=request_transaction["amount"]["amount"],
-        amount_currency=request_transaction["amount"]["currency"],
-        fees_value=request_transaction["fees"]["amount"],
-        fees_currency=request_transaction["fees"]["currency"],
-        date=request_transaction["date"],
-        trid=request_transaction["trid"],
-        status=STATUS_MAP.get(request_transaction["status"]),
+    # Update transaction to DB.
+    models.Transaction.objects.filter(
+        trid=request_transaction["trid"]
+    ).update(
+        status=STATUS_MAP.get(request_transaction["status"])
     )
 
     match request_transaction["status"]:
         case "PAID":
+            # Activate the service
+
             pass
         case "REFUNDED":
+            # ?
             pass
         case "ERROR":
+            # Error handling?
             pass
         case "CANCELED":
+            # Cancelado pagamento
             pass
         case "EXPIRED":
+            # Expirado pagamento
             pass
