@@ -114,7 +114,7 @@ export default async function HomePage() {
 
       <main className="flex-1 relative overflow-hidden">
         <div
-          className="absolute pointer-events-none"
+          className="absolute pointer-events-none hidden sm:block"
           style={{
             left: "-130px",
             top: "-30px",
@@ -126,7 +126,7 @@ export default async function HomePage() {
           }}
         />
         <div
-          className="absolute pointer-events-none rounded-full"
+          className="absolute pointer-events-none hidden sm:block rounded-full"
           style={{
             left: "255px",
             top: "95px",
@@ -137,7 +137,7 @@ export default async function HomePage() {
         />
 
         <div
-          className="absolute pointer-events-none"
+          className="absolute pointer-events-none hidden sm:block"
           style={{
             right: "-180px",
             bottom: "-60px",
@@ -149,7 +149,7 @@ export default async function HomePage() {
           }}
         />
         <div
-          className="absolute pointer-events-none rounded-full"
+          className="absolute pointer-events-none hidden sm:block rounded-full"
           style={{
             right: "50px",
             bottom: "100px",
@@ -159,18 +159,18 @@ export default async function HomePage() {
           }}
         />
 
-        <div className="relative z-10 max-w-6xl mx-auto px-6 py-16">
-          <h1 className="text-[2.6rem] font-extrabold text-gray-900 text-center mb-12 tracking-tight">
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:py-16">
+          <h1 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-gray-900 sm:mb-12 sm:text-[2.6rem]">
             Mercado Público
           </h1>
 
-          <div className="grid grid-cols-3 gap-6 mb-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
             {cards.slice(0, 3).map((c) => (
               <Card key={c.href} {...c} green={GREEN} />
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-6 w-2/3 mx-auto">
+          <div className="mx-auto mt-4 grid w-full max-w-[728px] grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
             {cards.slice(3).map((c) => (
               <Card key={c.href} {...c} green={GREEN} />
             ))}
@@ -199,19 +199,23 @@ function Card({
   return (
     <Link
       href={href}
-      className="bg-white rounded-2xl flex flex-col items-center text-center p-12 gap-5 shadow-sm hover:shadow-lg transition-all duration-200 group border border-gray-100"
+      className="group flex flex-col items-center gap-4 rounded-2xl border border-gray-100 bg-white p-6 text-center shadow-sm transition-all duration-200 hover:shadow-lg sm:gap-5 sm:p-8 lg:p-12"
     >
-      <div className="flex items-center justify-center w-20 h-20 rounded-2xl transition-colors">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl transition-colors sm:h-20 sm:w-20">
         <Icon
-          className="w-10 h-10"
+          className="h-8 w-8 sm:h-10 sm:w-10"
           style={{ color: green }}
           strokeWidth={1.5}
         />
       </div>
 
-      <h2 className="text-lg font-bold text-gray-900 leading-snug">{title}</h2>
+      <h2 className="text-base font-bold leading-snug text-gray-900 sm:text-lg">
+        {title}
+      </h2>
 
-      <p className="text-base text-gray-500 leading-relaxed">{description}</p>
+      <p className="text-sm leading-relaxed text-gray-500 sm:text-base">
+        {description}
+      </p>
     </Link>
   );
 }

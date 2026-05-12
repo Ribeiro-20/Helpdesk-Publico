@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     const defaults = defaultDateRange();
     const fromDate = isIsoDate(parsedBody.from_date) ? parsedBody.from_date : defaults.fromDate;
     const toDate = isIsoDate(parsedBody.to_date) ? parsedBody.to_date : defaults.toDate;
-    const limit = parsePositiveInt(parsedBody.limit, 200000);
+    const limit = parsedBody.limit !== undefined ? parsePositiveInt(parsedBody.limit, 200000) : null;
     const days = daysInclusive(fromDate, toDate);
 
     if (days <= 0) {
@@ -119,9 +119,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (days > 15) {
+    if (days > 31) {
       return NextResponse.json(
-        { error: "Intervalo demasiado grande para contratos. Use blocos de até 15 dias." },
+        { error: "Intervalo demasiado grande para contratos. Use blocos de até 31 dias." },
         { status: 400 },
       );
     }
@@ -163,8 +163,7 @@ export async function POST(req: NextRequest) {
         fromDate,
         "--to",
         toDate,
-        "--limit",
-        String(limit),
+        ...(limit ? ["--limit", String(limit)] : []),
         ...(tenantId ? ["--tenant-id", tenantId] : []),
       ],
       {

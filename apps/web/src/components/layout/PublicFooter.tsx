@@ -4,9 +4,9 @@ import { Mail, User } from "lucide-react";
 
 export default function PublicFooter() {
   return (
-    <footer className="bg-[#1a1b1f] text-gray-300 py-16 px-12">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
+    <footer className="bg-[#1a1b1f] px-4 py-12 text-gray-300 sm:px-6 lg:px-12 lg:py-16">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
           {/* Coluna 1: Logo e Descrição */}
           <div className="space-y-6">
             <Link href="/">
@@ -15,7 +15,8 @@ export default function PublicFooter() {
                 alt="Helpdesk Público"
                 width={200}
                 height={65}
-                className="h-auto w-[200px] object-contain"
+                className="object-contain"
+                style={{ width: "170px", height: "auto" }}
               />
             </Link>
             <p className="text-sm leading-relaxed max-w-xs">
@@ -134,12 +135,12 @@ export default function PublicFooter() {
         <hr className="my-10 border-gray-800" />
 
         {/* Rodapé Inferior */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-gray-500">
+        <div className="flex flex-col items-start gap-4 text-xs text-gray-500 md:flex-row md:items-center md:justify-between md:gap-6">
           <p>
             © 2023 Helpdesk Público. Todos os direitos reservados. Contratação
             Pública Eficiente.
           </p>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
             <Link href="#" className="hover:text-gray-300">
               Política de Privacidade
             </Link>
