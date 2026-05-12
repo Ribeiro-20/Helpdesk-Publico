@@ -166,8 +166,8 @@ export default function SingleDatePicker({
               formatters={{
                 formatCaption: monthLabel,
               }}
-              startMonth={new Date(2020, 0)}
-              endMonth={new Date(2030, 11)}
+              startMonth={new Date(1900, 0)}
+              endMonth={new Date(2100, 11)}
               classNames={{
                 root: "!font-sans",
                 month_caption: "flex items-center justify-center py-1.5 mb-1",

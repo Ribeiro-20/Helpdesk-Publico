@@ -21,8 +21,8 @@ interface ActionGroup {
 const ANN_WARNING_DAYS = 16;
 const ANN_MAX_DAYS = 31;
 const CONTRACT_WARNING_DAYS = 8;
-const CONTRACT_MAX_DAYS = 15;
-const MIN_INGEST_DATE = "2026-01-01";
+const CONTRACT_MAX_DAYS = 31;
+const MIN_INGEST_DATE = "1900-01-01";
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -146,7 +146,7 @@ function getRangePolicy(fn: string, fromDate: string, toDate: string) {
     if (days > CONTRACT_WARNING_DAYS) {
       return {
         disabled: false,
-        warning: `Contratos: ${days} dias tem risco elevado de demorar. Prefira blocos semanais.`,
+        warning: `Contratos: ${days} dias pode demorar. Prefira blocos mais pequenos quando possivel.`,
         error: null,
       };
     }
