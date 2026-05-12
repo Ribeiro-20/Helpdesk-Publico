@@ -1,4 +1,4 @@
-from . import models
+from core import models
 from notifications import services
 
 # Maps to the Database Models

@@ -1,8 +1,13 @@
-# estagio2026HelpDesk
-# admin password 123
+estagio2026HelpDesk
+admin password 123
 
-# Requerimentos
+# Requirements
 
+## Binaries
 Python
 Django
 Django REST
+
+## Python Packages
+
+Faker

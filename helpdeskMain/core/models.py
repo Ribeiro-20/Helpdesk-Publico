@@ -1,8 +1,7 @@
 from django.db import models
 import uuid
 
-
-# Eupago Transaction to store in Database
+# Transaction model for storing payment information and status
 class TransactionStatus(models.IntegerChoices):
     PAID = 1
     REFUNDED = 2
