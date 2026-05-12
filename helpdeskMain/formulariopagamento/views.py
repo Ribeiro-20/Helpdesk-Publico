@@ -8,9 +8,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-@csrf_exempt
+@csrf_exempt #temp
 def webhook_update(request):
     if request.method != "POST":
+        logger.warning("EUPAGO: Invalid method for webhook update: %s;", request.method)
         return HttpResponse(status=405)
 
     data = json.loads(request.body)
@@ -18,6 +19,7 @@ def webhook_update(request):
     serialized = serializer.webhook_dataSerializer(data=data)
 
     if not serialized.is_valid():
+        logger.warning("EUPAGO: Invalid data received in webhook update: %s;", serialized.errors)
         return HttpResponse(status=400)
 
     try:
@@ -26,28 +28,5 @@ def webhook_update(request):
         logger.exception("Internal error ocurred: services.payment.confirmed")
         return HttpResponse(status=500)
 
+    logger.info("EUPAGO: Webhook update received: trid %s;", serialized.validated_data["transaction"]["trid"])
     return HttpResponse(status=204)
-
-'''
-def webhook_cancel_view(request):
-    if request.method != "POST":
-        return HttpResponse(status=405)
-    services.payment.cancelled(request)
-    return HttpResponse(status=204)
-
-def webhook_expiration_view(request):
-    if request.method != "POST":
-        return HttpResponse(status=405)
-
-    data = json.loads(request.body)
-
-    services.payment.expiration(request)
-    return HttpResponse(status=204)
-
-def webhook_error_view(request):
-    if request.method != "POST":
-        return HttpResponse(status=405)
-
-    services.payment.error(request)
-    return HttpResponse(status=204)
-'''

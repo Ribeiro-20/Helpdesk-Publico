@@ -1,5 +1,7 @@
 from core import models
 from notifications import services
+import logging
+logger = logging.getLogger(__name__)
 
 # Maps to the Database Models
 STATUS_MAP = {
@@ -24,14 +26,13 @@ def update(request):
     match request_transaction["status"]:
         case "PAID":
             # Activate the service
-
             pass
         case "REFUNDED":
             # ?
             pass
         case "ERROR":
             # Error handling?
-            pass
+            logger.error("EUPAGO: Error returned: trid %s;", request_transaction["trid"])
         case "CANCELED":
             # Cancelado pagamento
             pass
