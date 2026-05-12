@@ -21,8 +21,3 @@ class transactionSerializer(serializers.Serializer):
 
 class channelSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=255)
-
-class webhook_dataSerializer(serializers.Serializer):
-    transaction = transactionSerializer()
-    channel = channelSerializer()
-    data = serializers.CharField(max_length=255)

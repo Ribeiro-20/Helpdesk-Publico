@@ -1,5 +1,5 @@
 from core import models
-from notifications import services
+from notifications import services as notifications
 import logging
 logger = logging.getLogger(__name__)
 
@@ -23,19 +23,26 @@ def update(request):
         status=STATUS_MAP.get(request_transaction["status"])
     )
 
+    ## All of this subjected to change.
+    ## Hardcoded email addresses till TocOnline full integration - Change INSERTEMAIL
     match request_transaction["status"]:
         case "PAID":
-            # Activate the service
-            pass
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction paid: trid %s;", request_transaction["trid"])
+            notifications.email.SendEmail("INSERTEMAIL","Helpdesk Público - Fatura",
+            '''
+            teste
+            '''
+            )
+
         case "REFUNDED":
             # ?
-            pass
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction refunded: trid %s;", request_transaction["trid"])
         case "ERROR":
             # Error handling?
-            logger.error("EUPAGO: Error returned: trid %s;", request_transaction["trid"])
+            logger.error("[EUPAGO | formulariopagamento -> Services.py] Error returned: trid %s;", request_transaction["trid"])
         case "CANCELED":
             # Cancelado pagamento
-            pass
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction canceled: trid %s;", request_transaction["trid"])
         case "EXPIRED":
             # Expirado pagamento
-            pass
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction expired: trid %s;", request_transaction["trid"])
