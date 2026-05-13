@@ -98,7 +98,7 @@ function normalizeClientRegions(value: string[] | null | undefined): string[] {
     });
 
   if (mapped.some((item) => normalizeRegion(item) === "todos")) return ["Todos"];
-  return [...new Set(mapped)];
+  return Array.from(new Set(mapped));
 }
 
 function splitContactName(contactName: string | null) {
