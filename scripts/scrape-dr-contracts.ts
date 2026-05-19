@@ -133,18 +133,28 @@ function expandIsoDateRange(fromDate: string, toDate: string): string[] {
   return out;
 }
 
-async function waitForJsonResponse(page: Page, urlPart: string, timeoutMs: number) {
+async function waitForJsonResponse(page: Page, urlPart: string | string[], timeoutMs: number) {
+  const urlParts = Array.isArray(urlPart) ? urlPart : [urlPart];
   try {
     return await page.waitForResponse(
       (res) => {
         const ct = (res.headers()["content-type"] ?? "").toLowerCase();
-        return res.url().includes(urlPart) && ct.includes("json");
+        return urlParts.some((part) => res.url().includes(part)) && ct.includes("json");
       },
       { timeout: timeoutMs },
     );
   } catch {
     return null;
   }
+}
+
+const DR_DETAIL_DATA_ENDPOINTS = [
+  "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetConteudoData",
+  "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetConteudoDataAndApplicationSettings",
+];
+
+function isDrDetailDataEndpoint(url: string): boolean {
+  return DR_DETAIL_DATA_ENDPOINTS.some((part) => url.includes(part));
 }
 
 async function fetchHomeContagemHits(maxWaitMs: number): Promise<HomeContagemHit[]> {
@@ -756,7 +766,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
 
   const warmupPage = await context.newPage();
   const reqPromise = warmupPage.waitForRequest(req => {
-    if(req.url().includes('DataActionGetConteudoDataAndApplicationSettings') && req.method() === 'POST') {
+    if (isDrDetailDataEndpoint(req.url()) && req.method() === 'POST') {
       csrfToken = req.headers()['x-csrftoken'] ?? "";
       try {
         payloadTemplate = JSON.parse(req.postData() ?? "{}");
@@ -840,7 +850,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
         const page = await context.newPage();
         const responsePromise = waitForJsonResponse(
           page,
-          "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetConteudoDataAndApplicationSettings",
+          DR_DETAIL_DATA_ENDPOINTS,
           timeoutMs,
         );
 
@@ -858,6 +868,20 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
             // Ignore malformed payloads.
           }
         }
+
+        if (!detalhe) {
+          const visibleText = await page.locator("body").innerText().catch(() => "");
+          if (visibleText.trim()) {
+            detalhe = {
+              Id: item.base_announcement_id,
+              Numero: item.dr_announcement_no,
+              Sumario: item.description,
+              Texto: visibleText,
+              DataPublicacao: parsePublicationDate(visibleText),
+            };
+          }
+        }
+
         await page.close();
       }
 
