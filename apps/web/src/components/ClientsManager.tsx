@@ -132,6 +132,10 @@ function normalizeCpvPattern(input: string): string {
   return (idx === -1 ? trimmed : trimmed.slice(0, idx)).trim();
 }
 
+function normalizeDigits(value: string, maxDigits: number): string {
+  return value.replace(/\D/g, "").slice(0, maxDigits);
+}
+
 function inferManualMatchType(pattern: string): "EXACT" | "PREFIX" {
   const normalized = normalizeCpvPattern(pattern).replace(/\*+$/, "");
   const digits = normalized.replace(/\D/g, "");
@@ -223,6 +227,11 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="509123456"
+                inputMode="numeric"
+                maxLength={9}
+                minLength={9}
+                pattern="\d{9}"
+                title="O NIPC deve ter exatamente 9 dígitos."
                 defaultValue={initialData?.entity_nipc ?? ""}
               />
             </div>
@@ -263,6 +272,11 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="912345678"
+                inputMode="numeric"
+                maxLength={9}
+                minLength={9}
+                pattern="\d{9}"
+                title="O número de telefone deve ter exatamente 9 dígitos."
                 defaultValue={initialData?.phone ? initialData.phone.replace(/^PT\s*/, "") : ""}
               />
             </div>
@@ -526,13 +540,23 @@ export default function ClientsManager({
     const fd = new FormData(e.currentTarget);
     const companyName = fd.get("company_name") as string;
     const cpvAlert = normalizeCpvPattern((fd.get("cpv_s_alerta_concursos_publicos") as string) || "");
-    const entityNipc = ((fd.get("entity_nipc") as string) || "").trim() || null;
+    const entityNipc = normalizeDigits((fd.get("entity_nipc") as string) || "", 9);
     const distrito = ((fd.get("distrito") as string) || "").trim() || null;
     const pais = ((fd.get("pais") as string) || "").trim() || null;
     const firstName = ((fd.get("firstname") as string) || "").trim();
     const lastName = ((fd.get("lastname") as string) || "").trim();
     const countryCode = "PT";
-    const phoneNumber = ((fd.get("phone_number") as string) || "").trim();
+    const phoneNumber = normalizeDigits((fd.get("phone_number") as string) || "", 9);
+    if (entityNipc.length !== 9) {
+      setLoading(false);
+      setError("O NIPC deve ter exatamente 9 dígitos.");
+      return;
+    }
+    if (phoneNumber.length !== 9) {
+      setLoading(false);
+      setError("O número de telefone deve ter exatamente 9 dígitos.");
+      return;
+    }
     const classification = getMultiValues(fd, "classification");
     if (classification.length === 0) {
       setLoading(false);
@@ -603,7 +627,18 @@ export default function ClientsManager({
     const firstName = ((fd.get("firstname") as string) || "").trim();
     const lastName = ((fd.get("lastname") as string) || "").trim();
     const countryCode = "PT";
-    const phoneNumber = ((fd.get("phone_number") as string) || "").trim();
+    const phoneNumber = normalizeDigits((fd.get("phone_number") as string) || "", 9);
+    const entityNipc = normalizeDigits((fd.get("entity_nipc") as string) || "", 9);
+    if (entityNipc.length !== 9) {
+      setLoading(false);
+      setError("O NIPC deve ter exatamente 9 dígitos.");
+      return;
+    }
+    if (phoneNumber.length !== 9) {
+      setLoading(false);
+      setError("O número de telefone deve ter exatamente 9 dígitos.");
+      return;
+    }
     const classification = getMultiValues(fd, "classification");
     if (classification.length === 0) {
       setLoading(false);
@@ -617,7 +652,7 @@ export default function ClientsManager({
       name: companyName,
       company_name: companyName,
       cpv_s_alerta_concursos_publicos: cpvAlert || null,
-      entity_nipc: ((fd.get("entity_nipc") as string) || null),
+      entity_nipc: entityNipc,
       distrito: ((fd.get("distrito") as string) || null),
       pais: ((fd.get("pais") as string) || null),
       position_title: (fd.get("position_title") as string) || null,
