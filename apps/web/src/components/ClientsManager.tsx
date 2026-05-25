@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import CpvSearchInput, { type CpvCode } from "./CpvSearchInput";
@@ -498,14 +498,24 @@ export default function ClientsManager({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    // Ensure we load fresh data when the component mounts (covers client-side navigation)
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function reload() {
-    const { data } = await supabase
-      .from("clients")
-      .select(
-        "id, name, company_name, entity_nipc, distrito, pais, position_title, department, classification, subscription_type, cpv_s_alerta_concursos_publicos, notification_regions, contact_name, phone, email, is_active, notify_mode, max_emails_per_day, created_at, client_cpv_rules (id, pattern, match_type, is_exclusion)",
-      )
-      .order("created_at", { ascending: false });
-    if (data) setClients(data as Client[]);
+    try {
+      const res = await fetch("/api/clients");
+      const json = await res.json();
+      if (json?.ok && Array.isArray(json.data)) {
+        setClients(json.data as Client[]);
+      } else if (json?.error) {
+        setError(json.error);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
     router.refresh();
   }
 
@@ -531,7 +541,7 @@ export default function ClientsManager({
     }
     const contactName = [firstName, lastName].filter(Boolean).join(" ") || null;
     const phone = phoneNumber ? `${countryCode} ${phoneNumber}` : null;
-    const { data: insertedClient, error: err } = await supabase.from("clients").insert({
+    const createBody = {
       tenant_id: tenantId,
       name: companyName,
       company_name: companyName,
@@ -549,7 +559,16 @@ export default function ClientsManager({
       email: fd.get("email") as string,
       notify_mode: "instant",
       max_emails_per_day: 20,
-    }).select("id").single();
+    };
+
+    const resp = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createBody),
+    }).then((r) => r.json());
+
+    const insertedClient = resp.ok ? { id: resp.id } : null;
+    const err = resp.error ? { message: resp.error } : null;
     setLoading(false);
     if (err) { setError(err.message); return; }
 
@@ -593,25 +612,31 @@ export default function ClientsManager({
     }
     const contactName = [firstName, lastName].filter(Boolean).join(" ") || null;
     const phone = phoneNumber ? `${countryCode} ${phoneNumber}` : null;
-    const { error: err } = await supabase
-      .from("clients")
-      .update({
-        name: companyName,
-        company_name: companyName,
-        cpv_s_alerta_concursos_publicos: cpvAlert || null,
-        entity_nipc: ((fd.get("entity_nipc") as string) || null),
-        distrito: ((fd.get("distrito") as string) || null),
-        pais: ((fd.get("pais") as string) || null),
-        position_title: (fd.get("position_title") as string) || null,
-        department: (fd.get("department") as string) || null,
-        classification: classification,
-        subscription_type: (fd.get("tipo_subscricao") as string) || null,
-        contact_name: contactName,
-        phone,
-        email: fd.get("email") as string,
-        notify_mode: "instant",
-      })
-      .eq("id", editingId);
+    const updateBody = {
+      id: editingId,
+      name: companyName,
+      company_name: companyName,
+      cpv_s_alerta_concursos_publicos: cpvAlert || null,
+      entity_nipc: ((fd.get("entity_nipc") as string) || null),
+      distrito: ((fd.get("distrito") as string) || null),
+      pais: ((fd.get("pais") as string) || null),
+      position_title: (fd.get("position_title") as string) || null,
+      department: (fd.get("department") as string) || null,
+      classification: classification,
+      subscription_type: (fd.get("tipo_subscricao") as string) || null,
+      contact_name: contactName,
+      phone,
+      email: fd.get("email") as string,
+      notify_mode: "instant",
+    };
+
+    const resp = await fetch("/api/clients", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updateBody),
+    }).then((r) => r.json());
+
+    const err = resp.error ? { message: resp.error } : null;
     setLoading(false);
     if (err) { setError(err.message); return; }
 
