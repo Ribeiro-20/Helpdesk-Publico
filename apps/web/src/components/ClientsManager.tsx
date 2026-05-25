@@ -17,6 +17,13 @@ type Client = {
   id: string;
   name: string;
   company_name: string | null;
+  entity_nipc?: string | null;
+  distrito?: string | null;
+  pais?: string | null;
+  position_title?: string | null;
+  department?: string | null;
+  classification?: string[] | null;
+  subscription_type?: string | null;
   cpv_s_alerta_concursos_publicos: string | null;
   notification_regions: string[] | null;
   contact_name: string | null;
@@ -157,7 +164,7 @@ function ClientForm({
 }) {
   const isEdit = !!initialData;
   const { firstName, lastName } = splitContactName(initialData?.contact_name ?? null);
-  const defaultClassification: string[] = [];
+  const defaultClassification: string[] = initialData?.classification ?? [];
   return (
     <form
       onSubmit={onSubmit}
@@ -185,7 +192,7 @@ function ClientForm({
 
             <div>
               <label className={LABEL}>País *</label>
-              <select name="pais" required className={INPUT} defaultValue="todos">
+              <select name="pais" required className={INPUT} defaultValue={initialData?.pais ?? "todos"}>
                 {COUNTRY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -196,7 +203,7 @@ function ClientForm({
 
             <div className="md:col-span-2">
               <label className={LABEL}>Distrito *</label>
-              <select name="distrito" required className={INPUT} defaultValue="">
+              <select name="distrito" required className={INPUT} defaultValue={initialData?.distrito ?? ""}>
                 <option value="" disabled>
                   Selecione um distrito
                 </option>
@@ -216,7 +223,7 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="509123456"
-                defaultValue=""
+                defaultValue={initialData?.entity_nipc ?? ""}
               />
             </div>
           </div>
@@ -256,7 +263,7 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="912345678"
-                defaultValue={initialData?.phone ?? ""}
+                defaultValue={initialData?.phone ? initialData.phone.replace(/^PT\s*/, "") : ""}
               />
             </div>
 
@@ -279,7 +286,7 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="Diretor"
-                defaultValue=""
+                  defaultValue={initialData?.position_title ?? ""}
               />
             </div>
 
@@ -289,7 +296,7 @@ function ClientForm({
                 name="department"
                 className={INPUT}
                 placeholder="Compras"
-                defaultValue=""
+                  defaultValue={initialData?.department ?? ""}
               />
             </div>
 
@@ -324,7 +331,7 @@ function ClientForm({
 
             <div>
               <label className={LABEL}>Tipo de subscrição</label>
-              <select name="tipo_subscricao" className={INPUT} defaultValue="nenhuma">
+              <select name="tipo_subscricao" className={INPUT} defaultValue={initialData?.subscription_type ?? "nenhuma"}>
                 {SUBSCRIPTION_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -495,7 +502,7 @@ export default function ClientsManager({
     const { data } = await supabase
       .from("clients")
       .select(
-        "id, name, company_name, cpv_s_alerta_concursos_publicos, notification_regions, contact_name, phone, email, is_active, notify_mode, max_emails_per_day, created_at, client_cpv_rules (id, pattern, match_type, is_exclusion)",
+        "id, name, company_name, entity_nipc, distrito, pais, position_title, department, classification, subscription_type, cpv_s_alerta_concursos_publicos, notification_regions, contact_name, phone, email, is_active, notify_mode, max_emails_per_day, created_at, client_cpv_rules (id, pattern, match_type, is_exclusion)",
       )
       .order("created_at", { ascending: false });
     if (data) setClients(data as Client[]);
@@ -509,6 +516,9 @@ export default function ClientsManager({
     const fd = new FormData(e.currentTarget);
     const companyName = fd.get("company_name") as string;
     const cpvAlert = normalizeCpvPattern((fd.get("cpv_s_alerta_concursos_publicos") as string) || "");
+    const entityNipc = ((fd.get("entity_nipc") as string) || "").trim() || null;
+    const distrito = ((fd.get("distrito") as string) || "").trim() || null;
+    const pais = ((fd.get("pais") as string) || "").trim() || null;
     const firstName = ((fd.get("firstname") as string) || "").trim();
     const lastName = ((fd.get("lastname") as string) || "").trim();
     const countryCode = "PT";
@@ -527,6 +537,13 @@ export default function ClientsManager({
       company_name: companyName,
       cpv_s_alerta_concursos_publicos: cpvAlert || null,
       notification_regions: ["Todos"],
+      entity_nipc: entityNipc,
+      distrito,
+      pais,
+      position_title: (fd.get("position_title") as string) || null,
+      department: (fd.get("department") as string) || null,
+      classification: classification,
+      subscription_type: (fd.get("tipo_subscricao") as string) || null,
       contact_name: contactName,
       phone,
       email: fd.get("email") as string,
@@ -582,6 +599,13 @@ export default function ClientsManager({
         name: companyName,
         company_name: companyName,
         cpv_s_alerta_concursos_publicos: cpvAlert || null,
+        entity_nipc: ((fd.get("entity_nipc") as string) || null),
+        distrito: ((fd.get("distrito") as string) || null),
+        pais: ((fd.get("pais") as string) || null),
+        position_title: (fd.get("position_title") as string) || null,
+        department: (fd.get("department") as string) || null,
+        classification: classification,
+        subscription_type: (fd.get("tipo_subscricao") as string) || null,
         contact_name: contactName,
         phone,
         email: fd.get("email") as string,
