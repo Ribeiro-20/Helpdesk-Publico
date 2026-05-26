@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import CpvSearchInput, { type CpvCode } from "./CpvSearchInput";
@@ -91,6 +91,21 @@ function normalizeRegion(value: string): string {
     .trim();
 }
 
+function normalizeDistrict(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function isValidDistrictSelection(value: string): boolean {
+  const normalized = normalizeDistrict(value);
+  if (!normalized) return false;
+  if (normalized === "todos") return true;
+  return DISTRICT_OPTIONS.some((district) => normalizeDistrict(district) === normalized);
+}
+
 function normalizeClientRegions(value: string[] | null | undefined): string[] {
   if (!Array.isArray(value) || value.length === 0) return ["Todos"];
 
@@ -136,6 +151,21 @@ function normalizeDigits(value: string, maxDigits: number): string {
   return value.replace(/\D/g, "").slice(0, maxDigits);
 }
 
+function getNineDigitValidationMessage(rawValue: string, label: string): string | null {
+  if (/\D/.test(rawValue)) return `${label} aceita apenas números.`;
+  if (rawValue.length > 0 && rawValue.length < 9) return `${label} precisa de 9 dígitos.`;
+  return null;
+}
+
+function sanitizeNameInput(rawValue: string): string {
+  return rawValue.replace(/\d/g, "");
+}
+
+function getNameValidationMessage(rawValue: string, label: string): string | null {
+  if (/\d/.test(rawValue)) return `${label} não aceita números.`;
+  return null;
+}
+
 function inferManualMatchType(pattern: string): "EXACT" | "PREFIX" {
   const normalized = normalizeCpvPattern(pattern).replace(/\*+$/, "");
   const digits = normalized.replace(/\D/g, "");
@@ -167,8 +197,121 @@ function ClientForm({
   initialData?: Client;
 }) {
   const isEdit = !!initialData;
-  const { firstName, lastName } = splitContactName(initialData?.contact_name ?? null);
+  const districtTypeaheadRef = useRef("");
+  const districtTypeaheadTimeoutRef = useRef<number | null>(null);
+  const { firstName: initialFirstName, lastName: initialLastName } = splitContactName(initialData?.contact_name ?? null);
   const defaultClassification: string[] = initialData?.classification ?? [];
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
+  const [positionTitle, setPositionTitle] = useState(initialData?.position_title ?? "");
+  const [department, setDepartment] = useState(initialData?.department ?? "");
+  const [entityNipc, setEntityNipc] = useState(() =>
+    normalizeDigits(initialData?.entity_nipc ?? "", 9),
+  );
+  const [phoneNumber, setPhoneNumber] = useState(() =>
+    normalizeDigits(initialData?.phone ? initialData.phone.replace(/^PT\s*/, "") : "", 9),
+  );
+  const [entityNipcError, setEntityNipcError] = useState<string | null>(null);
+  const [phoneNumberError, setPhoneNumberError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
+  const [positionTitleError, setPositionTitleError] = useState<string | null>(null);
+  const [departmentError, setDepartmentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!entityNipcError) return;
+    const timeoutId = window.setTimeout(() => setEntityNipcError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [entityNipcError]);
+
+  useEffect(() => {
+    if (!phoneNumberError) return;
+    const timeoutId = window.setTimeout(() => setPhoneNumberError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [phoneNumberError]);
+
+  useEffect(() => {
+    if (!firstNameError) return;
+    const timeoutId = window.setTimeout(() => setFirstNameError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [firstNameError]);
+
+  useEffect(() => {
+    if (!lastNameError) return;
+    const timeoutId = window.setTimeout(() => setLastNameError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [lastNameError]);
+
+  useEffect(() => {
+    if (!positionTitleError) return;
+    const timeoutId = window.setTimeout(() => setPositionTitleError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [positionTitleError]);
+
+  useEffect(() => {
+    if (!departmentError) return;
+    const timeoutId = window.setTimeout(() => setDepartmentError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [departmentError]);
+
+  function handleFirstNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setFirstName(sanitizeNameInput(raw));
+    setFirstNameError(getNameValidationMessage(raw, "O nome"));
+  }
+
+  function handleLastNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setLastName(sanitizeNameInput(raw));
+    setLastNameError(getNameValidationMessage(raw, "O sobrenome"));
+  }
+
+  function handlePositionTitleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setPositionTitle(sanitizeNameInput(raw));
+    setPositionTitleError(getNameValidationMessage(raw, "O cargo"));
+  }
+
+  function handleDepartmentChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setDepartment(sanitizeNameInput(raw));
+    setDepartmentError(getNameValidationMessage(raw, "O departamento"));
+  }
+
+  function handleEntityNipcChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setEntityNipc(normalizeDigits(raw, 9));
+    setEntityNipcError(getNineDigitValidationMessage(raw, "O NIPC"));
+  }
+
+  function handlePhoneNumberChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setPhoneNumber(normalizeDigits(raw, 9));
+    setPhoneNumberError(getNineDigitValidationMessage(raw, "O número de telefone"));
+  }
+
+  function handleDistrictKeyDown(e: React.KeyboardEvent<HTMLSelectElement>) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key.length !== 1) return;
+
+    const options = ["todos", ...DISTRICT_OPTIONS];
+    districtTypeaheadRef.current += e.key;
+    const normalizedBuffer = normalizeDistrict(districtTypeaheadRef.current);
+
+    const match = options.find((option) => normalizeDistrict(option).startsWith(normalizedBuffer));
+    if (match) {
+      e.currentTarget.value = match;
+    }
+
+    if (districtTypeaheadTimeoutRef.current) {
+      window.clearTimeout(districtTypeaheadTimeoutRef.current);
+    }
+    districtTypeaheadTimeoutRef.current = window.setTimeout(() => {
+      districtTypeaheadRef.current = "";
+      districtTypeaheadTimeoutRef.current = null;
+    }, 700);
+  }
+
   return (
     <form
       onSubmit={onSubmit}
@@ -207,7 +350,13 @@ function ClientForm({
 
             <div className="md:col-span-2">
               <label className={LABEL}>Distrito *</label>
-              <select name="distrito" required className={INPUT} defaultValue={initialData?.distrito ?? ""}>
+              <select
+                name="distrito"
+                required
+                className={INPUT}
+                defaultValue={initialData?.distrito ?? ""}
+                onKeyDown={handleDistrictKeyDown}
+              >
                 <option value="" disabled>
                   Selecione um distrito
                 </option>
@@ -232,8 +381,14 @@ function ClientForm({
                 minLength={9}
                 pattern="\d{9}"
                 title="O NIPC deve ter exatamente 9 dígitos."
-                defaultValue={initialData?.entity_nipc ?? ""}
+                value={entityNipc}
+                onChange={handleEntityNipcChange}
               />
+              {entityNipcError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {entityNipcError}
+                </p>
+              )}
             </div>
           </div>
         </section>
@@ -250,8 +405,14 @@ function ClientForm({
                   required
                   className={INPUT}
                   placeholder="João"
-                  defaultValue={firstName}
+                  value={firstName}
+                  onChange={handleFirstNameChange}
                 />
+                {firstNameError && (
+                  <p className="mt-1 text-xs text-red-600" role="alert">
+                    {firstNameError}
+                  </p>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <label className={LABEL}>Sobrenome *</label>
@@ -260,8 +421,14 @@ function ClientForm({
                   required
                   className={INPUT}
                   placeholder="Silva"
-                  defaultValue={lastName}
+                  value={lastName}
+                  onChange={handleLastNameChange}
                 />
+                {lastNameError && (
+                  <p className="mt-1 text-xs text-red-600" role="alert">
+                    {lastNameError}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -277,8 +444,14 @@ function ClientForm({
                 minLength={9}
                 pattern="\d{9}"
                 title="O número de telefone deve ter exatamente 9 dígitos."
-                defaultValue={initialData?.phone ? initialData.phone.replace(/^PT\s*/, "") : ""}
+                value={phoneNumber}
+                onChange={handlePhoneNumberChange}
               />
+              {phoneNumberError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {phoneNumberError}
+                </p>
+              )}
             </div>
 
             <div className="md:col-span-2">
@@ -300,8 +473,14 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="Diretor"
-                  defaultValue={initialData?.position_title ?? ""}
+                value={positionTitle}
+                onChange={handlePositionTitleChange}
               />
+              {positionTitleError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {positionTitleError}
+                </p>
+              )}
             </div>
 
             <div>
@@ -310,8 +489,14 @@ function ClientForm({
                 name="department"
                 className={INPUT}
                 placeholder="Compras"
-                  defaultValue={initialData?.department ?? ""}
+                value={department}
+                onChange={handleDepartmentChange}
               />
+              {departmentError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {departmentError}
+                </p>
+              )}
             </div>
 
             <div className="md:col-span-2">
@@ -541,10 +726,38 @@ export default function ClientsManager({
     const companyName = fd.get("company_name") as string;
     const cpvAlert = normalizeCpvPattern((fd.get("cpv_s_alerta_concursos_publicos") as string) || "");
     const entityNipc = normalizeDigits((fd.get("entity_nipc") as string) || "", 9);
-    const distrito = ((fd.get("distrito") as string) || "").trim() || null;
+    const distritoRaw = ((fd.get("distrito") as string) || "").trim();
+    if (!isValidDistrictSelection(distritoRaw)) {
+      setLoading(false);
+      setError("Selecione um distrito válido da lista.");
+      return;
+    }
+    const distrito = distritoRaw || null;
     const pais = ((fd.get("pais") as string) || "").trim() || null;
     const firstName = ((fd.get("firstname") as string) || "").trim();
     const lastName = ((fd.get("lastname") as string) || "").trim();
+    if (/\d/.test(firstName)) {
+      setLoading(false);
+      setError("O nome não aceita números.");
+      return;
+    }
+    if (/\d/.test(lastName)) {
+      setLoading(false);
+      setError("O sobrenome não aceita números.");
+      return;
+    }
+    const positionTitle = ((fd.get("position_title") as string) || "").trim();
+    const department = ((fd.get("department") as string) || "").trim();
+    if (/\d/.test(positionTitle)) {
+      setLoading(false);
+      setError("O cargo não aceita números.");
+      return;
+    }
+    if (department && /\d/.test(department)) {
+      setLoading(false);
+      setError("O departamento não aceita números.");
+      return;
+    }
     const countryCode = "PT";
     const phoneNumber = normalizeDigits((fd.get("phone_number") as string) || "", 9);
     if (entityNipc.length !== 9) {
@@ -574,8 +787,8 @@ export default function ClientsManager({
       entity_nipc: entityNipc,
       distrito,
       pais,
-      position_title: (fd.get("position_title") as string) || null,
-      department: (fd.get("department") as string) || null,
+      position_title: positionTitle || null,
+      department: department || null,
       classification: classification,
       subscription_type: (fd.get("tipo_subscricao") as string) || null,
       contact_name: contactName,
@@ -624,8 +837,36 @@ export default function ClientsManager({
     const fd = new FormData(e.currentTarget);
     const companyName = fd.get("company_name") as string;
     const cpvAlert = normalizeCpvPattern((fd.get("cpv_s_alerta_concursos_publicos") as string) || "");
+    const distritoRaw = ((fd.get("distrito") as string) || "").trim();
+    if (!isValidDistrictSelection(distritoRaw)) {
+      setLoading(false);
+      setError("Selecione um distrito válido da lista.");
+      return;
+    }
     const firstName = ((fd.get("firstname") as string) || "").trim();
     const lastName = ((fd.get("lastname") as string) || "").trim();
+    if (/\d/.test(firstName)) {
+      setLoading(false);
+      setError("O nome não aceita números.");
+      return;
+    }
+    if (/\d/.test(lastName)) {
+      setLoading(false);
+      setError("O sobrenome não aceita números.");
+      return;
+    }
+    const positionTitle = ((fd.get("position_title") as string) || "").trim();
+    const department = ((fd.get("department") as string) || "").trim();
+    if (/\d/.test(positionTitle)) {
+      setLoading(false);
+      setError("O cargo não aceita números.");
+      return;
+    }
+    if (department && /\d/.test(department)) {
+      setLoading(false);
+      setError("O departamento não aceita números.");
+      return;
+    }
     const countryCode = "PT";
     const phoneNumber = normalizeDigits((fd.get("phone_number") as string) || "", 9);
     const entityNipc = normalizeDigits((fd.get("entity_nipc") as string) || "", 9);
@@ -653,10 +894,10 @@ export default function ClientsManager({
       company_name: companyName,
       cpv_s_alerta_concursos_publicos: cpvAlert || null,
       entity_nipc: entityNipc,
-      distrito: ((fd.get("distrito") as string) || null),
+      distrito: distritoRaw || null,
       pais: ((fd.get("pais") as string) || null),
-      position_title: (fd.get("position_title") as string) || null,
-      department: (fd.get("department") as string) || null,
+      position_title: positionTitle || null,
+      department: department || null,
       classification: classification,
       subscription_type: (fd.get("tipo_subscricao") as string) || null,
       contact_name: contactName,
