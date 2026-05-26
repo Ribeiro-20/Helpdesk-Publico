@@ -259,9 +259,7 @@ export default function AdminActions({
 
         setInfo("A ingerir anúncios BASE...");
         const { res: baseRes, data: baseData } = await runCall("ingest-base", body);
-        if (!baseRes.ok) {
-          throw new Error((baseData as Record<string, string>)?.error ?? `HTTP ${baseRes.status}`);
-        }
+        const baseError = baseRes.ok ? null : (baseData as Record<string, string>)?.error ?? `HTTP ${baseRes.status}`;
 
         if (isDryRun) {
           setInfo("Dry run de anúncios concluído.");
@@ -270,7 +268,7 @@ export default function AdminActions({
           return;
         }
 
-        const fetched = aggregateNumericField(baseData, "fetched");
+        const fetched = baseRes.ok ? aggregateNumericField(baseData, "fetched") : 0;
         if (fetched <= 0) {
           const canRunDrToday =
             typeof body.from_date === "string" &&
@@ -278,8 +276,12 @@ export default function AdminActions({
             body.from_date === body.to_date &&
             body.to_date === todayIso();
 
+          if (baseError) {
+            setInfo(`A API BASE falhou (${baseError}). A tentar ingestão DR na mesma...`);
+          }
+
           if (canRunDrToday) {
-            setInfo("Sem novos anúncios BASE. A tentar ingestão DR de hoje...");
+            setInfo(baseError ? `A API BASE falhou (${baseError}). A tentar ingestão DR de hoje...` : "Sem novos anúncios BASE. A tentar ingestão DR de hoje...");
             const { res: drRes, data: drData } = await runDrIngest(rangeBody);
             if (!drRes.ok) {
               throw new Error((drData as Record<string, string>)?.error ?? `HTTP ${drRes.status}`);
@@ -303,7 +305,11 @@ export default function AdminActions({
             return;
           }
 
-          setInfo("Sem novos anúncios BASE. A processar correspondência CPV nos anúncios já existentes do intervalo...");
+          setInfo(
+            baseError
+              ? `A API BASE falhou (${baseError}). A processar correspondência CPV nos anúncios já existentes do intervalo...`
+              : "Sem novos anúncios BASE. A processar correspondência CPV nos anúncios já existentes do intervalo...",
+          );
           const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
           if (!mqRes.ok) {
             throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
@@ -311,17 +317,26 @@ export default function AdminActions({
 
           const pipelineData = {
             ingest_base: baseData,
+            ingest_base_error: baseError,
             ingest_dr: { skipped: true, reason: "no_new_base_announcements" },
             match_and_queue: mqData,
           };
 
-          setInfo("Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.");
+          setInfo(
+            baseError
+              ? `A API BASE falhou (${baseError}). Correspondência CPV executada nos anúncios existentes.`
+              : "Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.",
+          );
           setResults((prev) => [{ fn: "ingest-base (base=0, cpv executado)", data: pipelineData }, ...prev.slice(0, 4)]);
           router.refresh();
           return;
         }
 
-        setInfo("A enriquecer anúncios com detalhe DR...");
+        if (baseError) {
+          setInfo(`A API BASE falhou (${baseError}). A enriquecer anúncios com detalhe DR...`);
+        } else {
+          setInfo("A enriquecer anúncios com detalhe DR...");
+        }
         const { res: drRes, data: drData } = await runDrIngest(rangeBody);
         if (!drRes.ok) {
           throw new Error((drData as Record<string, string>)?.error ?? `HTTP ${drRes.status}`);
@@ -335,11 +350,16 @@ export default function AdminActions({
 
         const pipelineData = {
           ingest_base: baseData,
+          ingest_base_error: baseError,
           ingest_dr: drData,
           match_and_queue: mqData,
         };
 
-        setInfo("Pipeline de anúncios concluído: BASE + DR + correspondência CPV.");
+        setInfo(
+          baseError
+            ? `A API BASE falhou (${baseError}). DR + correspondência CPV concluídos.`
+            : "Pipeline de anúncios concluído: BASE + DR + correspondência CPV.",
+        );
         setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
         router.refresh();
         return;
