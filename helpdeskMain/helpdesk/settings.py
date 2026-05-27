@@ -47,7 +47,6 @@ INSTALLED_APPS = [
     # Internal apps
     'formulariopagamento',
     'core',
-    'notifications',
     'formulariosubscricao',
 ]
 
