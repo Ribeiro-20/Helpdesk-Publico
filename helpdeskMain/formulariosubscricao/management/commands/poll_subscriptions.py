@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import urllib.request
 import urllib.error
 import urllib.parse
@@ -47,18 +48,32 @@ class Command(BaseCommand):
     help = "Poll external REST API for subscriptions and store new contacts."
 
     def add_arguments(self, parser):
-        parser.add_argument("--url", help="Override poll URL")
         parser.add_argument("--api-key", help="API key to use for Bearer auth (overrides settings)")
 
     def handle(self, *args, **options):
-        url = options.get("url") or getattr(settings, "FORMULARIO_SUBSCRIPTION_POLL_URL", None)
+        # Prefer app-local settings, then project settings. CLI no longer accepts --url.
+        try:
+            from ... import settings as app_settings
+        except Exception:
+            app_settings = None
+
+        url = None
+        if app_settings is not None:
+            url = getattr(app_settings, "FORMULARIO_SUBSCRIPTION_POLL_URL", None)
+        if not url:
+            url = getattr(settings, "FORMULARIO_SUBSCRIPTION_POLL_URL", None)
         timeout = getattr(settings, "FORMULARIO_SUBSCRIPTION_POLL_TIMEOUT", 10)
 
         if not url:
             logger.error("[POLL | formulariosubscricao -> poll_subscriptions] No poll URL configured. Set FORMULARIO_SUBSCRIPTION_POLL_URL in settings or pass --url.")
             return
 
-        api_key = options.get("api_key") or getattr(settings, "FORMULARIO_SUBSCRIPTION_API_KEY", None)
+        # precedence: --api-key > ENV HAPI_KEY > Django settings
+        api_key = (
+            options.get("api_key")
+            or os.environ.get("HAPI_KEY")
+            or getattr(settings, "FORMULARIO_SUBSCRIPTION_API_KEY", None)
+        )
 
         try:
             req = urllib.request.Request(url)
