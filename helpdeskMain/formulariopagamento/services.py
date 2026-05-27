@@ -1,4 +1,7 @@
-from . import models
+from core import models
+from notifications import services as notifications
+import logging
+logger = logging.getLogger(__name__)
 
 # Maps to the Database Models
 STATUS_MAP = {
@@ -9,22 +12,37 @@ STATUS_MAP = {
     "EXPIRED": models.TransactionStatus.EXPIRED,
 }
 
-# TEMP
-'''
-class payment:
-    def expiration(request):
-        pass
-
-    def error(request):
-        pass
-
-    def cancelled(request):
-        pass
-
-    def confirmed(request):
-        print(request)
-'''
-
 # Single point entry for Webhook
 def update(request):
-    print(request)
+    request_transaction = request["transaction"]
+
+    # Update transaction to DB.
+    models.Transaction.objects.filter(
+        trid=request_transaction["trid"]
+    ).update(
+        status=STATUS_MAP.get(request_transaction["status"])
+    )
+
+    ## All of this subjected to change.
+    ## Hardcoded email addresses till TocOnline full integration - Change INSERTEMAIL
+    match request_transaction["status"]:
+        case "PAID":
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction paid: trid %s;", request_transaction["trid"])
+            notifications.email.SendEmail("INSERTEMAIL","Helpdesk Público - Fatura",
+            '''
+            teste
+            '''
+            )
+
+        case "REFUNDED":
+            # ?
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction refunded: trid %s;", request_transaction["trid"])
+        case "ERROR":
+            # Error handling?
+            logger.error("[EUPAGO | formulariopagamento -> Services.py] Error returned: trid %s;", request_transaction["trid"])
+        case "CANCELED":
+            # Cancelado pagamento
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction canceled: trid %s;", request_transaction["trid"])
+        case "EXPIRED":
+            # Expirado pagamento
+            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction expired: trid %s;", request_transaction["trid"])

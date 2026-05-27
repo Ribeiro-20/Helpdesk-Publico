@@ -1,8 +1,7 @@
 from django.db import models
 import uuid
 
-
-# Eupago Transaction to store in Database
+# Transaction model for storing payment information and status
 class TransactionStatus(models.IntegerChoices):
     PAID = 1
     REFUNDED = 2
@@ -27,3 +26,10 @@ class Transaction(models.Model):
     trid = models.IntegerField(unique=True, db_index=True)
 
     status = models.IntegerField(choices=TransactionStatus.choices, db_index=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+#WIP
+class Subscription(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

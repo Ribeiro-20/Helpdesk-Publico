@@ -26,13 +26,16 @@ SECRET_KEY = 'django-insecure-(8$d3dkd*@6yp9w3^n@q^upr)0(bqm%-i3!+=*f!t!9z6dc&9d
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "platinum-gibberish-spirits.ngrok-free.dev", # To me removed in prod
+    "platinum-gibberish-spirits.ngrok-free.dev", # To be removed in production
+    "127.0.0.1", # To be removed in production
+    # Add EUPAGO Webhook IP to allowed hosts!
 ]
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    # Django default apps
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,10 +43,12 @@ INSTALLED_APPS = [
     'django.contrib.messages',
 	'django.contrib.staticfiles',
 	'rest_framework',
-	'api',
 
-    # CORE MAIN APPS
+    # Internal apps
     'formulariopagamento',
+    'core',
+    'notifications',
+    'formulariosubscricao',
 ]
 
 MIDDLEWARE = [
@@ -122,3 +127,21 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Logging configuration
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+}
