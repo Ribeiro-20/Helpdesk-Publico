@@ -12,6 +12,7 @@ from django.core.management.base import BaseCommand
 
 from core.models import Subscription
 from ...serializer import webhook_dataSerializer
+from ... import services as subscription_services
 
 logger = logging.getLogger(__name__)
 
@@ -132,5 +133,10 @@ class Command(BaseCommand):
             new_count += 1
             existing_ids.add(record_id)
             logger.info("[POLL | formulariosubscricao -> poll_subscriptions] Created new subscription record_id=%s", record_id)
+
+            try:
+                subscription_services.on_new_subscription(record_id=record_id, membership_timestamp=ts, raw=item)
+            except Exception as e:
+                logger.exception("[POLL | formulariosubscricao -> poll_subscriptions] Error running on_new_subscription for %s: %s", record_id, e)
 
         self.stdout.write(self.style.SUCCESS(f"Polling complete. New contacts saved: {new_count}"))
