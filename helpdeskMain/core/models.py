@@ -33,3 +33,4 @@ class Transaction(models.Model):
 #WIP
 class Subscription(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    record_id = models.BigIntegerField(null=True, blank=True, db_index=True)
