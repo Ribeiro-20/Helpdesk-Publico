@@ -1,5 +1,4 @@
 from core import models
-from notifications import services as notifications
 import logging
 logger = logging.getLogger(__name__)
 
@@ -28,11 +27,6 @@ def update(request):
     match request_transaction["status"]:
         case "PAID":
             logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction paid: trid %s;", request_transaction["trid"])
-            notifications.email.SendEmail("INSERTEMAIL","Helpdesk Público - Fatura",
-            '''
-            teste
-            '''
-            )
 
         case "REFUNDED":
             # ?
