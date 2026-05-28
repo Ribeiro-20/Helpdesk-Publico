@@ -202,26 +202,46 @@ export default function AdminActions({
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
       const runCall = async (targetFn: string, requestBody: Record<string, unknown>) => {
-        const res = await fetch(`${supabaseUrl}/functions/v1/${targetFn}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            apikey: anonKey,
-          },
-          body: JSON.stringify(requestBody),
-        });
+        const url = `${supabaseUrl}/functions/v1/${targetFn}`;
 
-        const text = await res.text();
-        let data: unknown;
+        const callOnce = async (u: string) => {
+          const r = await fetch(u, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+              apikey: anonKey,
+            },
+            body: JSON.stringify(requestBody),
+          });
 
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = { raw: text.slice(0, 500) };
+          const text = await r.text();
+          let d: unknown;
+          try {
+            d = JSON.parse(text);
+          } catch {
+            d = { raw: text.slice(0, 500) };
+          }
+          return { res: r, data: d };
+        };
+
+        const primary = await callOnce(url);
+
+        // Kong may return 503 when the local edge runtime isn't available in the Docker network.
+        // Try a direct fallback to the locally served functions runtime commonly used in dev
+        // (supabase functions serve prints a port like 55321). This helps when the user
+        // ran `supabase functions serve` locally instead of a runtime container.
+        if (primary.res.status === 503) {
+          try {
+            const fallbackHost = "http://127.0.0.1:55321";
+            const fallback = await callOnce(`${fallbackHost}/functions/v1/${targetFn}`);
+            return fallback;
+          } catch (e) {
+            return primary;
+          }
         }
 
-        return { res, data };
+        return primary;
       };
 
       const runDrIngest = async (requestBody: Record<string, unknown>) => {
@@ -259,9 +279,9 @@ export default function AdminActions({
 
         setInfo("A ingerir anúncios BASE...");
         const { res: baseRes, data: baseData } = await runCall("ingest-base", body);
-        if (!baseRes.ok) {
-          throw new Error((baseData as Record<string, string>)?.error ?? `HTTP ${baseRes.status}`);
-        }
+        const baseError = baseRes.ok
+          ? null
+          : formatUnknownError((baseData as any)?.error ?? `HTTP ${baseRes.status}`);
 
         if (isDryRun) {
           setInfo("Dry run de anúncios concluído.");
@@ -270,7 +290,7 @@ export default function AdminActions({
           return;
         }
 
-        const fetched = aggregateNumericField(baseData, "fetched");
+        const fetched = baseRes.ok ? aggregateNumericField(baseData, "fetched") : 0;
         if (fetched <= 0) {
           const canRunDrToday =
             typeof body.from_date === "string" &&
@@ -278,8 +298,12 @@ export default function AdminActions({
             body.from_date === body.to_date &&
             body.to_date === todayIso();
 
+          if (baseError) {
+            setInfo(`A API BASE falhou (${baseError}). A tentar ingestão DR na mesma...`);
+          }
+
           if (canRunDrToday) {
-            setInfo("Sem novos anúncios BASE. A tentar ingestão DR de hoje...");
+            setInfo(baseError ? `A API BASE falhou (${baseError}). A tentar ingestão DR de hoje...` : "Sem novos anúncios BASE. A tentar ingestão DR de hoje...");
             const { res: drRes, data: drData } = await runDrIngest(rangeBody);
             if (!drRes.ok) {
               throw new Error((drData as Record<string, string>)?.error ?? `HTTP ${drRes.status}`);
@@ -303,7 +327,11 @@ export default function AdminActions({
             return;
           }
 
-          setInfo("Sem novos anúncios BASE. A processar correspondência CPV nos anúncios já existentes do intervalo...");
+          setInfo(
+            baseError
+              ? `A API BASE falhou (${baseError}). A processar correspondência CPV nos anúncios já existentes do intervalo...`
+              : "Sem novos anúncios BASE. A processar correspondência CPV nos anúncios já existentes do intervalo...",
+          );
           const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
           if (!mqRes.ok) {
             throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
@@ -311,35 +339,49 @@ export default function AdminActions({
 
           const pipelineData = {
             ingest_base: baseData,
+            ingest_base_error: baseError,
             ingest_dr: { skipped: true, reason: "no_new_base_announcements" },
             match_and_queue: mqData,
           };
 
-          setInfo("Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.");
+          setInfo(
+            baseError
+              ? `A API BASE falhou (${baseError}). Correspondência CPV executada nos anúncios existentes.`
+              : "Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.",
+          );
           setResults((prev) => [{ fn: "ingest-base (base=0, cpv executado)", data: pipelineData }, ...prev.slice(0, 4)]);
           router.refresh();
           return;
         }
 
-        setInfo("A enriquecer anúncios com detalhe DR...");
+        if (baseError) {
+          setInfo(`A API BASE falhou (${baseError}). A enriquecer anúncios com detalhe DR...`);
+        } else {
+          setInfo("A enriquecer anúncios com detalhe DR...");
+        }
         const { res: drRes, data: drData } = await runDrIngest(rangeBody);
         if (!drRes.ok) {
-          throw new Error((drData as Record<string, string>)?.error ?? `HTTP ${drRes.status}`);
+          throw new Error(formatUnknownError((drData as any)?.error ?? `HTTP ${drRes.status}`));
         }
 
         setInfo("A processar correspondência CPV...");
         const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
         if (!mqRes.ok) {
-          throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
+          throw new Error(formatUnknownError((mqData as any)?.error ?? `HTTP ${mqRes.status}`));
         }
 
         const pipelineData = {
           ingest_base: baseData,
+          ingest_base_error: baseError,
           ingest_dr: drData,
           match_and_queue: mqData,
         };
 
-        setInfo("Pipeline de anúncios concluído: BASE + DR + correspondência CPV.");
+        setInfo(
+          baseError
+            ? `A API BASE falhou (${baseError}). DR + correspondência CPV concluídos.`
+            : "Pipeline de anúncios concluído: BASE + DR + correspondência CPV.",
+        );
         setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
         router.refresh();
         return;

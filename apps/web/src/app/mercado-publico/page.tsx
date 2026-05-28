@@ -150,7 +150,7 @@ export default async function MercadoPublicoPage({
     params.date_field === "closing_date"
       ? params.date_field
       : "signing_date";
-  const sortField = params.sort ?? "signing_date";
+  const sortField = params.sort ?? "publication_date";
   const countryFilter = params.country ?? "all";
   const districtFilter = params.district ?? "all";
   const municipalityFilter = params.municipality ?? "all";
@@ -1028,8 +1028,8 @@ export default async function MercadoPublicoPage({
                 defaultValue={sortField}
                 className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white w-full h-[42px]"
               >
-                <option value="signing_date">Mais recentes</option>
-                <option value="publication_date">Data de publicação</option>
+                <option value="publication_date">Mais recentes</option>
+                <option value="signing_date">Data de celebração</option>
                 <option value="value_desc">Maior preço contratual</option>
                 <option value="value_asc">Menor preço contratual</option>
               </select>
