@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SingleDatePicker from "@/components/SingleDatePicker";
@@ -18,11 +19,45 @@ interface ActionGroup {
   actions: Action[];
 }
 
+type HistoryCategory = "announcements" | "contracts" | "extraction" | "processing" | "other";
+
+type HistoryFilter = HistoryCategory | "all";
+
+type HistoryStep = {
+  fn: string;
+  label: string;
+  category: HistoryCategory;
+  status: "success" | "error";
+  summary: string[];
+  payload: unknown;
+};
+
+type HistoryEntry = {
+  id: string;
+  at: string;
+  userId: string;
+  title: string;
+  status: "success" | "error";
+  category: HistoryCategory;
+  range: { fromDate?: string; toDate?: string } | null;
+  steps: HistoryStep[];
+  note?: string;
+};
+
 const ANN_WARNING_DAYS = 16;
 const ANN_MAX_DAYS = 31;
 const CONTRACT_WARNING_DAYS = 8;
 const CONTRACT_MAX_DAYS = 15;
 const MIN_INGEST_DATE = "2026-01-01";
+const HISTORY_STORAGE_PREFIX = "estagio-base-monitor:ingestion-history";
+const HISTORY_LIMIT = 60;
+const HISTORY_FILTERS: Array<{ key: HistoryFilter; label: string }> = [
+  { key: "all", label: "Tudo" },
+  { key: "announcements", label: "Anúncios" },
+  { key: "contracts", label: "Contratos" },
+  { key: "extraction", label: "Entidades e empresas" },
+  { key: "processing", label: "Processamento" },
+];
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -103,6 +138,181 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function createHistoryId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `history-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getHistoryStorageKey(userId: string) {
+  return `${HISTORY_STORAGE_PREFIX}:${userId}`;
+}
+
+function compactValue(value: unknown, depth = 2): unknown {
+  if (depth <= 0) {
+    if (Array.isArray(value)) return `[Array(${value.length})]`;
+    if (value && typeof value === "object") return "[Object]";
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const slice = value.slice(0, 10).map((item) => compactValue(item, depth - 1));
+    if (value.length > 10) slice.push(`… +${value.length - 10} itens`);
+    return slice;
+  }
+
+  if (!value || typeof value !== "object") {
+    if (typeof value === "string" && value.length > 300) {
+      return `${value.slice(0, 300)}…`;
+    }
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  const entries = Object.entries(record)
+    .slice(0, 18)
+    .map(([key, entryValue]) => [key, compactValue(entryValue, depth - 1)] as const);
+  return Object.fromEntries(entries);
+}
+
+function actionCategory(fn: string): HistoryCategory {
+  if (fn === "ingest-base" || fn === "ingest-dr" || fn === "delete-announcements") {
+    return "announcements";
+  }
+
+  if (fn === "ingest-contracts") {
+    return "contracts";
+  }
+
+  if (fn === "extract-entities" || fn === "extract-companies") {
+    return "extraction";
+  }
+
+  if (fn === "match-and-queue" || fn === "send-emails" || fn === "admin-seed") {
+    return "processing";
+  }
+
+  return "other";
+}
+
+function historyCategoryLabel(category: HistoryCategory) {
+  switch (category) {
+    case "announcements":
+      return "Anúncios";
+    case "contracts":
+      return "Contratos";
+    case "extraction":
+      return "Entidades e empresas";
+    case "processing":
+      return "Processamento";
+    default:
+      return "Outros";
+  }
+}
+
+function formatHistoryTimestamp(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString("pt-PT");
+}
+
+function normalizeHistoryText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function historyEntryDate(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}
+
+function summarizeHistoryPayload(fn: string, data: unknown): string[] {
+  if (!data || typeof data !== "object") {
+    return [];
+  }
+
+  const record = data as Record<string, unknown>;
+  const preferredKeysByFn: Record<string, string[]> = {
+    "ingest-base": ["fetched", "inserted", "updated", "skipped", "reconciled", "errors", "dry_run", "elapsed_ms"],
+    "ingest-contracts": ["fetched", "inserted", "updated", "skipped", "linked_to_announcements", "entities_touched", "companies_touched", "errors", "dry_run", "elapsed_ms"],
+    "extract-entities": ["nifs_found", "entities_created", "entities_updated", "locations_set", "stats_updated", "errors", "elapsed_ms"],
+    "extract-companies": ["contracts_scanned", "nifs_found", "companies_created", "companies_updated", "winners_extracted", "competitors_extracted", "locations_set", "errors", "elapsed_ms"],
+    "ingest-dr": ["fetched", "inserted", "updated", "errors", "elapsed_ms"],
+    "match-and-queue": ["queued", "inserted", "updated", "matched", "errors", "elapsed_ms"],
+    "send-emails": ["sent", "failed", "pending", "errors", "elapsed_ms"],
+  };
+
+  const keys = preferredKeysByFn[fn] ?? Object.keys(record).filter((key) => typeof record[key] === "number");
+  const summary = keys
+    .filter((key) => key in record)
+    .map((key) => `${key}: ${String(record[key])}`)
+    .slice(0, 8);
+
+  if (summary.length > 0) return summary;
+
+  return Object.entries(record)
+    .slice(0, 6)
+    .map(([key, value]) => `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`);
+}
+
+function buildHistoryStep(fn: string, label: string, data: unknown, status: "success" | "error", note?: string): HistoryStep {
+  const category = actionCategory(fn);
+  const summary = summarizeHistoryPayload(fn, data);
+
+  if (note) {
+    summary.unshift(note);
+  }
+
+  return {
+    fn,
+    label,
+    category,
+    status,
+    summary,
+    payload: compactValue(data),
+  };
+}
+
+function buildHistoryEntry(params: {
+  userId: string;
+  title: string;
+  status: "success" | "error";
+  steps: HistoryStep[];
+  range?: { fromDate?: string; toDate?: string } | null;
+  note?: string;
+}): HistoryEntry {
+  const category = params.steps.find((step) => step.category !== "other")?.category ?? params.steps[0]?.category ?? "other";
+
+  return {
+    id: createHistoryId(),
+    at: new Date().toISOString(),
+    userId: params.userId,
+    title: params.title,
+    status: params.status,
+    category,
+    range: params.range ?? null,
+    steps: params.steps,
+    note: params.note,
+  };
+}
+
+function readHistory(raw: string | null): HistoryEntry[] {
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((entry): entry is HistoryEntry => Boolean(entry && typeof entry === "object" && typeof entry.id === "string"));
+  } catch {
+    return [];
+  }
+}
+
 function validateBaseRange(fromDate: string, toDate: string) {
   if (!fromDate || !toDate) return "Selecione as duas datas.";
   if (fromDate < MIN_INGEST_DATE || toDate < MIN_INGEST_DATE) {
@@ -173,6 +383,7 @@ export default function AdminActions({
   const [results, setResults] = useState<Array<{ fn: string; data: unknown }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [historyUserId, setHistoryUserId] = useState("anonymous");
 
   const defaults = defaultDates();
   const [fromDate, setFromDate] = useState(defaults.from);
@@ -180,7 +391,7 @@ export default function AdminActions({
   const groupedActions = groupActions(actions);
 
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
   const globalDateError = useMemo(() => validateBaseRange(fromDate, toDate), [fromDate, toDate]);
@@ -188,11 +399,91 @@ export default function AdminActions({
   const contractsPolicy = useMemo(() => getRangePolicy("ingest-contracts", fromDate, toDate), [fromDate, toDate]);
   const drPolicy = useMemo(() => getRangePolicy("ingest-dr", fromDate, toDate), [fromDate, toDate]);
   const deleteAnnouncementsPolicy = useMemo(() => getRangePolicy("delete-announcements", fromDate, toDate), [fromDate, toDate]);
+  useEffect(() => {
+    let active = true;
+
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!active) return;
+
+      const resolvedUserId = user?.id ?? "anonymous";
+      setHistoryUserId(resolvedUserId);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
+
+  function labelFromFn(fn: string) {
+    const matched = groupedActions.flatMap((group) => group.actions).find((action) => action.fn === fn);
+    if (matched) return matched.label;
+
+    switch (fn) {
+      case "ingest-base":
+        return "Ingerir Anúncios";
+      case "ingest-dr":
+        return "Ingerir Anúncios DR";
+      case "ingest-contracts":
+        return "Ingerir Contratos";
+      case "extract-entities":
+        return "Extrair Entidades";
+      case "extract-companies":
+        return "Extrair Empresas";
+      case "match-and-queue":
+        return "Processar Correspondência CPV";
+      case "send-emails":
+        return "Enviar Emails Pendentes";
+      case "delete-announcements":
+        return "Apagar Anúncios (intervalo)";
+      default:
+        return fn;
+    }
+  }
+
+  function appendHistoryEntry(entry: HistoryEntry) {
+    if (typeof window === "undefined") return;
+
+    const storageKey = getHistoryStorageKey(historyUserId);
+    const current = readHistory(window.localStorage.getItem(storageKey));
+    window.localStorage.setItem(storageKey, JSON.stringify([entry, ...current].slice(0, HISTORY_LIMIT)));
+  }
+
+  function recordHistory(params: {
+    title: string;
+    status: "success" | "error";
+    steps: HistoryStep[];
+    range?: { fromDate?: string; toDate?: string } | null;
+    note?: string;
+  }) {
+    appendHistoryEntry(
+      buildHistoryEntry({
+        userId: historyUserId,
+        title: params.title,
+        status: params.status,
+        steps: params.steps,
+        range: params.range ?? null,
+        note: params.note,
+      }),
+    );
+  }
+
+  function clearHistory() {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(getHistoryStorageKey(historyUserId));
+    }
+  }
+
+  function historyStepBadgeClass(status: "success" | "error") {
+    return status === "success"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : "bg-red-50 text-red-700 border-red-200";
+  }
 
   async function callFn(fn: string, body: Record<string, unknown> = {}) {
     setLoading(fn);
     setError(null);
     setInfo(null);
+    const actionLabel = labelFromFn(fn);
 
     try {
       const {
@@ -264,6 +555,12 @@ export default function AdminActions({
         if (isDryRun) {
           setInfo("Dry run de anúncios concluído.");
           setResults((prev) => [{ fn, data: baseData }, ...prev.slice(0, 4)]);
+          recordHistory({
+            title: actionLabel,
+            status: "success",
+            range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+            steps: [buildHistoryStep("ingest-base", "Anúncios BASE", baseData, "success")],
+          });
           router.refresh();
           return;
         }
@@ -301,6 +598,16 @@ export default function AdminActions({
 
             setInfo("Sem novos anúncios BASE. DR de hoje e correspondência CPV concluídos.");
             setResults((prev) => [{ fn: "ingest-base (base=0, dr-hoje + cpv)", data: pipelineData }, ...prev.slice(0, 4)]);
+            recordHistory({
+              title: actionLabel,
+              status: "success",
+              range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+              steps: [
+                buildHistoryStep("ingest-base", "Anúncios BASE", baseData, "success", "Sem novos anúncios BASE."),
+                buildHistoryStep("ingest-dr", "Anúncios DR", drData, "success"),
+                buildHistoryStep("match-and-queue", "Correspondência CPV", mqData, "success"),
+              ],
+            });
             router.refresh();
             return;
           }
@@ -328,6 +635,15 @@ export default function AdminActions({
               : "Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.",
           );
           setResults((prev) => [{ fn: "ingest-base (base=0, cpv executado)", data: pipelineData }, ...prev.slice(0, 4)]);
+          recordHistory({
+            title: actionLabel,
+            status: "success",
+            range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+            steps: [
+              buildHistoryStep("ingest-base", "Anúncios BASE", baseData, baseError ? "error" : "success", baseError ? `BASE: ${baseError}` : "Sem novos anúncios BASE."),
+              buildHistoryStep("match-and-queue", "Correspondência CPV", mqData, "success"),
+            ],
+          });
           router.refresh();
           return;
         }
@@ -361,6 +677,16 @@ export default function AdminActions({
             : "Pipeline de anúncios concluído: BASE + DR + correspondência CPV.",
         );
         setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
+        recordHistory({
+          title: actionLabel,
+          status: "success",
+          range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+          steps: [
+            buildHistoryStep("ingest-base", "Anúncios BASE", baseData, baseError ? "error" : "success", baseError ? `BASE: ${baseError}` : undefined),
+            buildHistoryStep("ingest-dr", "Anúncios DR", drData, "success"),
+            buildHistoryStep("match-and-queue", "Correspondência CPV", mqData, "success"),
+          ],
+        });
         router.refresh();
         return;
       }
@@ -378,6 +704,12 @@ export default function AdminActions({
 
         setInfo(`Contratos ingeridos com sucesso para o intervalo ${body.from_date}..${body.to_date}.`);
         setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
+        recordHistory({
+          title: actionLabel,
+          status: "success",
+          range: { fromDate: body.from_date, toDate: body.to_date },
+          steps: [buildHistoryStep("ingest-contracts", "Contratos", data, "success")],
+        });
         router.refresh();
         return;
       }
@@ -397,10 +729,24 @@ export default function AdminActions({
       if (!res.ok) throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
+      recordHistory({
+        title: actionLabel,
+        status: "success",
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
+        steps: [buildHistoryStep(fn, actionLabel, data, "success")],
+      });
       router.refresh();
       if (fn === "admin-seed") window.location.reload();
     } catch (e) {
-      setError(`${fn}: ${formatUnknownError(e)}`);
+      const message = formatUnknownError(e);
+      setError(`${fn}: ${message}`);
+      recordHistory({
+        title: actionLabel,
+        status: "error",
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
+        steps: [buildHistoryStep(fn, actionLabel, { error: message }, "error", message)],
+        note: message,
+      });
     } finally {
       setLoading(null);
     }
@@ -433,9 +779,23 @@ export default function AdminActions({
       }
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
+      recordHistory({
+        title: labelFromFn(fn),
+        status: "success",
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
+        steps: [buildHistoryStep(fn, labelFromFn(fn), data, "success")],
+      });
       router.refresh();
     } catch (e) {
-      setError(`${fn}: ${formatUnknownError(e)}`);
+      const message = formatUnknownError(e);
+      setError(`${fn}: ${message}`);
+      recordHistory({
+        title: labelFromFn(fn),
+        status: "error",
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
+        steps: [buildHistoryStep(fn, labelFromFn(fn), { error: message }, "error", message)],
+        note: message,
+      });
     } finally {
       setLoading(null);
     }
