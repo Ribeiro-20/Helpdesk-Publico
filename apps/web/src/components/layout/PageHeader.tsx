@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
 type PageHeaderSize = "page" | "detail";
@@ -41,7 +42,7 @@ export default function PageHeader({
               className="mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-surface-200 bg-white text-gray-500 transition-colors hover:border-brand-200 hover:text-brand-600"
               aria-label={backLabel ?? "Voltar"}
             >
-              <span aria-hidden="true">&larr;</span>
+              <ArrowLeft className="h-4 w-4" />
             </Link>
           )}
 

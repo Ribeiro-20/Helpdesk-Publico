@@ -12,6 +12,7 @@ import {
   Inbox,
   Send,
   TriangleAlert,
+  Mail,
 } from "lucide-react";
 
 type Notification = {
@@ -59,6 +60,14 @@ const STATUS_BADGE_META: Record<string, { icon: typeof Inbox }> = {
   RATE_LIMITED: { icon: TriangleAlert },
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: "Pendente",
+  SENT: "Enviado",
+  FAILED: "Falhado",
+  SKIPPED: "Ignorado",
+  RATE_LIMITED: "Limitado",
+};
+
 export default function NotificationsManager({
   notifications: initial,
   statusFilter,
@@ -93,25 +102,39 @@ export default function NotificationsManager({
   return (
     <div className="space-y-4">
       {/* Status filter tabs */}
-      <div className="flex flex-wrap gap-2">
-        {STATUS_OPTIONS.map((s) => (
+      <div className="flex items-center justify-between">
+        <div className="flex flex-wrap gap-2">
+          {STATUS_OPTIONS.map((s) => (
+            <Link
+              key={s}
+              href={`/notifications?status=${s}&page=1`}
+              className={`inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium transition-all ${
+                statusFilter === s
+                  ? "bg-brand-600 text-white shadow-sm"
+                  : s === ""
+                  ? "bg-white border border-surface-200 text-brand-600 hover:bg-surface-50 hover:text-brand-700 shadow-card"
+                  : "bg-white border border-surface-200 text-gray-500 hover:bg-surface-50 hover:text-gray-700 shadow-card"
+              }`}
+            >
+              {(() => {
+                const meta = STATUS_META[s];
+                const Icon = meta.icon;
+                return <Icon className="h-4 w-4 shrink-0" />;
+              })()}
+              <span>{STATUS_META[s].label}</span>
+            </Link>
+          ))}
+        </div>
+
+        <div className="ml-4 shrink-0">
           <Link
-            key={s}
-            href={`/notifications?status=${s}&page=1`}
-            className={`inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium transition-all ${
-              statusFilter === s
-                ? "bg-brand-600 text-white shadow-sm"
-                : "bg-white border border-surface-200 text-gray-500 hover:bg-surface-50 hover:text-gray-700 shadow-card"
-            }`}
+            href="/notifications/history"
+            className="inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium bg-white border border-surface-200 text-gray-600 hover:bg-surface-50 shadow-card"
           >
-            {(() => {
-              const meta = STATUS_META[s];
-              const Icon = meta.icon;
-              return <Icon className="h-4 w-4 shrink-0" />;
-            })()}
-            <span>{STATUS_META[s].label}</span>
+            <Mail className="h-4 w-4" />
+            Histórico de envios
           </Link>
-        ))}
+        </div>
       </div>
 
       {/* Table */}
@@ -168,16 +191,16 @@ export default function NotificationsManager({
                       </p>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span
-                        className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[n.status] ?? "bg-gray-100 text-gray-600"}`}
-                      >
-                        {(() => {
-                          const meta = STATUS_BADGE_META[n.status];
-                          const Icon = meta?.icon;
-                          return Icon ? <Icon className="mr-1 inline h-3.5 w-3.5 align-[-2px]" /> : null;
-                        })()}
-                        {n.status}
-                      </span>
+                        <span
+                          className={`inline-block text-xs px-2.5 py-0.5 rounded-full font-medium ${STATUS_COLORS[n.status] ?? "bg-gray-100 text-gray-600"}`}
+                        >
+                          {(() => {
+                            const meta = STATUS_BADGE_META[n.status];
+                            const Icon = meta?.icon;
+                            return Icon ? <Icon className="mr-1 inline h-3.5 w-3.5 align-[-2px]" /> : null;
+                          })()}
+                          {STATUS_LABEL[n.status] ?? n.status}
+                        </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {n.sent_at

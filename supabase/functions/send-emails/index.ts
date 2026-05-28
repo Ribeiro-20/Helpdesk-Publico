@@ -163,12 +163,44 @@ Deno.serve(async (req) => {
             .from("notifications")
             .update({ status: "SENT", sent_at: new Date().toISOString() })
             .eq("id", notif.id);
+
+          // record email history
+          try {
+            await supabase.from("email_histories").insert({
+              tenant_id: tenantId,
+              notification_id: notif.id,
+              subject,
+              html,
+              text,
+              payload: { subject, html, text, client, announcement },
+              status: "SENT",
+            });
+          } catch (e) {
+            console.error("[send-emails] could not insert email_history:", e);
+          }
+
           stats.sent++;
         } else {
           await supabase
             .from("notifications")
             .update({ status: "FAILED", error: result.error ?? "Unknown" })
             .eq("id", notif.id);
+
+          try {
+            await supabase.from("email_histories").insert({
+              tenant_id: tenantId,
+              notification_id: notif.id,
+              subject,
+              html,
+              text,
+              payload: { subject, html, text, client, announcement },
+              status: "FAILED",
+              error: result.error ?? null,
+            });
+          } catch (e) {
+            console.error("[send-emails] could not insert email_history:", e);
+          }
+
           stats.failed++;
         }
       } catch (sendErr) {
@@ -177,6 +209,22 @@ Deno.serve(async (req) => {
           .from("notifications")
           .update({ status: "FAILED", error: String(sendErr) })
           .eq("id", notif.id);
+
+        try {
+          await supabase.from("email_histories").insert({
+            tenant_id: tenantId,
+            notification_id: notif.id,
+            subject: null,
+            html: null,
+            text: null,
+            payload: { error: String(sendErr), client, announcement },
+            status: "FAILED",
+            error: String(sendErr),
+          });
+        } catch (e) {
+          console.error("[send-emails] could not insert email_history:", e);
+        }
+
         stats.failed++;
         stats.errors++;
       }
