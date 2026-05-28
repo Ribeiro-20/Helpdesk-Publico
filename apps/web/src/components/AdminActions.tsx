@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SingleDatePicker from "@/components/SingleDatePicker";
@@ -49,15 +48,6 @@ const ANN_MAX_DAYS = 31;
 const CONTRACT_WARNING_DAYS = 8;
 const CONTRACT_MAX_DAYS = 15;
 const MIN_INGEST_DATE = "2026-01-01";
-const HISTORY_STORAGE_PREFIX = "estagio-base-monitor:ingestion-history";
-const HISTORY_LIMIT = 60;
-const HISTORY_FILTERS: Array<{ key: HistoryFilter; label: string }> = [
-  { key: "all", label: "Tudo" },
-  { key: "announcements", label: "Anúncios" },
-  { key: "contracts", label: "Contratos" },
-  { key: "extraction", label: "Entidades e empresas" },
-  { key: "processing", label: "Processamento" },
-];
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -146,10 +136,6 @@ function createHistoryId() {
   return `history-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function getHistoryStorageKey(userId: string) {
-  return `${HISTORY_STORAGE_PREFIX}:${userId}`;
-}
-
 function compactValue(value: unknown, depth = 2): unknown {
   if (depth <= 0) {
     if (Array.isArray(value)) return `[Array(${value.length})]`;
@@ -195,40 +181,6 @@ function actionCategory(fn: string): HistoryCategory {
   }
 
   return "other";
-}
-
-function historyCategoryLabel(category: HistoryCategory) {
-  switch (category) {
-    case "announcements":
-      return "Anúncios";
-    case "contracts":
-      return "Contratos";
-    case "extraction":
-      return "Entidades e empresas";
-    case "processing":
-      return "Processamento";
-    default:
-      return "Outros";
-  }
-}
-
-function formatHistoryTimestamp(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("pt-PT");
-}
-
-function normalizeHistoryText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function historyEntryDate(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
 }
 
 function summarizeHistoryPayload(fn: string, data: unknown): string[] {
@@ -301,18 +253,6 @@ function buildHistoryEntry(params: {
   };
 }
 
-function readHistory(raw: string | null): HistoryEntry[] {
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((entry): entry is HistoryEntry => Boolean(entry && typeof entry === "object" && typeof entry.id === "string"));
-  } catch {
-    return [];
-  }
-}
-
 function validateBaseRange(fromDate: string, toDate: string) {
   if (!fromDate || !toDate) return "Selecione as duas datas.";
   if (fromDate < MIN_INGEST_DATE || toDate < MIN_INGEST_DATE) {
@@ -383,7 +323,8 @@ export default function AdminActions({
   const [results, setResults] = useState<Array<{ fn: string; data: unknown }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [historyUserId, setHistoryUserId] = useState("anonymous");
+  const [historyUserId, setHistoryUserId] = useState<string | null>(null);
+  const [historyTenantId, setHistoryTenantId] = useState<string | null>(null);
 
   const defaults = defaultDates();
   const [fromDate, setFromDate] = useState(defaults.from);
@@ -402,12 +343,28 @@ export default function AdminActions({
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    async function loadHistoryContext() {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (!active) return;
 
-      const resolvedUserId = user?.id ?? "anonymous";
-      setHistoryUserId(resolvedUserId);
-    });
+      if (!user) {
+        setHistoryUserId(null);
+        setHistoryTenantId(null);
+        return;
+      }
+
+      const { data: appUser } = await supabase.from("app_users").select("tenant_id").eq("id", user.id).maybeSingle();
+
+      if (!active) return;
+
+      setHistoryUserId(user.id);
+      setHistoryTenantId(appUser?.tenant_id ?? null);
+    }
+
+    void loadHistoryContext();
 
     return () => {
       active = false;
@@ -440,43 +397,38 @@ export default function AdminActions({
     }
   }
 
-  function appendHistoryEntry(entry: HistoryEntry) {
-    if (typeof window === "undefined") return;
-
-    const storageKey = getHistoryStorageKey(historyUserId);
-    const current = readHistory(window.localStorage.getItem(storageKey));
-    window.localStorage.setItem(storageKey, JSON.stringify([entry, ...current].slice(0, HISTORY_LIMIT)));
-  }
-
-  function recordHistory(params: {
+  async function recordHistory(params: {
     title: string;
     status: "success" | "error";
     steps: HistoryStep[];
     range?: { fromDate?: string; toDate?: string } | null;
     note?: string;
   }) {
-    appendHistoryEntry(
-      buildHistoryEntry({
-        userId: historyUserId,
-        title: params.title,
-        status: params.status,
-        steps: params.steps,
-        range: params.range ?? null,
-        note: params.note,
-      }),
-    );
-  }
+    if (!historyUserId || !historyTenantId) return;
 
-  function clearHistory() {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(getHistoryStorageKey(historyUserId));
+    const entry = buildHistoryEntry({
+      userId: historyUserId,
+      title: params.title,
+      status: params.status,
+      steps: params.steps,
+      range: params.range ?? null,
+      note: params.note,
+    });
+
+    const { error: insertError } = await supabase.from("ingestion_history").insert({
+      tenant_id: historyTenantId,
+      user_id: historyUserId,
+      title: entry.title,
+      status: entry.status,
+      category: entry.category,
+      range: entry.range ?? {},
+      steps: entry.steps,
+      note: entry.note ?? null,
+    });
+
+    if (insertError) {
+      console.error("[ingestion_history] insert failed:", insertError.message);
     }
-  }
-
-  function historyStepBadgeClass(status: "success" | "error") {
-    return status === "success"
-      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-      : "bg-red-50 text-red-700 border-red-200";
   }
 
   async function callFn(fn: string, body: Record<string, unknown> = {}) {
@@ -555,7 +507,7 @@ export default function AdminActions({
         if (isDryRun) {
           setInfo("Dry run de anúncios concluído.");
           setResults((prev) => [{ fn, data: baseData }, ...prev.slice(0, 4)]);
-          recordHistory({
+          await recordHistory({
             title: actionLabel,
             status: "success",
             range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
@@ -598,7 +550,7 @@ export default function AdminActions({
 
             setInfo("Sem novos anúncios BASE. DR de hoje e correspondência CPV concluídos.");
             setResults((prev) => [{ fn: "ingest-base (base=0, dr-hoje + cpv)", data: pipelineData }, ...prev.slice(0, 4)]);
-            recordHistory({
+            await recordHistory({
               title: actionLabel,
               status: "success",
               range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
@@ -635,7 +587,7 @@ export default function AdminActions({
               : "Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.",
           );
           setResults((prev) => [{ fn: "ingest-base (base=0, cpv executado)", data: pipelineData }, ...prev.slice(0, 4)]);
-          recordHistory({
+          await recordHistory({
             title: actionLabel,
             status: "success",
             range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
@@ -677,7 +629,7 @@ export default function AdminActions({
             : "Pipeline de anúncios concluído: BASE + DR + correspondência CPV.",
         );
         setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
-        recordHistory({
+        await recordHistory({
           title: actionLabel,
           status: "success",
           range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
@@ -704,7 +656,7 @@ export default function AdminActions({
 
         setInfo(`Contratos ingeridos com sucesso para o intervalo ${body.from_date}..${body.to_date}.`);
         setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
-        recordHistory({
+        await recordHistory({
           title: actionLabel,
           status: "success",
           range: { fromDate: body.from_date, toDate: body.to_date },
@@ -729,7 +681,7 @@ export default function AdminActions({
       if (!res.ok) throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
-      recordHistory({
+      await recordHistory({
         title: actionLabel,
         status: "success",
         range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
@@ -740,7 +692,7 @@ export default function AdminActions({
     } catch (e) {
       const message = formatUnknownError(e);
       setError(`${fn}: ${message}`);
-      recordHistory({
+      await recordHistory({
         title: actionLabel,
         status: "error",
         range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
@@ -779,7 +731,7 @@ export default function AdminActions({
       }
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
-      recordHistory({
+      await recordHistory({
         title: labelFromFn(fn),
         status: "success",
         range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
@@ -789,7 +741,7 @@ export default function AdminActions({
     } catch (e) {
       const message = formatUnknownError(e);
       setError(`${fn}: ${message}`);
-      recordHistory({
+      await recordHistory({
         title: labelFromFn(fn),
         status: "error",
         range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,

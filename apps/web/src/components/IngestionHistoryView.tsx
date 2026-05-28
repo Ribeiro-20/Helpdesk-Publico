@@ -28,7 +28,21 @@ type HistoryEntry = {
   note?: string;
 };
 
-const HISTORY_STORAGE_PREFIX = "estagio-base-monitor:ingestion-history";
+type HistoryRow = {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  title: string;
+  status: "success" | "error";
+  category: HistoryCategory;
+  range: unknown;
+  steps: unknown;
+  note: string | null;
+  created_at: string;
+};
+
+const LEGACY_HISTORY_STORAGE_PREFIX = "estagio-base-monitor:ingestion-history";
+const HISTORY_TABLE = "ingestion_history";
 const HISTORY_FILTERS: Array<{ key: HistoryFilter; label: string }> = [
   { key: "all", label: "Tudo" },
   { key: "announcements", label: "Anúncios" },
@@ -38,11 +52,11 @@ const HISTORY_FILTERS: Array<{ key: HistoryFilter; label: string }> = [
 ];
 const MIN_INGEST_DATE = "2026-01-01";
 
-function getHistoryStorageKey(userId: string) {
-  return `${HISTORY_STORAGE_PREFIX}:${userId}`;
+function getLegacyHistoryStorageKey(userId: string) {
+  return `${LEGACY_HISTORY_STORAGE_PREFIX}:${userId}`;
 }
 
-function readHistory(raw: string | null): HistoryEntry[] {
+function readLegacyHistory(raw: string | null): HistoryEntry[] {
   if (!raw) return [];
 
   try {
@@ -94,6 +108,83 @@ function historyStepBadgeClass(status: "success" | "error") {
     : "bg-red-50 text-red-700 border-red-200";
 }
 
+function actionCategory(fn: string): HistoryCategory {
+  if (fn === "ingest-base" || fn === "ingest-dr" || fn === "delete-announcements") {
+    return "announcements";
+  }
+
+  if (fn === "ingest-contracts") {
+    return "contracts";
+  }
+
+  if (fn === "extract-entities" || fn === "extract-companies") {
+    return "extraction";
+  }
+
+  if (fn === "match-and-queue" || fn === "send-emails" || fn === "admin-seed") {
+    return "processing";
+  }
+
+  return "other";
+}
+
+function parseRange(value: unknown): { fromDate?: string; toDate?: string } | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const fromDate = typeof record.fromDate === "string" ? record.fromDate : undefined;
+  const toDate = typeof record.toDate === "string" ? record.toDate : undefined;
+  if (!fromDate && !toDate) return null;
+  return { fromDate, toDate };
+}
+
+function parseStep(step: unknown): HistoryStep | null {
+  if (!step || typeof step !== "object") return null;
+  const record = step as Record<string, unknown>;
+
+  const fn = typeof record.fn === "string" ? record.fn : "unknown";
+  const label = typeof record.label === "string" ? record.label : fn;
+  const category =
+    record.category === "announcements" ||
+    record.category === "contracts" ||
+    record.category === "extraction" ||
+    record.category === "processing" ||
+    record.category === "other"
+      ? record.category
+      : actionCategory(fn);
+  const status = record.status === "error" ? "error" : "success";
+  const summary = Array.isArray(record.summary) ? record.summary.filter((item): item is string => typeof item === "string") : [];
+  const payload = record.payload ?? null;
+
+  return { fn, label, category, status, summary, payload };
+}
+
+function normalizeHistoryEntry(row: HistoryRow): HistoryEntry {
+  return {
+    id: row.id,
+    at: row.created_at,
+    userId: row.user_id,
+    title: row.title,
+    status: row.status,
+    category: row.category,
+    range: parseRange(row.range),
+    steps: Array.isArray(row.steps) ? row.steps.map(parseStep).filter((step): step is HistoryStep => step !== null) : [],
+    note: row.note ?? undefined,
+  };
+}
+
+function buildHistoryRow(entry: HistoryEntry, tenantId: string, userId: string) {
+  return {
+    tenant_id: tenantId,
+    user_id: userId,
+    title: entry.title,
+    status: entry.status,
+    category: entry.category,
+    range: entry.range ?? {},
+    steps: entry.steps,
+    note: entry.note ?? null,
+  };
+}
+
 function compactValue(value: unknown, depth = 2): unknown {
   if (depth <= 0) {
     if (Array.isArray(value)) return `[Array(${value.length})]`;
@@ -139,38 +230,104 @@ function summaryForEntry(entry: HistoryEntry) {
 }
 
 export default function IngestionHistoryView() {
-  const [historyUserId, setHistoryUserId] = useState("anonymous");
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [historyFromDate, setHistoryFromDate] = useState("");
   const [historyToDate, setHistoryToDate] = useState("");
   const [historySearch, setHistorySearch] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     let active = true;
 
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    async function loadHistory() {
+      setHistoryLoading(true);
+      setHistoryError(null);
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       if (!active) return;
 
-      const resolvedUserId = user?.id ?? "anonymous";
-      setHistoryUserId(resolvedUserId);
+      if (!user) {
+        setHistoryEntries([]);
+        setHistoryLoading(false);
+        return;
+      }
 
-      if (typeof window === "undefined") return;
+      const [appUserResult, historyResult] = await Promise.all([
+        supabase.from("app_users").select("tenant_id").eq("id", user.id).maybeSingle(),
+        supabase
+          .from(HISTORY_TABLE)
+          .select("id, tenant_id, user_id, title, status, category, range, steps, note, created_at")
+          .order("created_at", { ascending: false })
+          .limit(60),
+      ]);
 
-      setHistoryEntries(readHistory(window.localStorage.getItem(getHistoryStorageKey(resolvedUserId))));
-    });
+      if (!active) return;
+
+      if (appUserResult.error) {
+        setHistoryError(appUserResult.error.message);
+      }
+
+      if (historyResult.error) {
+        setHistoryError(historyResult.error.message);
+        setHistoryEntries([]);
+        setHistoryLoading(false);
+        return;
+      }
+
+      let entries = (historyResult.data ?? []).map((row) => normalizeHistoryEntry(row as HistoryRow));
+
+      if (
+        entries.length === 0 &&
+        typeof window !== "undefined" &&
+        appUserResult.data?.tenant_id
+      ) {
+        const legacyEntries = readLegacyHistory(window.localStorage.getItem(getLegacyHistoryStorageKey(user.id)));
+
+        if (legacyEntries.length > 0) {
+          const { error: importError } = await supabase.from(HISTORY_TABLE).insert(
+            legacyEntries.map((entry) => buildHistoryRow(entry, appUserResult.data!.tenant_id, user.id)),
+          );
+
+          if (!active) return;
+
+          if (importError) {
+            setHistoryError(importError.message);
+          } else {
+            window.localStorage.removeItem(getLegacyHistoryStorageKey(user.id));
+            const { data: importedRows, error: reloadError } = await supabase
+              .from(HISTORY_TABLE)
+              .select("id, tenant_id, user_id, title, status, category, range, steps, note, created_at")
+              .order("created_at", { ascending: false })
+              .limit(60);
+
+            if (!active) return;
+
+            if (reloadError) {
+              setHistoryError(reloadError.message);
+            } else {
+              entries = (importedRows ?? []).map((row) => normalizeHistoryEntry(row as HistoryRow));
+            }
+          }
+        }
+      }
+
+      setHistoryEntries(entries);
+      setHistoryLoading(false);
+    }
+
+    void loadHistory();
 
     return () => {
       active = false;
     };
   }, [supabase]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(getHistoryStorageKey(historyUserId), JSON.stringify(historyEntries.slice(0, 60)));
-  }, [historyEntries, historyUserId]);
 
   const filteredEntries = useMemo(
     () =>
@@ -206,8 +363,14 @@ export default function IngestionHistoryView() {
       <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card space-y-5">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 mb-1">Histórico de ingestão</h2>
-          <p className="text-gray-400 text-sm mt-1">Registos locais guardados neste navegador para este utilizador.</p>
+          <p className="text-gray-400 text-sm mt-1">Registos guardados no Supabase para este utilizador.</p>
         </div>
+
+        {historyError && (
+          <div className="text-sm bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3">
+            {historyError}
+          </div>
+        )}
 
         <div className="space-y-4 border-t border-surface-100 pt-5">
           <div>
@@ -262,7 +425,11 @@ export default function IngestionHistoryView() {
       </div>
 
       <div className="space-y-3">
-        {filteredEntries.length === 0 ? (
+        {historyLoading ? (
+          <div className="rounded-2xl border border-dashed border-surface-200 bg-white px-5 py-10 text-sm text-gray-500 text-center shadow-card">
+            A carregar histórico guardado no Supabase...
+          </div>
+        ) : filteredEntries.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-surface-200 bg-white px-5 py-10 text-sm text-gray-500 text-center shadow-card">
             Ainda não existe histórico guardado para este utilizador, ou nenhum registo corresponde aos filtros atuais.
           </div>
