@@ -12,9 +12,7 @@
  *   SUPABASE_SERVICE_ROLE_KEY
  *
  * Schedule:
- *   - ingest-base + ingest-contracts + extract-entities + extract-companies + match-and-queue : every 2 hours
- *   - send-emails                                      : every 10 minutes
- *   - ingest-contract-mods                             : daily at 04:00
+ *   - ingest-base                                       : weekdays at 13:30 and 23:30
  */
 
 import { config as loadDotenv } from "dotenv";
@@ -65,7 +63,7 @@ async function callFunction(
     const text = await res.text();
     if (!res.ok) {
       console.error(`[cron] ✗ ${name} HTTP ${res.status}: ${text.slice(0, 300)}`);
-      return;
+      throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
     }
 
     let parsed: unknown;
@@ -85,19 +83,8 @@ async function callFunction(
 // ---------------------------------------------------------------------------
 
 async function runIngestPipeline(): Promise<void> {
-  await callFunction("ingest-base");
-  await callFunction("ingest-contracts");
-  await callFunction("extract-entities");
-  await callFunction("extract-companies");
-  await callFunction("match-and-queue");
-}
-
-async function runContractModsPipeline(): Promise<void> {
-  await callFunction("ingest-contract-mods");
-}
-
-async function runSendEmails(): Promise<void> {
-  await callFunction("send-emails");
+  const today = new Date().toISOString().slice(0, 10);
+  await callFunction("ingest-base", { from_date: today, to_date: today });
 }
 
 // ---------------------------------------------------------------------------
@@ -110,8 +97,6 @@ if (isOnce) {
   console.log("[cron] Running pipeline once …");
   try {
     await runIngestPipeline();
-    await runContractModsPipeline();
-    await runSendEmails();
     console.log("[cron] Done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
@@ -121,27 +106,13 @@ if (isOnce) {
 } else {
   console.log("[cron] Starting daemon …");
 
-  // Every 2 hours at minute 0
-  cron.schedule("0 */2 * * *", () => {
-    console.log(`\n[cron] ${new Date().toISOString()} – ingest pipeline`);
+  // Weekdays at 13:30 and 23:30
+  cron.schedule("30 13,23 * * 1-5", () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – ingest announcements`);
     runIngestPipeline().catch(console.error);
   });
 
-  // Every 10 minutes
-  cron.schedule("*/10 * * * *", () => {
-    console.log(`\n[cron] ${new Date().toISOString()} – send-emails`);
-    runSendEmails().catch(console.error);
-  });
-
-  // Daily at 04:00 – contract modifications
-  cron.schedule("0 4 * * *", () => {
-    console.log(`\n[cron] ${new Date().toISOString()} – contract modifications`);
-    runContractModsPipeline().catch(console.error);
-  });
-
   console.log("[cron] Scheduled:");
-  console.log("  ingest-base + ingest-contracts + extract-entities + extract-companies + match-and-queue → every 2 hours (at :00)");
-  console.log("  send-emails                                      → every 10 minutes");
-  console.log("  ingest-contract-mods                             → daily at 04:00");
+  console.log("  ingest-base                                       → weekdays at 13:30 and 23:30");
   console.log("[cron] Press Ctrl+C to stop.\n");
 }
