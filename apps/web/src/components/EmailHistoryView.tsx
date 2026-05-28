@@ -26,6 +26,14 @@ const STATUS_META: Record<string, { label: string }> = {
   RATE_LIMITED: { label: "Limitadas" },
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  PENDING: "Pendente",
+  SENT: "Enviado",
+  FAILED: "Falhado",
+  SKIPPED: "Ignorado",
+  RATE_LIMITED: "Limitado",
+};
+
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-700",
   SENT: "bg-brand-100 text-brand-700",
@@ -48,7 +56,11 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
 
   const filtered = useMemo(() => {
     return (initial ?? []).filter((n) => {
-      if (filter && n.status !== filter) return false;
+      if (filter) {
+        const ns = (n.status ?? "").toString().trim().toUpperCase();
+        const fs = (filter ?? "").toString().trim().toUpperCase();
+        if (fs !== "" && ns !== fs) return false;
+      }
 
       const ts = n.sent_at ?? n.created_at;
       if (fromDate) {
@@ -130,8 +142,8 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
               <summary className="cursor-pointer list-none px-5 py-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between hover:bg-surface-50 transition-colors">
                 <div className="space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${n.status === "SENT" ? "bg-brand-50 text-brand-700 border-brand-200" : n.status === "FAILED" ? "bg-red-50 text-red-700 border-red-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
-                      {n.status === "SENT" ? "Sucesso" : n.status === "FAILED" ? "Falha" : n.status}
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${n.status === "SENT" ? "bg-brand-600 text-white border-brand-600" : n.status === "FAILED" ? "bg-red-50 text-red-700 border-red-200" : n.status === "PENDING" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-gray-100 text-gray-600 border-surface-200"}`}>
+                      {STATUS_LABEL[n.status] ?? n.status}
                     </span>
                     <span className="text-sm font-semibold text-gray-900">{n.clients?.name ?? "—"}</span>
                     <span className="text-xs text-gray-500">{n.clients?.email ?? ""}</span>

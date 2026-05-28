@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -84,6 +84,17 @@ export default function NotificationsManager({
   const [resending, setResending] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(initial);
 
+  const visibleNotifications = useMemo(() => {
+    return (notifications ?? []).filter((n) => {
+      if (statusFilter) {
+        const ns = (n.status ?? "").toString().trim().toUpperCase();
+        const fs = (statusFilter ?? "").toString().trim().toUpperCase();
+        if (fs !== "" && ns !== fs) return false;
+      }
+      return true;
+    });
+  }, [notifications, statusFilter]);
+
   async function resend(id: string) {
     setResending(id);
     await supabase
@@ -129,7 +140,7 @@ export default function NotificationsManager({
         <div className="ml-4 shrink-0">
           <Link
             href="/notifications/history"
-            className="inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium bg-white border border-surface-200 text-gray-600 hover:bg-surface-50 shadow-card"
+            className="inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium bg-brand-600 text-white shadow-sm"
           >
             <Mail className="h-4 w-4" />
             Histórico de envios
@@ -162,7 +173,7 @@ export default function NotificationsManager({
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
-              {notifications.map((n) => {
+              {visibleNotifications.map((n) => {
                 const client = n.clients as {
                   name: string;
                   email: string;
@@ -225,7 +236,7 @@ export default function NotificationsManager({
                   </tr>
                 );
               })}
-              {notifications.length === 0 && (
+              {visibleNotifications.length === 0 && (
                 <tr>
                   <td
                     colSpan={6}
