@@ -110,7 +110,41 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
+      <style>{`
+        @keyframes wave-float {
+          0%, 100% {
+            transform: translateY(0px);
+          }
+          50% {
+            transform: translateY(-4px);
+          }
+        }
+        .wave-animate {
+          animation: wave-float 6s ease-in-out infinite;
+        }
+      `}</style>
+      
       <Header />
+
+      <div className="w-full h-20 sm:h-24 overflow-hidden">
+        <svg
+          viewBox="0 0 1200 100"
+          preserveAspectRatio="none"
+          className="w-full h-full"
+        >
+          <path
+            className="wave-animate"
+            d="M0,40 Q300,10 600,40 T1200,40 L1200,100 L0,100 Z"
+            fill={GREEN}
+            opacity="0.85"
+          />
+          <path
+            d="M0,50 Q300,20 600,50 T1200,50 L1200,100 L0,100 Z"
+            fill={GREEN}
+            opacity="0.6"
+          />
+        </svg>
+      </div>
 
       <main className="flex-1 relative overflow-hidden">
         <div
