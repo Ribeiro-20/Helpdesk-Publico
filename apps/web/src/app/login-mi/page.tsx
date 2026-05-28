@@ -65,12 +65,6 @@ export default function LoginMiPage() {
                   Entrar no serviço
                   &gt;
                 </Link>
-                <Link
-                  href="/mercado-publico"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
-                >
-                  Explorar mercado público
-                </Link>
               </div>
 
               <div className="grid gap-3 pt-2 sm:grid-cols-3">
