@@ -53,7 +53,9 @@ export default function LoginMiPage() {
                   Informação para antecipar contratos, renovação e procura.
                 </h1>
                 <p className="max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
-                  A área de Market Intelligence junta contratos a terminar, padrões de compra e sinais de mercado para apoiar decisões comerciais mais rápidas e mais seguras.
+                  A área de Market Intelligence junta contratos a terminar,
+                  padrões de compra e sinais de mercado para apoiar decisões
+                  comerciais mais rápidas e mais seguras.
                 </p>
               </div>
 
@@ -62,8 +64,13 @@ export default function LoginMiPage() {
                   href="/login"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                 >
-                  Entrar no serviço
-                  &gt;
+                  Entrar no serviço &gt;
+                </Link>
+                <Link
+                  href="/mercado-publico"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                >
+                  Explorar mercado público
                 </Link>
               </div>
 
@@ -108,7 +115,9 @@ export default function LoginMiPage() {
                         {item.badge}
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-900">{item.title}</p>
+                        <p className="font-semibold text-slate-900">
+                          {item.title}
+                        </p>
                         <p className="mt-1 text-sm leading-6 text-slate-600">
                           {item.description}
                         </p>
@@ -119,7 +128,8 @@ export default function LoginMiPage() {
               </div>
 
               <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                Acesso reservado a subscritores. Depois de entrar, abre o dashboard de Market Intelligence com os dados completos.
+                Acesso reservado a subscritores. Depois de entrar, abre o
+                dashboard de Market Intelligence com os dados completos.
               </div>
             </div>
           </section>

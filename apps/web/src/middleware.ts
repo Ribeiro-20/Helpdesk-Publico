@@ -11,6 +11,7 @@ const PUBLIC_PATHS = [
   "/login-mi",
   "/outros",
   "/api/contracts",
+  "/api/cpv-search",
   "/api/mi-login",
   "/api/mi-verify",
 ];
@@ -18,6 +19,18 @@ const PUBLIC_PATHS = [
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(p + "/"),
+  );
+}
+
+function isPublicAnnouncementDetailPath(pathname: string): boolean {
+  const parts = pathname.split("/").filter(Boolean);
+  return (
+    parts.length === 3 &&
+    parts[0] === "api" &&
+    parts[1] === "announcements" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      parts[2],
+    )
   );
 }
 
@@ -66,8 +79,10 @@ function createMiddlewareSupabaseClient(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const isPublic =
+    isPublicPath(pathname) || isPublicAnnouncementDetailPath(pathname);
 
-  if (isPublicPath(pathname)) {
+  if (isPublic) {
     return NextResponse.next({ request });
   }
 

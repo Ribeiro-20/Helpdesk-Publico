@@ -108,17 +108,23 @@ function validateBaseRange(fromDate: string, toDate: string) {
   if (fromDate < MIN_INGEST_DATE || toDate < MIN_INGEST_DATE) {
     return `A ingestao manual so permite datas a partir de ${MIN_INGEST_DATE}.`;
   }
-  if (fromDate > toDate) return "A data inicial tem de ser anterior ou igual a data final.";
+  if (fromDate > toDate)
+    return "A data inicial tem de ser anterior ou igual a data final.";
   return null;
 }
 
 function getRangePolicy(fn: string, fromDate: string, toDate: string) {
   const baseError = validateBaseRange(fromDate, toDate);
-  if (baseError) return { disabled: true, warning: null as string | null, error: baseError };
+  if (baseError)
+    return { disabled: true, warning: null as string | null, error: baseError };
 
   const days = diffDaysInclusive(fromDate, toDate);
 
-  if (fn === "ingest-base" || fn === "ingest-dr" || fn === "delete-announcements") {
+  if (
+    fn === "ingest-base" ||
+    fn === "ingest-dr" ||
+    fn === "delete-announcements"
+  ) {
     if (days > ANN_MAX_DAYS) {
       return {
         disabled: true,
@@ -152,10 +158,15 @@ function getRangePolicy(fn: string, fromDate: string, toDate: string) {
     }
   }
 
-  return { disabled: false, warning: null as string | null, error: null as string | null };
+  return {
+    disabled: false,
+    warning: null as string | null,
+    error: null as string | null,
+  };
 }
 
-const BTN_BASE = "text-sm font-medium px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed";
+const BTN_BASE =
+  "text-sm font-medium px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed";
 const BTN_STYLES: Record<string, string> = {
   primary: `${BTN_BASE} bg-brand-600 hover:bg-brand-700 text-white shadow-sm hover:shadow-md`,
   secondary: `${BTN_BASE} bg-white border border-surface-200 text-gray-700 hover:bg-surface-50 hover:border-gray-300 shadow-card`,
@@ -170,7 +181,9 @@ export default function AdminActions({
   isInitialised: boolean;
 }) {
   const [loading, setLoading] = useState<string | null>(null);
-  const [results, setResults] = useState<Array<{ fn: string; data: unknown }>>([]);
+  const [results, setResults] = useState<Array<{ fn: string; data: unknown }>>(
+    [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
@@ -183,11 +196,26 @@ export default function AdminActions({
   const supabase = createClient();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
-  const globalDateError = useMemo(() => validateBaseRange(fromDate, toDate), [fromDate, toDate]);
-  const announcementsPolicy = useMemo(() => getRangePolicy("ingest-base", fromDate, toDate), [fromDate, toDate]);
-  const contractsPolicy = useMemo(() => getRangePolicy("ingest-contracts", fromDate, toDate), [fromDate, toDate]);
-  const drPolicy = useMemo(() => getRangePolicy("ingest-dr", fromDate, toDate), [fromDate, toDate]);
-  const deleteAnnouncementsPolicy = useMemo(() => getRangePolicy("delete-announcements", fromDate, toDate), [fromDate, toDate]);
+  const globalDateError = useMemo(
+    () => validateBaseRange(fromDate, toDate),
+    [fromDate, toDate],
+  );
+  const announcementsPolicy = useMemo(
+    () => getRangePolicy("ingest-base", fromDate, toDate),
+    [fromDate, toDate],
+  );
+  const contractsPolicy = useMemo(
+    () => getRangePolicy("ingest-contracts", fromDate, toDate),
+    [fromDate, toDate],
+  );
+  const drPolicy = useMemo(
+    () => getRangePolicy("ingest-dr", fromDate, toDate),
+    [fromDate, toDate],
+  );
+  const deleteAnnouncementsPolicy = useMemo(
+    () => getRangePolicy("delete-announcements", fromDate, toDate),
+    [fromDate, toDate],
+  );
 
   async function callFn(fn: string, body: Record<string, unknown> = {}) {
     setLoading(fn);
@@ -201,7 +229,10 @@ export default function AdminActions({
       const token = session?.access_token ?? "";
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-      const runCall = async (targetFn: string, requestBody: Record<string, unknown>) => {
+      const runCall = async (
+        targetFn: string,
+        requestBody: Record<string, unknown>,
+      ) => {
         const url = `${supabaseUrl}/functions/v1/${targetFn}`;
 
         const callOnce = async (u: string) => {
@@ -234,7 +265,9 @@ export default function AdminActions({
         if (primary.res.status === 503) {
           try {
             const fallbackHost = "http://127.0.0.1:55321";
-            const fallback = await callOnce(`${fallbackHost}/functions/v1/${targetFn}`);
+            const fallback = await callOnce(
+              `${fallbackHost}/functions/v1/${targetFn}`,
+            );
             return fallback;
           } catch (e) {
             return primary;
@@ -253,11 +286,15 @@ export default function AdminActions({
           body: JSON.stringify(requestBody),
         });
 
-        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: `HTTP ${res.status}` }));
         return { res, data };
       };
 
-      const runContractsIngest = async (requestBody: Record<string, unknown>) => {
+      const runContractsIngest = async (
+        requestBody: Record<string, unknown>,
+      ) => {
         const res = await fetch("/api/admin/ingest-contracts", {
           method: "POST",
           headers: {
@@ -266,7 +303,9 @@ export default function AdminActions({
           body: JSON.stringify(requestBody),
         });
 
-        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        const data = await res
+          .json()
+          .catch(() => ({ error: `HTTP ${res.status}` }));
         return { res, data };
       };
 
@@ -278,10 +317,15 @@ export default function AdminActions({
             : {};
 
         setInfo("A ingerir anúncios BASE...");
-        const { res: baseRes, data: baseData } = await runCall("ingest-base", body);
+        const { res: baseRes, data: baseData } = await runCall(
+          "ingest-base",
+          body,
+        );
         const baseError = baseRes.ok
           ? null
-          : formatUnknownError((baseData as any)?.error ?? `HTTP ${baseRes.status}`);
+          : formatUnknownError(
+              (baseData as any)?.error ?? `HTTP ${baseRes.status}`,
+            );
 
         if (isDryRun) {
           setInfo("Dry run de anúncios concluído.");
@@ -290,7 +334,9 @@ export default function AdminActions({
           return;
         }
 
-        const fetched = baseRes.ok ? aggregateNumericField(baseData, "fetched") : 0;
+        const fetched = baseRes.ok
+          ? aggregateNumericField(baseData, "fetched")
+          : 0;
         if (fetched <= 0) {
           const canRunDrToday =
             typeof body.from_date === "string" &&
@@ -299,20 +345,37 @@ export default function AdminActions({
             body.to_date === todayIso();
 
           if (baseError) {
-            setInfo(`A API BASE falhou (${baseError}). A tentar ingestão DR na mesma...`);
+            setInfo(
+              `A API BASE falhou (${baseError}). A tentar ingestão DR na mesma...`,
+            );
           }
 
           if (canRunDrToday) {
-            setInfo(baseError ? `A API BASE falhou (${baseError}). A tentar ingestão DR de hoje...` : "Sem novos anúncios BASE. A tentar ingestão DR de hoje...");
+            setInfo(
+              baseError
+                ? `A API BASE falhou (${baseError}). A tentar ingestão DR de hoje...`
+                : "Sem novos anúncios BASE. A tentar ingestão DR de hoje...",
+            );
             const { res: drRes, data: drData } = await runDrIngest(rangeBody);
             if (!drRes.ok) {
-              throw new Error((drData as Record<string, string>)?.error ?? `HTTP ${drRes.status}`);
+              throw new Error(
+                (drData as Record<string, string>)?.error ??
+                  `HTTP ${drRes.status}`,
+              );
             }
 
-            setInfo("Sem novos anúncios BASE. A processar correspondência CPV...");
-            const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
+            setInfo(
+              "Sem novos anúncios BASE. A processar correspondência CPV...",
+            );
+            const { res: mqRes, data: mqData } = await runCall(
+              "match-and-queue",
+              rangeBody,
+            );
             if (!mqRes.ok) {
-              throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
+              throw new Error(
+                (mqData as Record<string, string>)?.error ??
+                  `HTTP ${mqRes.status}`,
+              );
             }
 
             const pipelineData = {
@@ -321,8 +384,13 @@ export default function AdminActions({
               match_and_queue: mqData,
             };
 
-            setInfo("Sem novos anúncios BASE. DR de hoje e correspondência CPV concluídos.");
-            setResults((prev) => [{ fn: "ingest-base (base=0, dr-hoje + cpv)", data: pipelineData }, ...prev.slice(0, 4)]);
+            setInfo(
+              "Sem novos anúncios BASE. DR de hoje e correspondência CPV concluídos.",
+            );
+            setResults((prev) => [
+              { fn: "ingest-base (base=0, dr-hoje + cpv)", data: pipelineData },
+              ...prev.slice(0, 4),
+            ]);
             router.refresh();
             return;
           }
@@ -332,9 +400,15 @@ export default function AdminActions({
               ? `A API BASE falhou (${baseError}). A processar correspondência CPV nos anúncios já existentes do intervalo...`
               : "Sem novos anúncios BASE. A processar correspondência CPV nos anúncios já existentes do intervalo...",
           );
-          const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
+          const { res: mqRes, data: mqData } = await runCall(
+            "match-and-queue",
+            rangeBody,
+          );
           if (!mqRes.ok) {
-            throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
+            throw new Error(
+              (mqData as Record<string, string>)?.error ??
+                `HTTP ${mqRes.status}`,
+            );
           }
 
           const pipelineData = {
@@ -349,25 +423,41 @@ export default function AdminActions({
               ? `A API BASE falhou (${baseError}). Correspondência CPV executada nos anúncios existentes.`
               : "Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.",
           );
-          setResults((prev) => [{ fn: "ingest-base (base=0, cpv executado)", data: pipelineData }, ...prev.slice(0, 4)]);
+          setResults((prev) => [
+            { fn: "ingest-base (base=0, cpv executado)", data: pipelineData },
+            ...prev.slice(0, 4),
+          ]);
           router.refresh();
           return;
         }
 
         if (baseError) {
-          setInfo(`A API BASE falhou (${baseError}). A enriquecer anúncios com detalhe DR...`);
+          setInfo(
+            `A API BASE falhou (${baseError}). A enriquecer anúncios com detalhe DR...`,
+          );
         } else {
           setInfo("A enriquecer anúncios com detalhe DR...");
         }
         const { res: drRes, data: drData } = await runDrIngest(rangeBody);
         if (!drRes.ok) {
-          throw new Error(formatUnknownError((drData as any)?.error ?? `HTTP ${drRes.status}`));
+          throw new Error(
+            formatUnknownError(
+              (drData as any)?.error ?? `HTTP ${drRes.status}`,
+            ),
+          );
         }
 
         setInfo("A processar correspondência CPV...");
-        const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
+        const { res: mqRes, data: mqData } = await runCall(
+          "match-and-queue",
+          rangeBody,
+        );
         if (!mqRes.ok) {
-          throw new Error(formatUnknownError((mqData as any)?.error ?? `HTTP ${mqRes.status}`));
+          throw new Error(
+            formatUnknownError(
+              (mqData as any)?.error ?? `HTTP ${mqRes.status}`,
+            ),
+          );
         }
 
         const pipelineData = {
@@ -382,7 +472,10 @@ export default function AdminActions({
             ? `A API BASE falhou (${baseError}). DR + correspondência CPV concluídos.`
             : "Pipeline de anúncios concluído: BASE + DR + correspondência CPV.",
         );
-        setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
+        setResults((prev) => [
+          { fn: "ingest-base (pipeline)", data: pipelineData },
+          ...prev.slice(0, 4),
+        ]);
         router.refresh();
         return;
       }
@@ -392,13 +485,19 @@ export default function AdminActions({
         typeof body.from_date === "string" &&
         typeof body.to_date === "string"
       ) {
-        setInfo(`A ingerir contratos de ${body.from_date} até ${body.to_date}...`);
+        setInfo(
+          `A ingerir contratos de ${body.from_date} até ${body.to_date}...`,
+        );
         const { res, data } = await runContractsIngest(body);
         if (!res.ok) {
-          throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
+          throw new Error(
+            (data as Record<string, string>)?.error ?? `HTTP ${res.status}`,
+          );
         }
 
-        setInfo(`Contratos ingeridos com sucesso para o intervalo ${body.from_date}..${body.to_date}.`);
+        setInfo(
+          `Contratos ingeridos com sucesso para o intervalo ${body.from_date}..${body.to_date}.`,
+        );
         setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
         router.refresh();
         return;
@@ -409,14 +508,21 @@ export default function AdminActions({
         res.status === 546 ||
         (typeof data === "object" &&
           data !== null &&
-          String((data as { message?: string; error?: string }).message ?? (data as { message?: string; error?: string }).error ?? "").includes("WORKER_LIMIT"));
+          String(
+            (data as { message?: string; error?: string }).message ??
+              (data as { message?: string; error?: string }).error ??
+              "",
+          ).includes("WORKER_LIMIT"));
 
       if (!res.ok && fn === "ingest-contracts" && isWorkerLimitError) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         ({ res, data } = await runCall(fn, body));
       }
 
-      if (!res.ok) throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
+      if (!res.ok)
+        throw new Error(
+          (data as Record<string, string>)?.error ?? `HTTP ${res.status}`,
+        );
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
       router.refresh();
@@ -428,7 +534,10 @@ export default function AdminActions({
     }
   }
 
-  async function callInternalApi(fn: string, body: Record<string, unknown> = {}) {
+  async function callInternalApi(
+    fn: string,
+    body: Record<string, unknown> = {},
+  ) {
     setLoading(fn);
     setError(null);
     setInfo(null);
@@ -442,16 +551,24 @@ export default function AdminActions({
         body: JSON.stringify(body),
       });
 
-      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      if (!res.ok) throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
+      const data = await res
+        .json()
+        .catch(() => ({ error: `HTTP ${res.status}` }));
+      if (!res.ok)
+        throw new Error(
+          (data as Record<string, string>)?.error ?? `HTTP ${res.status}`,
+        );
 
       if (
         fn === "ingest-dr" &&
         typeof data === "object" &&
         data !== null &&
-        (data as { normalized_candidates?: unknown }).normalized_candidates === 0
+        (data as { normalized_candidates?: unknown }).normalized_candidates ===
+          0
       ) {
-        setInfo("Não foram encontrados anúncios DR para o intervalo selecionado.");
+        setInfo(
+          "Não foram encontrados anúncios DR para o intervalo selecionado.",
+        );
       }
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
@@ -473,11 +590,21 @@ export default function AdminActions({
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <p className="mb-1 text-xs text-gray-400">De</p>
-              <SingleDatePicker value={fromDate} onChange={setFromDate} placeholder="Data início" min={MIN_INGEST_DATE} />
+              <SingleDatePicker
+                value={fromDate}
+                onChange={setFromDate}
+                placeholder="Data início"
+                min={MIN_INGEST_DATE}
+              />
             </div>
             <div>
               <p className="mb-1 text-xs text-gray-400">Até</p>
-              <SingleDatePicker value={toDate} onChange={setToDate} placeholder="Data fim" min={MIN_INGEST_DATE} />
+              <SingleDatePicker
+                value={toDate}
+                onChange={setToDate}
+                placeholder="Data fim"
+                min={MIN_INGEST_DATE}
+              />
             </div>
           </div>
 
@@ -487,28 +614,33 @@ export default function AdminActions({
             </div>
           )}
 
-          {!globalDateError && (announcementsPolicy.warning || contractsPolicy.warning || drPolicy.warning) && (
-            <div className="space-y-2">
-              {announcementsPolicy.warning && (
-                <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
-                  {announcementsPolicy.warning}
-                </div>
-              )}
-              {contractsPolicy.warning && (
-                <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
-                  {contractsPolicy.warning}
-                </div>
-              )}
-              {drPolicy.warning && !announcementsPolicy.warning && (
-                <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
-                  {drPolicy.warning}
-                </div>
-              )}
-            </div>
-          )}
+          {!globalDateError &&
+            (announcementsPolicy.warning ||
+              contractsPolicy.warning ||
+              drPolicy.warning) && (
+              <div className="space-y-2">
+                {announcementsPolicy.warning && (
+                  <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
+                    {announcementsPolicy.warning}
+                  </div>
+                )}
+                {contractsPolicy.warning && (
+                  <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
+                    {contractsPolicy.warning}
+                  </div>
+                )}
+                {drPolicy.warning && !announcementsPolicy.warning && (
+                  <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
+                    {drPolicy.warning}
+                  </div>
+                )}
+              </div>
+            )}
 
           <p className="text-xs text-gray-500">
-            Limites: anuncios ate {ANN_MAX_DAYS} dias e contratos ate {CONTRACT_MAX_DAYS} dias, devido a quantidade de dados processados pela API BASE em cada pedido.
+            Limites: anuncios ate {ANN_MAX_DAYS} dias e contratos ate{" "}
+            {CONTRACT_MAX_DAYS} dias, devido a quantidade de dados processados
+            pela API BASE em cada pedido.
           </p>
         </div>
       )}
@@ -520,15 +652,22 @@ export default function AdminActions({
             disabled={!!loading}
             className={BTN_STYLES.init}
           >
-            {loading === "admin-seed" ? "A inicializar..." : "Inicializar Sistema"}
+            {loading === "admin-seed"
+              ? "A inicializar..."
+              : "Inicializar Sistema"}
           </button>
         </div>
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         {groupedActions.map((group) => (
-          <div key={group.key} className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
-            <h3 className="mb-4 text-sm font-semibold text-gray-900">{group.title}</h3>
+          <div
+            key={group.key}
+            className="rounded-xl border border-surface-200 bg-white p-4 shadow-card"
+          >
+            <h3 className="mb-4 text-sm font-semibold text-gray-900">
+              {group.title}
+            </h3>
             <div className="flex flex-wrap gap-2">
               {group.actions.map(({ fn, label, variant, body }) => {
                 const needsDates =
@@ -537,16 +676,23 @@ export default function AdminActions({
                   fn === "ingest-contracts" ||
                   fn === "match-and-queue" ||
                   fn === "ingest-dr";
-                const policy = fn === "ingest-base"
-                  ? announcementsPolicy
-                  : fn === "delete-announcements"
-                  ? deleteAnnouncementsPolicy
-                  : fn === "ingest-contracts"
-                  ? contractsPolicy
-                  : fn === "ingest-dr"
-                  ? drPolicy
-                  : { disabled: !!globalDateError, warning: null, error: globalDateError };
-                const effectiveBody = needsDates ? { ...body, from_date: fromDate, to_date: toDate } : body ?? {};
+                const policy =
+                  fn === "ingest-base"
+                    ? announcementsPolicy
+                    : fn === "delete-announcements"
+                      ? deleteAnnouncementsPolicy
+                      : fn === "ingest-contracts"
+                        ? contractsPolicy
+                        : fn === "ingest-dr"
+                          ? drPolicy
+                          : {
+                              disabled: !!globalDateError,
+                              warning: null,
+                              error: globalDateError,
+                            };
+                const effectiveBody = needsDates
+                  ? { ...body, from_date: fromDate, to_date: toDate }
+                  : (body ?? {});
                 const isInternalApiAction = fn === "ingest-dr";
                 const disabled = !!loading || (needsDates && policy.disabled);
                 const title = policy.error ?? undefined;
@@ -595,11 +741,29 @@ export default function AdminActions({
 
       {loading && (
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-4 py-3 text-sm">
-          <svg className="animate-spin h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <svg
+            className="animate-spin h-4 w-4 flex-shrink-0"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
           </svg>
-          <span>A executar <strong>{loading}</strong>... isto pode demorar alguns minutos.</span>
+          <span>
+            A executar <strong>{loading}</strong>... isto pode demorar alguns
+            minutos.
+          </span>
         </div>
       )}
 
