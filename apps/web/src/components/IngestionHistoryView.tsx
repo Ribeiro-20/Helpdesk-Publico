@@ -455,7 +455,7 @@ export default function IngestionHistoryView() {
 
                 <div className="text-xs text-gray-500 md:text-right">
                   <p>{entry.steps.length} passo(s)</p>
-                  <p>{entry.note ?? "Histórico local guardado no navegador."}</p>
+                  <p>{entry.note ?? "Histórico guardado no Supabase."}</p>
                 </div>
               </summary>
 
