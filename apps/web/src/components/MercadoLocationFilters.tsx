@@ -462,13 +462,21 @@ export default function MercadoLocationFilters({
     districtDisabled || district === "all" || municipalityOptions.length === 0;
 
   const hasPortugal = countryOptions.includes("Portugal");
-  const otherCountryOptions = countryOptions.filter((option) => option !== "Portugal");
+  const otherCountryOptions = countryOptions.filter(
+    (option) => option !== "Portugal",
+  );
 
   const countrySelectOptions = [
     { value: "all", label: "Todos" },
     ...(hasPortugal ? [{ value: "Portugal", label: "Portugal" }] : []),
     ...(hasPortugal && otherCountryOptions.length > 0
-      ? [{ value: "__separator__", label: "--------------------", disabled: true }]
+      ? [
+          {
+            value: "__separator__",
+            label: "--------------------",
+            disabled: true,
+          },
+        ]
       : []),
     ...otherCountryOptions.map((option) => ({ value: option, label: option })),
   ];
@@ -501,6 +509,7 @@ export default function MercadoLocationFilters({
         options={countrySelectOptions}
         defaultValue={country}
         value={country}
+        maxVisibleOptions={8}
         onChange={(nextCountry) => {
           setCountry(nextCountry);
           setDistrict("all");
@@ -514,6 +523,7 @@ export default function MercadoLocationFilters({
         options={districtSelectOptions}
         defaultValue={district}
         value={district}
+        maxVisibleOptions={8}
         disabled={districtDisabled}
         onChange={(nextDistrict) => {
           setDistrict(nextDistrict);
@@ -527,6 +537,7 @@ export default function MercadoLocationFilters({
         options={municipalitySelectOptions}
         defaultValue={municipality}
         value={municipality}
+        maxVisibleOptions={8}
         disabled={municipalityDisabled}
         onChange={(nextMunicipality) => {
           setMunicipality(nextMunicipality);
