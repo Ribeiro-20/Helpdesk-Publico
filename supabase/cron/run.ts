@@ -100,6 +100,10 @@ async function runSendEmails(): Promise<void> {
   await callFunction("send-emails");
 }
 
+async function runMiAlerts(): Promise<void> {
+  await callFunction("mi-contract-alerts");
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -112,6 +116,7 @@ if (isOnce) {
     await runIngestPipeline();
     await runContractModsPipeline();
     await runSendEmails();
+    await runMiAlerts();
     console.log("[cron] Done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
@@ -139,9 +144,16 @@ if (isOnce) {
     runContractModsPipeline().catch(console.error);
   });
 
+  // Every 6 hours – Market Intelligence alerts
+  cron.schedule("0 */6 * * *", () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – Market Intelligence alerts`);
+    runMiAlerts().catch(console.error);
+  });
+
   console.log("[cron] Scheduled:");
   console.log("  ingest-base + ingest-contracts + extract-entities + extract-companies + match-and-queue → every 2 hours (at :00)");
   console.log("  send-emails                                      → every 10 minutes");
   console.log("  ingest-contract-mods                             → daily at 04:00");
+  console.log("  mi-contract-alerts                               → every 6 hours (at :00)");
   console.log("[cron] Press Ctrl+C to stop.\n");
 }
