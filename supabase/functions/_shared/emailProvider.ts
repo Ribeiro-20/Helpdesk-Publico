@@ -42,7 +42,7 @@ class ConsoleEmailProvider implements EmailProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Mailpit provider (local Supabase – http://127.0.0.1:54324)
+// Mailpit provider (local Supabase – http://127.0.0.1:55324)
 // Mailpit exposes a REST API at /api/v1/send (v1.20+)
 // ---------------------------------------------------------------------------
 
@@ -51,7 +51,7 @@ class MailpitEmailProvider implements EmailProvider {
   private from: string;
 
   constructor() {
-    this.apiUrl = Deno.env.get("MAILPIT_URL") ?? "http://host.docker.internal:54324";
+    this.apiUrl = Deno.env.get("MAILPIT_URL") ?? "http://127.0.0.1:55324";
     this.from = Deno.env.get("EMAIL_FROM") ?? "noreply@localhost";
   }
 

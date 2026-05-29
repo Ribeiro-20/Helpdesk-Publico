@@ -5,9 +5,14 @@ import { Users } from "lucide-react";
 
 export default async function ClientsPage() {
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data: appUser } = await supabase
     .from("app_users")
     .select("tenant_id, role")
+    .eq("id", user!.id)
     .maybeSingle();
 
   const { data: clients } = await supabase

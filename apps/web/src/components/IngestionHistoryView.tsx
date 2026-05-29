@@ -19,7 +19,7 @@ type HistoryStep = {
 type HistoryEntry = {
   id: string;
   at: string;
-  userId: string;
+  userId: string | null;
   title: string;
   status: "success" | "error";
   category: HistoryCategory;
@@ -31,7 +31,7 @@ type HistoryEntry = {
 type HistoryRow = {
   id: string;
   tenant_id: string;
-  user_id: string;
+  user_id: string | null;
   title: string;
   status: "success" | "error";
   category: HistoryCategory;
@@ -229,7 +229,7 @@ function summaryForEntry(entry: HistoryEntry) {
   );
 }
 
-export default function IngestionHistoryView() {
+export default function IngestionHistoryView({ adminView = false }: { adminView?: boolean }) {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("all");
   const [historyFromDate, setHistoryFromDate] = useState("");
@@ -246,6 +246,30 @@ export default function IngestionHistoryView() {
     async function loadHistory() {
       setHistoryLoading(true);
       setHistoryError(null);
+
+      if (adminView) {
+        const response = await fetch("/api/admin/ingestion-history?limit=60", {
+          method: "GET",
+          credentials: "include",
+        });
+
+        if (!active) return;
+
+        const payload = (await response.json().catch(() => null)) as
+          | { ok?: boolean; items?: HistoryRow[]; error?: string }
+          | null;
+
+        if (!response.ok || !payload || !Array.isArray(payload.items)) {
+          setHistoryEntries([]);
+          setHistoryError(payload?.error ?? `Falha ao carregar histórico do tenant (${response.status}).`);
+          setHistoryLoading(false);
+          return;
+        }
+
+        setHistoryEntries(payload.items.map((row) => normalizeHistoryEntry(row)));
+        setHistoryLoading(false);
+        return;
+      }
 
       const {
         data: { user },
@@ -327,7 +351,7 @@ export default function IngestionHistoryView() {
     return () => {
       active = false;
     };
-  }, [supabase]);
+  }, [adminView, supabase]);
 
   const filteredEntries = useMemo(
     () =>
@@ -363,7 +387,11 @@ export default function IngestionHistoryView() {
       <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card space-y-5">
         <div>
           <h2 className="text-sm font-semibold text-gray-900 mb-1">Histórico de ingestão</h2>
-          <p className="text-gray-400 text-sm mt-1">Registos guardados no Supabase para este utilizador.</p>
+          <p className="text-gray-400 text-sm mt-1">
+            {adminView
+              ? "Registos guardados no Supabase para este tenant."
+              : "Registos guardados no Supabase para este utilizador."}
+          </p>
         </div>
 
         {historyError && (
@@ -431,7 +459,9 @@ export default function IngestionHistoryView() {
           </div>
         ) : filteredEntries.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-surface-200 bg-white px-5 py-10 text-sm text-gray-500 text-center shadow-card">
-            Ainda não existe histórico guardado para este utilizador, ou nenhum registo corresponde aos filtros atuais.
+            {adminView
+              ? "Ainda não existe histórico guardado para este tenant, ou nenhum registo corresponde aos filtros atuais."
+              : "Ainda não existe histórico guardado para este utilizador, ou nenhum registo corresponde aos filtros atuais."}
           </div>
         ) : (
           filteredEntries.map((entry) => (
