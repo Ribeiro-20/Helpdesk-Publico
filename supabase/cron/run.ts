@@ -21,9 +21,22 @@ import { fileURLToPath } from "url";
 import cron from "node-cron";
 import { createClient } from "@supabase/supabase-js";
 
-// Load .env from repo root (two levels up from supabase/cron/)
+// Load .env from common locations so the cron works both from the repo root
+// and when launched directly inside supabase/cron.
 const __dirname = dirname(fileURLToPath(import.meta.url));
-loadDotenv({ path: resolve(__dirname, "../../.env") });
+const dotenvCandidates = [
+  resolve(__dirname, "../../.env"),
+  resolve(process.cwd(), "../../.env"),
+  resolve(process.cwd(), ".env"),
+];
+
+for (const candidate of dotenvCandidates) {
+  const result = loadDotenv({ path: candidate, override: true });
+  if (Object.keys(result.parsed ?? {}).length > 0) {
+    console.log(`[cron] Loaded env from ${candidate}`);
+    break;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Config
