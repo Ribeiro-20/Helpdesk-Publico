@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getSupabasePublicEnv } from "@/lib/supabase/env";
+import { getSupabaseAdminEnv, getSupabasePublicEnv } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = [
   "/",
@@ -9,7 +9,6 @@ const PUBLIC_PATHS = [
   "/estatisticas-privado",
   "/oportunidades",
   "/login-mi",
-  "/outros",
   "/api/contracts",
   "/api/cpv-search",
   "/api/mi-login",
@@ -39,6 +38,29 @@ function isPrefetchRequest(request: NextRequest): boolean {
     request.headers.get("next-router-prefetch") !== null ||
     request.headers.get("purpose") === "prefetch"
   );
+}
+
+function isInternalAdminRequest(request: NextRequest): boolean {
+  if (!request.nextUrl.pathname.startsWith("/api/admin/")) {
+    return false;
+  }
+
+  const authHeader = request.headers.get("authorization") ?? "";
+  if (!authHeader.toLowerCase().startsWith("bearer ")) {
+    return false;
+  }
+
+  const token = authHeader.slice(7).trim();
+  if (!token) {
+    return false;
+  }
+
+  try {
+    const { serviceRoleKey } = getSupabaseAdminEnv("Supabase middleware");
+    return token === serviceRoleKey;
+  } catch {
+    return false;
+  }
 }
 
 function createMiddlewareSupabaseClient(request: NextRequest) {
@@ -82,6 +104,11 @@ export async function middleware(request: NextRequest) {
   const isPublic =
     isPublicPath(pathname) || isPublicAnnouncementDetailPath(pathname);
 
+  if (isInternalAdminRequest(request)) {
+    return NextResponse.next({ request });
+  }
+
+  // Skip auth check entirely for public pages — no Supabase call needed
   if (isPublic) {
     return NextResponse.next({ request });
   }

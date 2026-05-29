@@ -10,6 +10,7 @@
  *    from_date?:       string,  // ISO date, e.g. "2024-01-01" – filter by publication_date
  *    to_date?:         string,  // ISO date, e.g. "2024-01-07" – filter by publication_date
  *    hours_back?:      number   // fallback window for cron (default 2h, used when no dates/id given)
+ *    include_all_active_when_region_unspecified?: boolean // default true
  *  }
  *
  * Response:
@@ -174,6 +175,14 @@ function clientMatchesAnnouncementRegions(
   return normalizedClient.some((region) => announcementRegions.has(region));
 }
 
+function clientHasUnspecifiedRegion(clientRegions: string[] | null | undefined): boolean {
+  const normalizedClient = (clientRegions ?? [])
+    .map((item) => normalizeRegion(String(item)))
+    .filter(Boolean);
+
+  return normalizedClient.length === 0 || normalizedClient.includes("todos");
+}
+
 function isMissingNotificationRegionsError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const message = String((error as { message?: unknown }).message ?? "");
@@ -211,7 +220,7 @@ function serializeError(error: unknown) {
 }
 
 async function loadActiveClientsWithRegions(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   tenantId: string,
 ) {
   const withRegions = await supabase
@@ -237,15 +246,15 @@ async function loadActiveClientsWithRegions(
     .eq("is_active", true);
 
   return {
-    data: (withoutRegions.data ?? []).map((row) => ({
-      ...(row as Record<string, unknown>),
+    data: (withoutRegions.data ?? []).map((row: Record<string, unknown>) => ({
+      ...row,
       notification_regions: ["todos"],
     })),
     error: withoutRegions.error,
   };
 }
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS });
   }
@@ -315,6 +324,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    const hasClientsWithoutSpecificRegion = [...clientRegionsMap.values()]
+      .some((regions) => clientHasUnspecifiedRegion(regions));
+
     const clientsWithInclusionRule = new Set(
       activeRules
         .filter((rule) => !rule.is_exclusion)
@@ -357,10 +369,20 @@ Deno.serve(async (req) => {
         annQuery = annQuery.lte("publication_date", body.to_date);
       }
     } else {
-      // Cron / default: only recent announcements
-      const hoursBack = Number(body.hours_back ?? 2);
-      const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
-      annQuery = annQuery.gte("created_at", since);
+      const includeAllActiveWhenRegionUnspecified =
+        body.include_all_active_when_region_unspecified !== false;
+
+      if (includeAllActiveWhenRegionUnspecified && hasClientsWithoutSpecificRegion) {
+        // If clients have no explicit region selected, match CPV against all active announcements.
+        console.log(
+          "[match-and-queue] clients without specific region detected; scanning all active announcements",
+        );
+      } else {
+        // Cron / default: only recent announcements
+        const hoursBack = Number(body.hours_back ?? 2);
+        const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+        annQuery = annQuery.gte("created_at", since);
+      }
     }
 
     const { data: announcements, error: annErr } = await annQuery;
@@ -390,12 +412,21 @@ Deno.serve(async (req) => {
           (ann as Record<string, unknown>).raw_payload,
         );
 
-        const regionFilteredClientIds = matchedClientIds.filter((clientId) =>
+        let regionFilteredClientIds = matchedClientIds.filter((clientId) =>
           clientMatchesAnnouncementRegions(
             clientRegionsMap.get(clientId),
             announcementRegions,
           )
         );
+
+        // If caller requested processing only for a specific client, filter here.
+        const clientFilter = typeof body.client_id === "string" && body.client_id.trim()
+          ? String(body.client_id).trim()
+          : null;
+
+        if (clientFilter) {
+          regionFilteredClientIds = regionFilteredClientIds.filter((id) => id === clientFilter);
+        }
 
         for (const clientId of regionFilteredClientIds) {
           const { error: insertErr } = await supabase

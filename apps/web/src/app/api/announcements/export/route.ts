@@ -197,7 +197,6 @@ export async function GET(req: NextRequest) {
       if (chunk.length < CHUNK_SIZE) break;
       offset += CHUNK_SIZE;
     }
-
     const now = new Date();
     const worksheetRows = rows.map((ann) => {
       // Entidade(s): "Nome (NIF)" ou só o nome se não houver NIF
@@ -253,21 +252,18 @@ export async function GET(req: NextRequest) {
         ? XLSX.utils.json_to_sheet(worksheetRows, { header: headers })
         : XLSX.utils.aoa_to_sheet([headers]);
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Anuncios");
-
-    const fileBuffer = XLSX.write(workbook, {
-      type: "buffer",
-      bookType: "xlsx",
-    });
+    const fileBuffer = Buffer.concat([
+      Buffer.from("\ufeff", "utf8"),
+      Buffer.from(XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }), "utf8"),
+    ]);
 
     const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `anuncios-${timestamp}.xlsx`;
+    const filename = `anuncios-${timestamp}.csv`;
 
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });

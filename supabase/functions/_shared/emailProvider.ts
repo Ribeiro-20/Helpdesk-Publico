@@ -5,8 +5,9 @@
  *   "dev"       → logs to console (default for local development)
  *   "mailpit"   → sends via Mailpit SMTP-over-HTTP (local Supabase)
  *   "sendgrid"  → SendGrid HTTP API
+ *   "brevo"     → Brevo HTTP API
  *
- * For production: set EMAIL_PROVIDER=sendgrid and SENDGRID_API_KEY.
+ * For production: set EMAIL_PROVIDER=brevo and BREVO_API_KEY.
  */
 
 export interface EmailMessage {
@@ -41,7 +42,7 @@ class ConsoleEmailProvider implements EmailProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Mailpit provider (local Supabase – http://127.0.0.1:54324)
+// Mailpit provider (local Supabase – http://127.0.0.1:55324)
 // Mailpit exposes a REST API at /api/v1/send (v1.20+)
 // ---------------------------------------------------------------------------
 
@@ -50,7 +51,7 @@ class MailpitEmailProvider implements EmailProvider {
   private from: string;
 
   constructor() {
-    this.apiUrl = Deno.env.get("MAILPIT_URL") ?? "http://host.docker.internal:54324";
+    this.apiUrl = Deno.env.get("MAILPIT_URL") ?? "http://127.0.0.1:55324";
     this.from = Deno.env.get("EMAIL_FROM") ?? "noreply@localhost";
   }
 
@@ -132,6 +133,52 @@ class SendGridEmailProvider implements EmailProvider {
 }
 
 // ---------------------------------------------------------------------------
+// Brevo provider
+// ---------------------------------------------------------------------------
+
+class BrevoEmailProvider implements EmailProvider {
+  private apiKey: string;
+  private fromEmail: string;
+  private fromName: string;
+
+  constructor(apiKey: string) {
+    this.apiKey = apiKey;
+    this.fromEmail = Deno.env.get("EMAIL_FROM") ?? "noreply@example.com";
+    this.fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "BASE Monitor";
+  }
+
+  async send(msg: EmailMessage): Promise<SendResult> {
+    const payload = {
+      sender: {
+        name: this.fromName,
+        email: this.fromEmail,
+      },
+      to: [{ email: msg.to }],
+      subject: msg.subject,
+      htmlContent: msg.html,
+      textContent: msg.text ?? msg.html,
+    };
+
+    const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": this.apiKey,
+        Accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const error = await res.text();
+      return { success: false, error: `Brevo ${res.status}: ${error}` };
+    }
+
+    return { success: true };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -139,6 +186,11 @@ export function createEmailProvider(): EmailProvider {
   const provider = (Deno.env.get("EMAIL_PROVIDER") ?? "dev").toLowerCase();
 
   switch (provider) {
+    case "brevo": {
+      const key = Deno.env.get("BREVO_API_KEY");
+      if (!key) throw new Error("EMAIL_PROVIDER=brevo but BREVO_API_KEY is not set");
+      return new BrevoEmailProvider(key);
+    }
     case "sendgrid": {
       const key = Deno.env.get("SENDGRID_API_KEY");
       if (!key) throw new Error("EMAIL_PROVIDER=sendgrid but SENDGRID_API_KEY is not set");
