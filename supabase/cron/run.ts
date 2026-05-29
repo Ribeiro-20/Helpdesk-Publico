@@ -119,7 +119,10 @@ async function runIngestPipeline(): Promise<void> {
     try {
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        },
         body: JSON.stringify(requestBody),
       });
       const data = await res.json().catch(() => ({ raw: "invalid-json" }));
@@ -146,46 +149,34 @@ async function runIngestPipeline(): Promise<void> {
     const pipelineResult = { base: baseRes, ingest_dr: drRes, match_and_queue: mqRes };
     console.log("[cron] Pipeline result", pipelineResult);
 
-    // Record history in ingestion_history table using service role
     try {
       const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-      // find tenant_id and a user_id (first app_user) to attribute this run
       const { data: tenantRow } = await supabaseAdmin.from("tenants").select("id").limit(1).maybeSingle();
       const tenantId = tenantRow?.id ?? null;
 
-      let userId: string | null = null;
-      if (tenantId) {
-        const { data: appUser } = await supabaseAdmin.from("app_users").select("id").eq("tenant_id", tenantId).limit(1).maybeSingle();
-        userId = appUser?.id ?? null;
-      }
+      const steps = [
+        { fn: "ingest-base", label: "Anúncios BASE", category: "announcements", status: baseRes.ok ? "success" : "error", summary: baseRes.data ?? {}, payload: baseRes.data ?? {} },
+        { fn: "ingest-dr", label: "Anúncios DR", category: "announcements", status: drRes.ok ? "success" : "error", summary: drRes.data ?? {}, payload: drRes.data ?? {} },
+        { fn: "match-and-queue", label: "Correspondência CPV", category: "processing", status: mqRes.ok ? "success" : "error", summary: mqRes.data ?? {}, payload: mqRes.data ?? {} },
+      ];
 
-      if (tenantId && userId) {
-        const steps = [
-          { fn: "ingest-base", label: "Anúncios BASE", category: "announcements", status: baseRes.ok ? "success" : "error", summary: baseRes.data ?? {}, payload: baseRes.data ?? {} },
-          { fn: "ingest-dr", label: "Anúncios DR", category: "announcements", status: drRes.ok ? "success" : "error", summary: drRes.data ?? {}, payload: drRes.data ?? {} },
-          { fn: "match-and-queue", label: "Correspondência CPV", category: "processing", status: mqRes.ok ? "success" : "error", summary: mqRes.data ?? {}, payload: mqRes.data ?? {} },
-        ];
+      const title = "Ingestão automática";
+      const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
 
-        const title = "Ingestão automática";
-        const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
+      const { error: insertError } = await supabaseAdmin.from("ingestion_history").insert({
+        tenant_id: tenantId,
+        user_id: null,
+        title,
+        category: "announcements",
+        status,
+        range: body,
+        steps,
+        note: null,
+      });
 
-        const { error: insertError } = await supabaseAdmin.from("ingestion_history").insert({
-          tenant_id: tenantId,
-          user_id: userId,
-          title,
-          category: "announcements",
-          status,
-          range: body,
-          steps,
-          note: null,
-        });
-
-        if (insertError) console.error("[cron] ingestion_history insert failed:", insertError.message);
-        else console.log("[cron] ingestion_history recorded");
-      } else {
-        console.warn("[cron] ingestion_history not recorded: no tenant/app_user found");
-      }
+      if (insertError) console.error("[cron] ingestion_history insert failed:", insertError.message);
+      else console.log("[cron] ingestion_history recorded");
     } catch (err) {
       console.error("[cron] error recording ingestion_history:", err);
     }
@@ -206,38 +197,29 @@ async function runIngestPipeline(): Promise<void> {
 
     const { data: tenantRow } = await supabaseAdmin.from("tenants").select("id").limit(1).maybeSingle();
     const tenantId = tenantRow?.id ?? null;
-    let userId: string | null = null;
-    if (tenantId) {
-      const { data: appUser } = await supabaseAdmin.from("app_users").select("id").eq("tenant_id", tenantId).limit(1).maybeSingle();
-      userId = appUser?.id ?? null;
-    }
 
-    if (tenantId && userId) {
-      const steps = [
-        { fn: "ingest-base", label: "Anúncios BASE", category: "announcements", status: baseRes.ok ? "success" : "error", summary: baseRes.data ?? {}, payload: baseRes.data ?? {} },
-        { fn: "ingest-dr", label: "Anúncios DR", category: "announcements", status: drRes.ok ? "success" : "error", summary: drRes.data ?? {}, payload: drRes.data ?? {} },
-        { fn: "match-and-queue", label: "Correspondência CPV", category: "processing", status: mqRes.ok ? "success" : "error", summary: mqRes.data ?? {}, payload: mqRes.data ?? {} },
-      ];
+    const steps = [
+      { fn: "ingest-base", label: "Anúncios BASE", category: "announcements", status: baseRes.ok ? "success" : "error", summary: baseRes.data ?? {}, payload: baseRes.data ?? {} },
+      { fn: "ingest-dr", label: "Anúncios DR", category: "announcements", status: drRes.ok ? "success" : "error", summary: drRes.data ?? {}, payload: drRes.data ?? {} },
+      { fn: "match-and-queue", label: "Correspondência CPV", category: "processing", status: mqRes.ok ? "success" : "error", summary: mqRes.data ?? {}, payload: mqRes.data ?? {} },
+    ];
 
-      const title = "Ingestão automática";
-      const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
+    const title = "Ingestão automática";
+    const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
 
-      const { error: insertError } = await supabaseAdmin.from("ingestion_history").insert({
-        tenant_id: tenantId,
-        user_id: userId,
-        title,
-        category: "announcements",
-        status,
-        range: body,
-        steps,
-        note: null,
-      });
+    const { error: insertError } = await supabaseAdmin.from("ingestion_history").insert({
+      tenant_id: tenantId,
+      user_id: null,
+      title,
+      category: "announcements",
+      status,
+      range: body,
+      steps,
+      note: null,
+    });
 
-      if (insertError) console.error("[cron] ingestion_history insert failed:", insertError.message);
-      else console.log("[cron] ingestion_history recorded");
-    } else {
-      console.warn("[cron] ingestion_history not recorded: no tenant/app_user found");
-    }
+    if (insertError) console.error("[cron] ingestion_history insert failed:", insertError.message);
+    else console.log("[cron] ingestion_history recorded");
   } catch (err) {
     console.error("[cron] error recording ingestion_history:", err);
   }

@@ -27,7 +27,7 @@ const CORS = {
   "Content-Type": "application/json",
 };
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS });
   }
@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 
     const batchSize = Number(body.batch_size ?? 50);
     const appBaseUrl =
-      Deno.env.get("APP_BASE_URL") ?? "http://localhost:3000";
+      Deno.env.get("APP_BASE_URL") ?? "http://localhost:3001";
 
     // Fetch PENDING notifications with related data
     const { data: notifications, error: fetchErr } = await supabase
