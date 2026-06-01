@@ -252,9 +252,46 @@ function parsePrice(val: unknown): number | null {
 }
 
 export function parseNifNome(raw: string): { nif: string; name: string } {
-  const idx = raw.indexOf(" - ");
-  if (idx === -1) return { nif: raw.trim(), name: raw.trim() };
-  return { nif: raw.slice(0, idx).trim(), name: raw.slice(idx + 3).trim() };
+  const value = String(raw ?? "").trim();
+  if (!value || value === "-" || value === "—") return { nif: "", name: "" };
+
+  const match = value.match(/^\s*(?:NIF|NIPC)?\s*:?\s*(\d{9})(?:\s*[-–—]\s*(.+))?\s*$/i);
+  if (!match) return { nif: "", name: value };
+
+  const nif = match[1];
+  const name = (match[2] ?? "").trim();
+  return { nif, name: name || nif };
+}
+
+export function parseNifNomeList(text: string | null | undefined): Array<{ nif: string; name: string }> {
+  if (!text) return [];
+
+  const value = String(text);
+  const matches = Array.from(value.matchAll(/\d{9}/g));
+  const result: Array<{ nif: string; name: string }> = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const nif = match[0];
+    if (seen.has(nif)) continue;
+
+    const start = (match.index ?? 0) + nif.length;
+    const end = matches[i + 1]?.index ?? value.length;
+    const rawName = value
+      .slice(start, end)
+      .replace(/^[\s\-–—:]+/, "")
+      .replace(/[\s;,|]+$/, "")
+      .trim();
+
+    const parsed = parseNifNome(rawName ? `${nif} - ${rawName}` : nif);
+    if (parsed.nif) {
+      result.push(parsed);
+      seen.add(parsed.nif);
+    }
+  }
+
+  return result;
 }
 
 async function fetchContractsByYear(year: number): Promise<Record<string, unknown>[]> {
