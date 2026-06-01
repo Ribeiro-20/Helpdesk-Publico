@@ -124,9 +124,10 @@ export default async function HomePage() {
         #hp-global-hero .hp-global-hero-wave svg { width: 100%; height: 100%; display: block; }
         @media (max-width: 900px) { #hp-global-hero { --hp-gap-fix: 0px; padding: 40px 18px 56px 18px; } #hp-global-hero .hp-global-brand { font-size: 24px; } #hp-global-hero .hp-global-title { font-size: 36px; } #hp-global-hero .hp-global-hero-main { font-size: 17px; } #hp-global-hero .hp-global-hero-sub { font-size: 15px; } #hp-global-hero::before { width: 240px; height: 240px; right: -120px; bottom: -110px; } #hp-global-hero::after { width: 72px; height: 72px; right: 45px; top: 38px; } }
         @media (max-width: 560px) { #hp-global-hero { --hp-gap-fix: 0px; padding: 34px 14px 50px 14px; } #hp-global-hero .hp-global-brand { font-size: 20px; margin-bottom: 12px; } #hp-global-hero .hp-global-title { font-size: 30px; line-height: 1.15; } #hp-global-hero .hp-title-line { display: block; } #hp-global-hero .hp-global-hero-main { margin-top: 16px; font-size: 15px; line-height: 1.45; } #hp-global-hero .hp-global-hero-sub { margin-top: 14px; font-size: 14px; line-height: 1.55; } #hp-global-hero::before { width: 190px; height: 190px; right: -120px; bottom: -100px; } #hp-global-hero::after { display: none; } #hp-global-hero .hp-global-hero-wave { height: 36px; } }
-        @media (max-width: 390px) { #hp-global-hero { --hp-gap-fix: 0px; padding: 32px 12px 46px 12px; } #hp-global-hero .hp-global-brand { font-size: 19px; } #hp-global-hero .hp-global-title { font-size: 28px; line-height: 1.14; } #hp-global-hero .hp-global-hero-main { font-size: 14.5px; line-height: 1.45; } #hp-global-hero .hp-global-hero-sub { font-size: 13.5px; line-height: 1.5; } }
+          @media (max-width: 390px) { #hp-global-hero { --hp-gap-fix: 0px; padding: 32px 12px 46px 12px; } #hp-global-hero .hp-global-brand { font-size: 19px; } #hp-global-hero .hp-global-title { font-size: 28px; line-height: 1.14; } #hp-global-hero .hp-global-hero-main { font-size: 14.5px; line-height: 1.45; } #hp-global-hero .hp-global-hero-sub { font-size: 13.5px; line-height: 1.5; } }
+      `;
 
-  return (
+        return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
       <style dangerouslySetInnerHTML={{ __html: HERO_CSS }} />
       <Header />
