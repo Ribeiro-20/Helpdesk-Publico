@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { getSupabaseAdminEnv, getSupabasePublicEnv } from "@/lib/supabase/env";
+import { getSupabasePublicEnv } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = [
   "/",
@@ -9,28 +9,14 @@ const PUBLIC_PATHS = [
   "/estatisticas-privado",
   "/oportunidades",
   "/login-mi",
+  "/outros",
   "/api/contracts",
-  "/api/cpv-search",
   "/api/mi-login",
   "/api/mi-verify",
 ];
 
 function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(p + "/"),
-  );
-}
-
-function isPublicAnnouncementDetailPath(pathname: string): boolean {
-  const parts = pathname.split("/").filter(Boolean);
-  return (
-    parts.length === 3 &&
-    parts[0] === "api" &&
-    parts[1] === "announcements" &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      parts[2],
-    )
-  );
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
 function isPrefetchRequest(request: NextRequest): boolean {
@@ -38,29 +24,6 @@ function isPrefetchRequest(request: NextRequest): boolean {
     request.headers.get("next-router-prefetch") !== null ||
     request.headers.get("purpose") === "prefetch"
   );
-}
-
-function isInternalAdminRequest(request: NextRequest): boolean {
-  if (!request.nextUrl.pathname.startsWith("/api/admin/")) {
-    return false;
-  }
-
-  const authHeader = request.headers.get("authorization") ?? "";
-  if (!authHeader.toLowerCase().startsWith("bearer ")) {
-    return false;
-  }
-
-  const token = authHeader.slice(7).trim();
-  if (!token) {
-    return false;
-  }
-
-  try {
-    const { serviceRoleKey } = getSupabaseAdminEnv("Supabase middleware");
-    return token === serviceRoleKey;
-  } catch {
-    return false;
-  }
 }
 
 function createMiddlewareSupabaseClient(request: NextRequest) {
@@ -101,18 +64,13 @@ function createMiddlewareSupabaseClient(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isPublic =
-    isPublicPath(pathname) || isPublicAnnouncementDetailPath(pathname);
-
-  if (isInternalAdminRequest(request)) {
-    return NextResponse.next({ request });
-  }
 
   // Skip auth check entirely for public pages — no Supabase call needed
-  if (isPublic) {
+  if (isPublicPath(pathname)) {
     return NextResponse.next({ request });
   }
 
+  // Market Intelligence Protection (mi session cookie)
   if (pathname.startsWith("/outros")) {
     const miSession = request.cookies.get("mi-session")?.value;
     if (!miSession) {
@@ -128,6 +86,7 @@ export async function middleware(request: NextRequest) {
 
   const { supabase, getResponse } = createMiddlewareSupabaseClient(request);
 
+  // Opening /login invalidates any existing session and shows login form again.
   if (isLoginPage && request.method === "GET" && !isPrefetchRequest(request)) {
     await supabase.auth.signOut();
     return getResponse();

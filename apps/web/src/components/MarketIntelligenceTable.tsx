@@ -5,6 +5,32 @@ import ContractModal from "./ContractModal";
 import { createClient } from "@/lib/supabase/client";
 import InfoPopover from "./InfoPopover";
 
+/** Extract NIF and name from strings like "501413197 - Nome da Empresa" or "- - Nome" or "- Nome" */
+function parseEntityString(raw: unknown): { nif: string; name: string } {
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    // Match a 9-digit NIF at the beginning followed by a hyphen
+    const match = trimmed.match(/^(\d{9})\s*-\s*(.+)$/);
+    if (match) {
+      return {
+        nif: match[1],
+        name: match[2].replace(/^[\s\-\/\.]+/g, "").trim() || "—",
+      };
+    }
+    // Otherwise, it's just a name, clean up any leading hyphens, spaces, or dots
+    const cleanedName = trimmed.replace(/^[\s\-\/\.]+/g, "").trim();
+    return { nif: "", name: cleanedName || "—" };
+  }
+  if (raw && typeof raw === "object") {
+    const record = raw as Record<string, unknown>;
+    const value = (record.value ?? record.label ?? record.text ?? record.name) as string | undefined;
+    if (typeof value === "string" && value.trim()) {
+      return parseEntityString(value);
+    }
+  }
+  return { nif: "", name: "—" };
+}
+
 interface Contract {
   id: string;
   object: string | null;
@@ -18,10 +44,15 @@ interface Contract {
   is_overdue: boolean;
 }
 
-export default function MarketIntelligenceTable({ contracts }: { contracts: Contract[] }) {
+export default function MarketIntelligenceTable({ 
+  contracts,
+  itemsPerPage = 20
+}: { 
+  contracts: Contract[];
+  itemsPerPage?: number;
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 20;
   const [cpvDescriptions, setCpvDescriptions] = useState<Record<string, string>>({});
   const supabase = createClient();
 
@@ -62,7 +93,13 @@ export default function MarketIntelligenceTable({ contracts }: { contracts: Cont
     };
   }, [cpvCodesOnPage, cpvDescriptions, supabase]);
 
-  if (contracts.length === 0) {
+  // Filter out contracts that have reached 105% or more
+  const visibleContracts = useMemo(
+    () => contracts.filter((c) => c.progress < 1.05),
+    [contracts]
+  );
+
+  if (visibleContracts.length === 0) {
     return (
       <div className="bg-white rounded-2xl p-12 text-center border border-dashed border-gray-200 shadow-sm">
         <p className="text-gray-500 font-medium">Não foram encontrados contratos com este critério.</p>
@@ -71,8 +108,8 @@ export default function MarketIntelligenceTable({ contracts }: { contracts: Cont
     );
   }
 
-  const totalPages = Math.ceil(contracts.length / itemsPerPage);
-  const currentItems = contracts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPages = Math.ceil(visibleContracts.length / itemsPerPage);
+  const currentItems = visibleContracts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const pages = [];
   for (let i = 1; i <= totalPages; i++) {
@@ -130,20 +167,19 @@ export default function MarketIntelligenceTable({ contracts }: { contracts: Cont
               {currentItems.map((c) => {
                 let barColor = "bg-green-400";
                 let textColor = "text-gray-700";
-                let progressLabel = `${(c.progress * 100).toFixed(0)}%`;
+                const progressPct = (c.progress * 100).toFixed(0);
+                let progressLabel = `${progressPct}%`;
 
                 if (c.progress >= 1.0) {
                   barColor = "bg-rose-500";
                   textColor = "text-rose-600 font-bold";
-                  progressLabel = "Terminado";
+                  progressLabel = `${progressPct}%`;
                 } else if (c.progress >= 0.9) {
                   barColor = "bg-yellow-400";
                   textColor = "text-amber-600 font-bold";
-                  progressLabel = `${(c.progress * 100).toFixed(0)}%`;
                 } else {
                   barColor = "bg-green-400";
                   textColor = "text-green-700 font-bold";
-                  progressLabel = `${(c.progress * 100).toFixed(0)}%`;
                 }
 
                 return (
@@ -178,12 +214,34 @@ export default function MarketIntelligenceTable({ contracts }: { contracts: Cont
                       )}
                     </td>
                     <td className="px-6 py-5">
-                      <p className="text-xs text-gray-500 font-medium truncate max-w-[200px]">
-                        {c.contracting_entities?.[0] || "N/A"}
-                      </p>
-                      <p className="text-[10px] text-gray-400 mt-0.5 italic truncate max-w-[200px]">
-                        {c.winners?.[0] || "N/A"}
-                      </p>
+                      {(() => {
+                        const entity = parseEntityString(c.contracting_entities?.[0]);
+                        const winner = parseEntityString(c.winners?.[0]);
+                        return (
+                          <>
+                            <p className="text-xs text-gray-700 font-semibold truncate max-w-[250px]" title={entity.nif ? `${entity.nif} - ${entity.name}` : entity.name}>
+                              {entity.nif ? (
+                                <>
+                                  <span className="text-green-600 font-bold">{entity.nif}</span>
+                                  <span className="text-gray-500"> - {entity.name}</span>
+                                </>
+                              ) : (
+                                <span className="text-gray-500">{entity.name}</span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-gray-400 mt-1 italic truncate max-w-[250px]" title={winner.nif ? `${winner.nif} - ${winner.name}` : winner.name}>
+                              {winner.nif ? (
+                                <>
+                                  <span className="not-italic font-semibold text-gray-500">{winner.nif}</span>
+                                  <span> - {winner.name}</span>
+                                </>
+                              ) : (
+                                <span>{winner.name}</span>
+                              )}
+                            </p>
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex flex-col items-center gap-1.5 min-w-[100px]">
@@ -213,7 +271,7 @@ export default function MarketIntelligenceTable({ contracts }: { contracts: Cont
         {/* Pagination Controls */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
           <div className="text-xs text-gray-500 font-medium">
-            A mostrar {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, contracts.length)} de {contracts.length} resultados
+            A mostrar {(currentPage - 1) * itemsPerPage + 1} a {Math.min(currentPage * itemsPerPage, visibleContracts.length)} de {visibleContracts.length} resultados
           </div>
           <div className="flex items-center gap-1">
             <button
