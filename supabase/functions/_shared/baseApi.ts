@@ -328,9 +328,11 @@ export async function listAllContracts(
 }
 
 export function mapToContract(payload: Record<string, unknown>): BaseContractMapped {
-  const rawCpvs = Array.isArray(payload.cpv)
-    ? (payload.cpv as string[]).map(extractCpvCode)
-    : [];
+  // 1. CPV: Can be "cpv" or "CPV", and can be a string or an array
+  const cpvSource = (payload.cpv ?? payload.CPV) as string | string[] | undefined;
+  const rawCpvs = Array.isArray(cpvSource)
+    ? cpvSource.map(extractCpvCode)
+    : cpvSource ? [extractCpvCode(String(cpvSource))] : [];
   const cpvMain = rawCpvs[0] ?? null;
 
   const publicationDate = parsePtDate(payload.dataPublicacao as string) ?? null;
@@ -339,21 +341,29 @@ export function mapToContract(payload: Record<string, unknown>): BaseContractMap
   const closeDate = parsePtDate(payload.dataFechoContrato as string) ?? null;
   const effectiveDate = signingDate ?? publicationDate;
 
+  // 2. Contract Type: Can be a string or an array
   const contractType = Array.isArray(payload.tipoContrato)
     ? (payload.tipoContrato as string[])[0] ?? null
     : typeof payload.tipoContrato === "string"
     ? payload.tipoContrato
     : null;
 
-  const contractingEntities = Array.isArray(payload.adjudicante)
-    ? (payload.adjudicante as string[])
-    : [];
-  const winners = Array.isArray(payload.adjudicatarios)
-    ? (payload.adjudicatarios as string[])
-    : [];
-  const executionLocations = Array.isArray(payload.localExecucao)
-    ? (payload.localExecucao as string[])
-    : [];
+  // 3. Entities: Can be a string or an array
+  const adjudicanteSource = payload.adjudicante as string | string[] | undefined;
+  const contractingEntities = Array.isArray(adjudicanteSource)
+    ? (adjudicanteSource as string[])
+    : adjudicanteSource ? [String(adjudicanteSource)] : [];
+
+  const adjudicatariosSource = payload.adjudicatarios as string | string[] | undefined;
+  const winners = Array.isArray(adjudicatariosSource)
+    ? (adjudicatariosSource as string[])
+    : adjudicatariosSource ? [String(adjudicatariosSource)] : [];
+
+  const executionLocationsSource = payload.localExecucao as string | string[] | undefined;
+  const executionLocations = Array.isArray(executionLocationsSource)
+    ? (executionLocationsSource as string[])
+    : executionLocationsSource ? [String(executionLocationsSource)] : [];
+
   const executionDays = typeof payload.prazoExecucao === "number"
     ? payload.prazoExecucao
     : payload.prazoExecucao

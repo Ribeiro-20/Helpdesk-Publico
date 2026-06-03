@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Base Monitor | Helpdesk Público",
-  description: "Monitorização de anúncios de contratação pública",
+  title: "Helpdesk Público | Informação do Mercado Público",
+  description: "Helpdesk Público | Informação do Mercado Público",
   icons: {
-    icon: "/logo_icon.png",
+    icon: "/android-chrome-57x57.png",
   },
 };
 
@@ -22,7 +22,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt">
-      <body>{children}</body>
+      <body>
+        {/* Google Tag (gtag.js) */}
+        <script
+          async
+          src="https://www.googletagmanager.com/gtag/js?id=G-TXXYEHSNSB"
+        ></script>
+        {children}
+      </body>
     </html>
   );
 }

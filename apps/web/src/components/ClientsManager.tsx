@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import CpvSearchInput, { type CpvCode } from "./CpvSearchInput";
 import { Mail, Phone, UserRound, X } from "lucide-react";
 
@@ -949,8 +950,46 @@ export default function ClientsManager({
       }
     }
 
+    const clientIdForMatch = editingId;
+
+    // Refresh UI first
     setEditingId(null);
     await reload();
+
+    // After successful update, trigger match-and-queue for this client and then send-emails.
+    // This will only create notifications for announcements that do not already have notifications
+    // for this client, avoiding duplicate resends.
+    (async () => {
+      try {
+        const { url, anonKey } = getSupabasePublicEnv("Supabase browser client");
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token ?? "";
+
+        // Trigger match-and-queue for this single client
+        await fetch(`${url}/functions/v1/match-and-queue`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({ client_id: clientIdForMatch }),
+        });
+
+        // Then run send-emails to process any newly created PENDING notifications
+        await fetch(`${url}/functions/v1/send-emails`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({}),
+        });
+      } catch (err) {
+        console.error("Error triggering match/send for client:", err);
+      }
+    })();
   }
 
   async function toggleActive(client: Client) {
