@@ -99,9 +99,11 @@ function extractUrl(payload: unknown): string | null {
 export default function AnnouncementModal({
   announcementId,
   onClose,
+  showSource = true,
 }: {
   announcementId: string;
   onClose: () => void;
+  showSource?: boolean;
 }) {
   const [data, setData] = useState<{
     announcement: AnnouncementDetail;
@@ -291,12 +293,14 @@ export default function AnnouncementModal({
                     </p>
                     <p className="text-sm text-gray-800">{fmtDate(announcement.proposal_deadline_at)}</p>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Fonte
-                    </p>
-                    <p className="text-sm text-gray-800">{announcement.source ?? "-"}</p>
-                  </div>
+                  {showSource && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
+                        Fonte
+                      </p>
+                      <p className="text-sm text-gray-800">{announcement.source ?? "-"}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -330,7 +334,7 @@ export default function AnnouncementModal({
 
                   <InfoCard title="Referências">
                     <Field label="Nº DR / Base" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
-                    <Field label="Fonte" value={announcement.source} />
+                    {showSource && <Field label="Fonte" value={announcement.source} />}
                     <Field label="Versões" value={versions.length} />
                     {piecesUrl && (
                       <div>

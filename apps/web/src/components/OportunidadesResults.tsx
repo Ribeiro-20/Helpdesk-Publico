@@ -219,6 +219,7 @@ export default function OportunidadesResults({
         <AnnouncementModal
           announcementId={selectedAnnouncementId}
           onClose={() => setSelectedAnnouncementId(null)}
+          showSource={false}
         />
       )}
     </>
