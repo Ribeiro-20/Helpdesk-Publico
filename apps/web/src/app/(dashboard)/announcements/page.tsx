@@ -364,11 +364,16 @@ export default async function AnnouncementsPage({
   if (dateTo) query = query.lte("publication_date", dateTo);
 
   if (sortCol === "publication_date") {
-    query = query.order(sortCol, { ascending: sortDir === "asc", nullsFirst: false });
+    query = query
+      .order("publication_date", { ascending: sortDir === "asc", nullsFirst: false })
+      .order("created_at", { ascending: sortDir === "asc", nullsFirst: false })
+      .order("id", { ascending: sortDir === "asc" });
   } else {
     query = query
       .order(sortCol, { ascending: sortDir === "asc", nullsFirst: false })
-      .order("publication_date", { ascending: false });
+      .order("publication_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false });
   }
 
   query = query.range(from, to);

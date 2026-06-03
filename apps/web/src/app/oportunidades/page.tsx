@@ -49,12 +49,6 @@ type OpportunityRow = {
   status: string;
 };
 
-type OpportunityFacetRow = {
-  act_type: string | null;
-  procedure_type: string | null;
-  contract_type: string | null;
-};
-
 const CONTRACT_TYPE_CANONICAL = [
   "Aquisição de bens móveis",
   "Aquisição de serviços",
@@ -294,46 +288,21 @@ export default async function OportunidadesPage({
 
   let opportunities: OpportunityRow[] = [];
   let totalCount = 0;
-  let actTypeOptions: string[] = [];
-  let modelTypeOptions: string[] = [];
-  let contractTypeOptions: string[] = [];
+  const actTypeOptions = [...ACT_TYPE_CANONICAL];
+  const modelTypeOptions = [...MODEL_TYPE_CANONICAL];
+  const contractTypeOptions = [...CONTRACT_TYPE_CANONICAL];
 
   if (tenantId) {
-    const { data: facetData } = await supabase
-      .from("announcements")
-      .select("act_type, procedure_type, contract_type")
-      .eq("tenant_id", tenantId);
-
-    const facetRows = (facetData ?? []) as OpportunityFacetRow[];
-    const actTypeSet = new Set<string>();
-    const contractTypeSet = new Set<string>();
-
-    for (const row of facetRows) {
-      if (row.act_type) {
-        const normalizedAct = normalizeActType(row.act_type);
-        if (ACT_TYPE_CANONICAL.includes(normalizedAct as (typeof ACT_TYPE_CANONICAL)[number])) {
-          actTypeSet.add(normalizedAct);
-        }
-      }
-      if (row.contract_type) {
-        const normalizedContract = normalizeContractType(row.contract_type);
-        if (CONTRACT_TYPE_CANONICAL.includes(normalizedContract as (typeof CONTRACT_TYPE_CANONICAL)[number])) {
-          contractTypeSet.add(normalizedContract);
-        }
-      }
-    }
-
-    actTypeOptions = [...ACT_TYPE_CANONICAL];
-    modelTypeOptions = [...MODEL_TYPE_CANONICAL];
-    contractTypeOptions = [...CONTRACT_TYPE_CANONICAL];
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let query = supabase
       .from("announcements")
       .select(
         "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_at, cpv_main, base_price, currency, status",
+        { count: "exact" },
       )
-      .eq("tenant_id", tenantId)
-      .limit(5000);
+      .eq("tenant_id", tenantId);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) query = query.ilike("entity_name", `%${entity}%`);
@@ -352,22 +321,39 @@ export default async function OportunidadesPage({
     if (toDate) query = query.lte("publication_date", toDate);
 
     if (sort === "publication_date_asc") {
-      query = query.order("publication_date", { ascending: true });
+      query = query
+        .order("publication_date", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true, nullsFirst: false })
+        .order("id", { ascending: true });
     } else if (sort === "value_desc") {
-      query = query.order("base_price", { ascending: false }).order("publication_date", { ascending: false });
+      query = query
+        .order("base_price", { ascending: false, nullsFirst: false })
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     } else if (sort === "value_asc") {
-      query = query.order("base_price", { ascending: true }).order("publication_date", { ascending: false });
+      query = query
+        .order("base_price", { ascending: true, nullsFirst: false })
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     } else if (sort === "deadline_asc") {
-      query = query.order("proposal_deadline_at", { ascending: true }).order("publication_date", { ascending: false });
+      query = query
+        .order("proposal_deadline_at", { ascending: true, nullsFirst: false })
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     } else {
-      query = query.order("publication_date", { ascending: false });
+      query = query
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     }
 
-    const { data } = await query;
-    const rows = (data ?? []) as OpportunityRow[];
+    const { data, count } = await query.range(from, to);
 
-    totalCount = rows.length;
-    opportunities = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    totalCount = count ?? 0;
+    opportunities = (data ?? []) as OpportunityRow[];
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
