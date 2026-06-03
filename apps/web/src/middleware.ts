@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/api/contracts",
   "/api/mi-login",
   "/api/mi-verify",
+  "/api/announcements",
 ];
 
 function isPublicPath(pathname: string): boolean {
