@@ -11,6 +11,7 @@ export interface ContractRow {
   object: string | null;
   procedure_type: string | null;
   contract_type?: string | null;
+  publication_date: string | null;
   signing_date: string | null;
   execution_deadline_days?: number | null;
   execution_locations?: string[];
@@ -217,7 +218,7 @@ export default function ContractsTable({
                   <span className="inline-flex items-center gap-1">
                     CPV
                     <InfoPopover
-                      text="passe o rato por cima do código cpv para ver a descrição."
+                      text="Passe o cursor sobre o código CPV para visualizar a descrição"
                       ariaLabel="Informação sobre coluna CPV"
                       placement="bottom"
                     />
@@ -271,7 +272,7 @@ export default function ContractsTable({
                       {winnerName}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">
-                      {formatDate(c.signing_date)}
+                      {formatDate(c.publication_date)}
                     </td>
                     <td className="px-4 py-3 w-[110px]">
                       {c.cpv_main ? (

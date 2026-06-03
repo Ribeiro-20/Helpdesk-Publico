@@ -22,13 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function formatEur(val: number | null): string {
   if (val == null) return "\u2014";
-  if (val >= 1_000_000) {
-    return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M \u20AC`;
-  }
-  if (val >= 1_000) {
-    return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k \u20AC`;
-  }
-  return val.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " \u20AC";
+  return val.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " \u20AC";
 }
 
 function formatDate(d: string | null): string {
@@ -124,7 +118,6 @@ export default async function ContractsPage({
   const from = (page - 1) * PAGE_SIZE;
 
   // Use search_contracts RPC for JSONB-aware filtering
-  const hasNifFilter = entityNifFilter || winnerNifFilter;
   const hasAnyFilter = cpvFilter || entityFilter || entityNifFilter || winnerFilter || winnerNifFilter || procedureFilter || minValue || maxValue || fromDate || toDate;
 
   // Combine entity text filter with NIF: if user typed entity name, search in JSONB text;
@@ -174,6 +167,18 @@ export default async function ContractsPage({
   }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  const cpvCodes = [...new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[])];
+  const cpvDescriptions: Record<string, string> = {};
+  if (cpvCodes.length > 0) {
+    const { data: cpvData } = await supabase
+      .from("cpv_codes")
+      .select("id, descricao")
+      .in("id", cpvCodes);
+    for (const row of (cpvData ?? []) as Array<{ id: string; descricao: string }>) {
+      if (row.id) cpvDescriptions[row.id] = row.descricao ?? "";
+    }
+  }
 
   // Build query string helper
   function buildQs(overrides: Record<string, string | number> = {}) {
@@ -381,9 +386,18 @@ export default async function ContractsPage({
                     </td>
                     <td className="px-4 py-3">
                       {c.cpv_main ? (
-                        <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap">
-                          {c.cpv_main}
-                        </span>
+                        <div className="relative inline-flex group">
+                          <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap">
+                            {c.cpv_main}
+                          </span>
+                          {cpvDescriptions[c.cpv_main] && (
+                            <div className="pointer-events-none absolute z-50 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible left-0 top-[calc(100%+6px)]">
+                              <span className="absolute h-2 w-2 rotate-45 bg-white border-l border-t border-gray-200 left-2 -top-1" />
+                              <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">CPV</p>
+                              <p className="text-xs leading-5 text-gray-700">{cpvDescriptions[c.cpv_main]}</p>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         "\u2014"
                       )}
@@ -392,11 +406,6 @@ export default async function ContractsPage({
                       <span className="text-gray-900 font-medium text-xs">
                         {formatEur(c.contract_price)}
                       </span>
-                      {discountBadge(c.base_price, c.contract_price) && (
-                        <span className="ml-1.5">
-                          {discountBadge(c.base_price, c.contract_price)}
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span

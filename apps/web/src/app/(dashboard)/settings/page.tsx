@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import AdminActions from "@/components/AdminActions";
 import PageHeader from "@/components/layout/PageHeader";
+import Link from "next/link";
 import { Settings } from "lucide-react";
 
 function Field({
@@ -98,13 +99,22 @@ export default async function SettingsPage() {
       {/* Admin actions */}
       {isAdmin && (
         <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900 mb-1">
-              Ações de Administração
-            </h2>
-            <p className="text-gray-400 text-sm mt-1">
-              Operações manuais para testes e manutenção.
-            </p>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 mb-1">
+                Ações de Administração
+              </h2>
+              <p className="text-gray-400 text-sm mt-1">
+                Operações manuais para testes e manutenção.
+              </p>
+            </div>
+
+            <Link
+              href="/settings/historico-ingestao"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand-700 shadow-sm hover:shadow-md"
+            >
+              Histórico de ingestão
+            </Link>
           </div>
           <AdminActions
             isInitialised={isInitialised}

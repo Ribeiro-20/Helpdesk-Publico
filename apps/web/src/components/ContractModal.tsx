@@ -50,41 +50,63 @@ interface Contract {
   base_incm_id: string | null;
 }
 
+function decodeHtml(str: string): string {
+  return str
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'");
+}
+
 function extractName(raw: unknown): string {
   if (typeof raw === "string") {
-    const idx = raw.indexOf(" - ");
-    return idx === -1 ? raw : raw.slice(idx + 3);
+    const s = decodeHtml(raw);
+    const spaceIdx = s.indexOf(" - ");
+    if (spaceIdx !== -1) return s.slice(spaceIdx + 3).trim();
+    const nifMatch = s.match(/^\d{5,12}-(.+)$/);
+    if (nifMatch) return nifMatch[1].trim();
+    // Strip leading "--" placeholder (BASE API uses this when NIF is unknown)
+    return s.replace(/^-+\s*/, "").trim() || s;
   }
 
   if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
     const directName = record.name;
-    if (typeof directName === "string" && directName.trim()) return directName;
+    if (typeof directName === "string" && directName.trim()) return decodeHtml(directName.trim());
 
     const value = record.value ?? record.label ?? record.text;
     if (typeof value === "string" && value.trim()) {
-      const idx = value.indexOf(" - ");
-      return idx === -1 ? value : value.slice(idx + 3);
+      const s = decodeHtml(value);
+      const idx = s.indexOf(" - ");
+      return idx === -1 ? s : s.slice(idx + 3).trim();
     }
   }
 
   return "—";
 }
+
 function extractNif(raw: unknown): string {
   if (typeof raw === "string") {
-    const idx = raw.indexOf(" - ");
-    return idx === -1 ? "" : raw.slice(0, idx);
+    const s = decodeHtml(raw);
+    const spaceIdx = s.indexOf(" - ");
+    if (spaceIdx !== -1) return s.slice(0, spaceIdx).trim();
+    const nifMatch = s.match(/^(\d{5,12})-/);
+    if (nifMatch) return nifMatch[1];
+    return "";
   }
 
   if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
     const nif = record.nif;
-    if (typeof nif === "string" && nif.trim()) return nif;
+    if (typeof nif === "string" && nif.trim()) return nif.trim();
 
     const value = record.value ?? record.label ?? record.text;
     if (typeof value === "string") {
-      const idx = value.indexOf(" - ");
-      return idx === -1 ? "" : value.slice(0, idx);
+      const s = decodeHtml(value);
+      const idx = s.indexOf(" - ");
+      return idx === -1 ? "" : s.slice(0, idx).trim();
     }
   }
 
@@ -93,36 +115,31 @@ function extractNif(raw: unknown): string {
 
 function parseCompetitors(raw: string): string[] {
   if (!raw) return [];
-  const trimmed = raw.trim();
+  const trimmed = decodeHtml(raw.trim());
 
   // 1. Try standard JSON array ["a","b"]
   if (trimmed.startsWith("[")) {
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed))
-        return parsed.map((s: string) => String(s).trim()).filter(Boolean);
+        return parsed.map((s: string) => decodeHtml(String(s).trim())).filter(Boolean);
     } catch {
       // fall through
     }
 
-    // 2. Try single-quote array ['a','b'] — replace outer single quotes with double quotes
+    // 2. Try single-quote array ['a','b']
     try {
       const normalized = trimmed
-        .replace(/^\[/, "[")
-        .replace(/]$/, "]")
-        // replace single-quoted strings: 'value' -> "value"
-        // but only at item boundaries (preceded by [ or , and followed by , or ])
         .replace(/'([^']*)'/g, (_, inner) => `"${inner.replace(/"/g, '\\"')}"`);
       const parsed = JSON.parse(normalized);
       if (Array.isArray(parsed))
-        return parsed.map((s: string) => String(s).trim()).filter(Boolean);
+        return parsed.map((s: string) => decodeHtml(String(s).trim())).filter(Boolean);
     } catch {
       // fall through
     }
 
-    // 3. Fallback: strip brackets and split by "," (quoted delimiter)
-    const inner = trimmed.slice(1, -1); // remove [ and ]
-    // Split on '",  "' or '", "' patterns — items separated by quote-comma-quote
+    // 3. Fallback: strip brackets and split by quoted delimiter
+    const inner = trimmed.slice(1, -1);
     const byQuoteComma = inner.split(/['"]\s*,\s*['"]/);
     if (byQuoteComma.length > 1) {
       return byQuoteComma
@@ -131,8 +148,13 @@ function parseCompetitors(raw: string): string[] {
     }
   }
 
-  // 4. Plain comma-separated (no brackets) — but careful with "Empresa, S.A." patterns
-  // Split only on commas followed by a space and an uppercase letter or digit (new entry heuristic)
+  // 4. Semicolon-separated (common format from BASE.gov.pt)
+  if (trimmed.includes(";")) {
+    const parts = trimmed.split(";").map((s) => s.trim()).filter(Boolean);
+    if (parts.length > 1) return parts;
+  }
+
+  // 5. Plain comma-separated — careful with "Empresa, S.A." patterns
   const entries: string[] = [];
   let current = "";
   for (let i = 0; i < trimmed.length; i++) {
@@ -143,16 +165,13 @@ function parseCompetitors(raw: string): string[] {
       i + 2 < trimmed.length &&
       /[A-Z0-9]/.test(trimmed[i + 2])
     ) {
-      // Check it's not a known suffix like "Lda.", "S.A.", "Unip.", etc.
       const next = trimmed.slice(i + 1).trimStart();
       const isSuffix =
-        /^(S\.A\.|Lda\.|Unip\.|Lda|SA|Unipessoal|e\.V\.|Inc\.|Ltd\.)/i.test(
-          next,
-        );
+        /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i.test(next);
       if (!isSuffix) {
         entries.push(current.trim());
         current = "";
-        i++; // skip the space
+        i++;
         continue;
       }
     }
