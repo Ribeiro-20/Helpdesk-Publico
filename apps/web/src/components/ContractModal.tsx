@@ -67,7 +67,8 @@ function extractName(raw: unknown): string {
     if (spaceIdx !== -1) return s.slice(spaceIdx + 3).trim();
     const nifMatch = s.match(/^\d{5,12}-(.+)$/);
     if (nifMatch) return nifMatch[1].trim();
-    return s;
+    // Strip leading "--" placeholder (BASE API uses this when NIF is unknown)
+    return s.replace(/^-+\s*/, "").trim() || s;
   }
 
   if (raw && typeof raw === "object") {
