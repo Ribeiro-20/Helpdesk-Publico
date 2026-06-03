@@ -355,7 +355,7 @@ export default function AnnouncementModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoCard title="Entidade adjudicante">
                     <Field label="Entidade" value={announcement.entity_name} />
-                    <Field label="NIF" value={announcement.entity_nif} mono />
+                    <Field label="NIPC" value={announcement.entity_nif} mono />
                   </InfoCard>
 
                   <InfoCard title="Estado do anúncio">
