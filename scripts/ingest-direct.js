@@ -82,7 +82,7 @@ async function main() {
     `[ingest-direct] Fetching contracts for ${yearsToFetch.length === 1 ? `year ${yearsToFetch[0]}` : `years ${yearsToFetch[0]}..${yearsToFetch[yearsToFetch.length - 1]}`} (limit: ${limit})`
   );
   if (fromDate && toDate) {
-    console.log(`[ingest-direct] Filtering by signing date in range ${fromDate}..${toDate}`);
+    console.log(`[ingest-direct] Filtering by publication date in range ${fromDate}..${toDate}`);
   }
 
   let inserted = 0;
@@ -248,7 +248,7 @@ async function main() {
       const contract = mapToContract(raw);
 
       if (fromDate && toDate) {
-        const effectiveDate = contract.signing_date || contract.publication_date;
+        const effectiveDate = contract.publication_date || contract.signing_date;
         if (!effectiveDate || effectiveDate < fromDate || effectiveDate > toDate) {
           skipped++;
           continue;
