@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "tsx run.ts",
-    "once": "tsx run.ts --once"
+    "once": "tsx run.ts --once",
+    "contracts": "tsx cron-contracts.ts",
+    "contracts:once": "tsx cron-contracts.ts --once"
   },
   "dependencies": {
     "node-cron": "^3.0.3",
