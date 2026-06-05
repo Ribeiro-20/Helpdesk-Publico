@@ -38,3 +38,12 @@ class Subscription(models.Model):
     raw = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+
+class PaymentSubscription(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    record_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    membership_timestamp = models.DateTimeField(null=True, blank=True, db_index=True)
+    raw = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
