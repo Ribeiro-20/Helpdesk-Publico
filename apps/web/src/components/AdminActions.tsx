@@ -622,15 +622,23 @@ export default function AdminActions({
       ) => {
         const res = await fetch("/api/admin/ingest-contracts", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
         });
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        return { res, data };
+      };
 
-        const data = await res
-          .json()
-          .catch(() => ({ error: `HTTP ${res.status}` }));
+      const runAdminApi = async (
+        endpoint: string,
+        requestBody: Record<string, unknown>,
+      ) => {
+        const res = await fetch(`/api/admin/${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         return { res, data };
       };
 
@@ -909,6 +917,24 @@ export default function AdminActions({
           steps: [
             buildHistoryStep("ingest-contracts", "Contratos", data, "success"),
           ],
+        });
+        router.refresh();
+        return;
+      }
+
+      if (fn === "extract-entities" || fn === "extract-companies") {
+        setInfo(`A executar ${labelFromFn(fn)}...`);
+        const { res: adminRes, data: adminData } = await runAdminApi(fn, body);
+        if (!adminRes.ok) {
+          throw new Error(
+            (adminData as Record<string, string>)?.error ?? `HTTP ${adminRes.status}`,
+          );
+        }
+        setResults((prev) => [{ fn, data: adminData }, ...prev.slice(0, 4)]);
+        await recordHistory({
+          title: actionLabel,
+          status: "success",
+          steps: [buildHistoryStep(fn, actionLabel, adminData, "success")],
         });
         router.refresh();
         return;
