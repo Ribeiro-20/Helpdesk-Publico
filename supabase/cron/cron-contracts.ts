@@ -24,14 +24,35 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { readFileSync, existsSync } from "node:fs";
 import cron from "node-cron";
 import { createClient } from "@supabase/supabase-js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// Carrega .env da raiz primeiro, depois supabase/functions/.env sobrepõe
-// (functions/.env tem as credenciais JWT correctas para o PostgREST local)
 loadDotenv({ path: resolve(__dirname, "../../.env") });
-loadDotenv({ path: resolve(__dirname, "../functions/.env"), override: true });
+
+// Lê supabase/functions/.env manualmente para garantir que sobrepõe
+// (tem as credenciais JWT correctas para o PostgREST local)
+function parseDotenvFile(filePath: string): Record<string, string> {
+  if (!existsSync(filePath)) return {};
+  const lines = readFileSync(filePath, "utf-8").split("\n");
+  const result: Record<string, string> = {};
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const idx = trimmed.indexOf("=");
+    if (idx === -1) continue;
+    const key = trimmed.slice(0, idx).trim();
+    const value = trimmed.slice(idx + 1).trim().replace(/^['"]|['"]$/g, "");
+    result[key] = value;
+  }
+  return result;
+}
+
+const functionsEnv = parseDotenvFile(resolve(__dirname, "../functions/.env"));
+for (const [key, value] of Object.entries(functionsEnv)) {
+  process.env[key] = value;
+}
 
 const execFileAsync = promisify(execFile);
 
