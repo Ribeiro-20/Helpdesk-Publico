@@ -51,13 +51,20 @@ interface Contract {
 }
 
 function decodeHtml(str: string): string {
-  return str
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'");
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
 }
 
 function extractName(raw: unknown): string {
