@@ -247,7 +247,7 @@ async function main() {
 
       const contract = mapToContract(raw);
 
-      if (fromDate && toDate) {
+      if (fromDate && toDate && !useRecentWindow) {
         const effectiveDate = contract.publication_date || contract.signing_date;
         if (!effectiveDate || effectiveDate < fromDate || effectiveDate > toDate) {
           skipped++;
