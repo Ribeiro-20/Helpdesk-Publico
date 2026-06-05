@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;
 
 const STATUS_BADGE: Record<string, string> = {
-  active: "bg-green-100 text-green-700",
+  active: "bg-brand-100 text-brand-700",
   closed: "bg-gray-100 text-gray-600",
   modified: "bg-amber-100 text-amber-700",
 };
@@ -40,7 +40,7 @@ function discountBadge(base: number | null, contract: number | null) {
   return (
     <span
       className={`inline-block text-xs px-1.5 py-0.5 rounded font-medium ${
-        isDiscount ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+        isDiscount ? "bg-brand-50 text-brand-700" : "bg-red-50 text-red-700"
       }`}
     >
       {isDiscount ? "-" : "+"}{Math.abs(pct).toFixed(0)}%

@@ -199,7 +199,7 @@ export default function OportunidadesResults({
 
           <span
             className="px-3 py-1.5 text-sm font-medium rounded-xl text-gray-900"
-            style={{ background: "rgba(74, 222, 128, 1)" }}
+            style={{ background: "#3f6f27" }}
           >
             {page} / {totalPages}
           </span>

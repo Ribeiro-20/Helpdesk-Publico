@@ -130,7 +130,7 @@ export default async function CompanyDetailPage({
             <span
               className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-medium ${
                 company.win_rate >= 50
-                  ? "bg-green-50 text-green-700 border border-green-100"
+                  ? "bg-brand-50 text-brand-700 border border-brand-100"
                   : company.win_rate >= 25
                   ? "bg-amber-50 text-amber-700 border border-amber-100"
                   : "bg-gray-100 text-gray-600 border border-gray-200"
@@ -251,7 +251,7 @@ export default async function CompanyDetailPage({
           <div className="space-y-2">
             {recentContracts.map((c) => (
               <div key={c.id} className="flex items-start gap-3 text-sm border-b border-surface-100 last:border-0 pb-2 last:pb-0">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-400 mt-2 shrink-0" />
+                <div className="w-1.5 h-1.5 rounded-full bg-brand-400 mt-2 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <Link
                     href={`/contracts/${c.id}`}

@@ -206,7 +206,7 @@ function fmtDate(d: string | null): string {
 }
 
 const HEADER_BG = "rgba(26, 27, 31, 1)";
-const GREEN = "rgba(74, 222, 128, 1)";
+const GREEN = "#3f6f27";
 
 export default function ContractModal({
   contractId,
