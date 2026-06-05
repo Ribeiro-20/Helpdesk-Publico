@@ -38,6 +38,7 @@ const execFileAsync = promisify(execFile);
 
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+const TENANT_ID_ENV = process.env.TENANT_ID ?? "c43fcb2c-2f0a-43c5-98ca-4a844ddc356d";
 const FUNCTIONS_BASE = `${SUPABASE_URL}/functions/v1`;
 const SCRIPTS_DIR = resolve(__dirname, "../../scripts");
 
@@ -114,20 +115,16 @@ function parseCompetitors(text: string | null): Array<{ nif: string; name: strin
 // Step 1 – ingest-contracts via ingest-direct.js
 // ---------------------------------------------------------------------------
 
-async function runIngestContracts(today: string): Promise<void> {
+async function runIngestContracts(today: string, tenantId: string): Promise<void> {
   console.log(`[cron-contracts] → ingest-contracts (${today})...`);
   try {
-    const supabase = getSupabase();
-    const { data: tenant } = await supabase.from("tenants").select("id").limit(1).maybeSingle();
-    const tenantId = (tenant as { id: string } | null)?.id ?? "";
-
     const { stdout, stderr } = await execFileAsync(
       "node",
       [
         "ingest-direct.js",
         "--from", today,
         "--to", today,
-        ...(tenantId ? ["--tenant-id", tenantId] : []),
+        "--tenant-id", tenantId,
       ],
       {
         cwd: SCRIPTS_DIR,
@@ -340,12 +337,20 @@ async function runDailyContractPipeline(): Promise<void> {
   const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Lisbon" });
   console.log(`\n[cron-contracts] ${new Date().toISOString()} – a ingerir contratos de ${today}`);
 
-  // Resolver tenant_id uma vez para reutilizar
-  const supabase = getSupabase();
-  const { data: tenant } = await supabase.from("tenants").select("id").limit(1).maybeSingle();
-  const tenantId = (tenant as { id: string } | null)?.id ?? "";
+  // Resolver tenant_id — usa variável de ambiente se disponível
+  let tenantId = TENANT_ID_ENV;
+  if (!tenantId) {
+    const supabase = getSupabase();
+    const { data: tenant } = await supabase.from("tenants").select("id").limit(1).maybeSingle();
+    tenantId = (tenant as { id: string } | null)?.id ?? "";
+    if (!tenantId) {
+      console.error("[cron-contracts] Não foi possível resolver tenant_id. Adiciona TENANT_ID ao .env");
+      return;
+    }
+  }
+  console.log(`[cron-contracts] tenant_id=${tenantId}`);
 
-  await runIngestContracts(today);
+  await runIngestContracts(today, tenantId);
   await runExtractEntities(tenantId);
   await runExtractCompanies(tenantId);
   await runMatchAndQueue();
