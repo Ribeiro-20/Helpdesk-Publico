@@ -162,7 +162,7 @@ export default function OportunidadesResults({
                     <td className="px-4 py-3 text-center align-top">
                       {nearDeadline ? (
                         <span className="inline-block text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
-                          Prox do fim
+                          Próx. fim
                         </span>
                       ) : (
                         <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${statusClass}`}>
