@@ -163,7 +163,7 @@ export default function AnnouncementModal({
     >
       <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
         <div className="shrink-0 px-6 pt-5 pb-5 pr-16" style={{ background: "rgba(26, 27, 31, 1)" }}>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: "rgba(74, 222, 128, 1)" }}>
+          <p className="text-xs font-semibold mb-1.5" style={{ color: "#3f6f27" }}>
             {announcement?.dr_announcement_no ? `Anúncio #${announcement.dr_announcement_no}` : "Anúncio"}
           </p>
           {loading ? (
@@ -199,8 +199,8 @@ export default function AnnouncementModal({
             <>
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
+                  <Tag className="w-4 h-4" style={{ color: "#3f6f27" }} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "#3f6f27" }}>
                     Classificação
                   </h3>
                 </div>
@@ -266,8 +266,8 @@ export default function AnnouncementModal({
 
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
+                  <Calendar className="w-4 h-4" style={{ color: "#3f6f27" }} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "#3f6f27" }}>
                     Datas
                   </h3>
                 </div>
@@ -302,8 +302,8 @@ export default function AnnouncementModal({
 
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
+                  <Tag className="w-4 h-4" style={{ color: "#3f6f27" }} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "#3f6f27" }}>
                     CPV
                   </h3>
                 </div>
@@ -346,8 +346,8 @@ export default function AnnouncementModal({
 
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Calendar className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
+                  <Calendar className="w-4 h-4" style={{ color: "#3f6f27" }} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "#3f6f27" }}>
                     Entidades
                   </h3>
                 </div>

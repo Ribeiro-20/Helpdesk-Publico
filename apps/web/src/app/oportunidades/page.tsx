@@ -572,7 +572,7 @@ export default async function OportunidadesPage({
                 <button
                   type="submit"
                   className="inline-flex h-10 w-full md:w-auto items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold whitespace-nowrap transition-all hover:opacity-90"
-                  style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
+                  style={{ background: "#3f6f27", color: "#ffffff" }}
                 >
                   <Filter className="w-4 h-4" />
                   Pesquisar

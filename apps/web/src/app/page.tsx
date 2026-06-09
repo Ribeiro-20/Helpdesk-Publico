@@ -14,7 +14,7 @@ import type { ElementType } from "react";
 export const dynamic = "force-dynamic";
 
 const BODY_BG = "rgba(247, 250, 253, 1)";
-const GREEN = "rgba(34, 197, 94, 1)";
+const GREEN = "#3f6f27";
 
 type HomeStats = {
   contracts: number;

@@ -336,9 +336,7 @@ export default function ContractsTable({
                 key={p}
                 href={buildQs(p)}
                 className={p === page ? ACTIVE : BTN}
-                style={
-                  p === page ? { background: "rgba(74, 222, 128, 1)" } : {}
-                }
+                style={p === page ? { background: "#3f6f27" } : {}}
               >
                 {p}
               </Link>

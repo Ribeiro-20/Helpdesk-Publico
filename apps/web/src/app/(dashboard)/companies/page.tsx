@@ -182,7 +182,7 @@ export default async function CompaniesPage({
                     {comp.win_rate != null ? (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         comp.win_rate >= 50
-                          ? "bg-green-50 text-green-700"
+                          ? "bg-brand-50 text-brand-700"
                           : comp.win_rate >= 25
                           ? "bg-amber-50 text-amber-700"
                           : "bg-gray-100 text-gray-600"

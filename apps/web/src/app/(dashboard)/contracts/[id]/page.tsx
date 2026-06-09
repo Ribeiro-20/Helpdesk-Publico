@@ -7,7 +7,7 @@ import { FileSignature } from "lucide-react";
 export const dynamic = "force-dynamic";
 
 const STATUS_BADGE: Record<string, string> = {
-  active: "bg-green-100 text-green-700",
+  active: "bg-brand-100 text-brand-700",
   closed: "bg-gray-100 text-gray-600",
   modified: "bg-amber-100 text-amber-700",
 };
@@ -276,7 +276,7 @@ export default async function ContractDetailPage({
           {contract.is_ecological && (
             <div>
               <p className="text-xs text-gray-400 mb-0.5">Ecológico</p>
-              <span className="inline-block bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded">Sim</span>
+                <span className="inline-block bg-brand-50 text-brand-700 text-xs px-2 py-0.5 rounded">Sim</span>
             </div>
           )}
         </InfoCard>
@@ -374,7 +374,7 @@ export default async function ContractDetailPage({
                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                       mod.price_delta > 0
                         ? "bg-red-50 text-red-700"
-                        : "bg-green-50 text-green-700"
+                        : "bg-brand-50 text-brand-700"
                     }`}>
                       {mod.price_delta > 0 ? "+" : ""}{Number(mod.price_delta).toLocaleString("pt-PT", { minimumFractionDigits: 2 })} &euro;
                     </span>

@@ -910,7 +910,7 @@ export default async function OutrosPage({
             <button
               type="submit"
               className="inline-flex items-center justify-center gap-1 px-5 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90"
-              style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
+              style={{ background: "#3f6f27", color: "#ffffff" }}
             >
               <Filter className="w-4 h-4" />
               Pesquisar
