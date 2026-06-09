@@ -74,7 +74,7 @@ export default function MercadoSingleSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-[130] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+        <div className="absolute z-[130] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden py-1">
           {options.map((opt) => {
             const isActive = selectedOption?.value === opt.value;
             const isDisabledOption = opt.disabled === true;
@@ -88,12 +88,16 @@ export default function MercadoSingleSelect({
                   onChange?.(opt.value);
                   setOpen(false);
                 }}
-                className="flex items-center justify-between px-3 w-full cursor-pointer hover:bg-gray-50 min-h-[36px] text-left disabled:cursor-default disabled:hover:bg-transparent disabled:text-gray-300"
+                className={`flex items-center justify-between px-3.5 py-2.5 w-full cursor-pointer text-left transition-colors min-h-[42px] disabled:cursor-default disabled:hover:bg-transparent disabled:text-gray-300 ${
+                  isActive ? "bg-green-50 text-green-700" : "hover:bg-gray-50"
+                }`}
               >
-                <span className="text-xs text-gray-700 leading-snug">{opt.label}</span>
+                <span className={`text-sm leading-snug ${isActive ? "font-medium text-green-700" : "text-gray-700"}`}>
+                  {opt.label}
+                </span>
                 {isActive && (
                   <svg
-                    className="w-3.5 h-3.5 text-green-500"
+                    className="w-4 h-4 text-green-600 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"

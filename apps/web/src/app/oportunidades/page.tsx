@@ -19,6 +19,7 @@ type OportunidadesSearchParams = {
   limit?: string;
   cpv?: string;
   entity?: string;
+  announcement_number?: string;
   act_type?: string;
   model?: string;
   procedure?: string;
@@ -245,6 +246,7 @@ export default async function OportunidadesPage({
 
   const cpv = (params.cpv ?? "").trim();
   const entity = (params.entity ?? "").trim();
+  const announcementNumber = (params.announcement_number ?? "").trim();
   const rawSort = (params.sort ?? "publication_date_desc").trim();
   const sort = [
     "publication_date_desc",
@@ -325,6 +327,11 @@ export default async function OportunidadesPage({
     if (contractType) {
       query = query.in("contract_type", contractTypeFilterValues(contractType));
     }
+    if (announcementNumber) {
+      query = query.or(
+        `dr_announcement_no.ilike.%${announcementNumber}%,base_announcement_id.ilike.%${announcementNumber}%`,
+      );
+    }
     if (minValue) query = query.gte("base_price", Number.parseFloat(minValue));
     if (maxValue) query = query.lte("base_price", Number.parseFloat(maxValue));
     if (fromDate) query = query.gte("publication_date", fromDate);
@@ -370,6 +377,7 @@ export default async function OportunidadesPage({
   const hasFilters =
     Boolean(cpv) ||
     Boolean(entity) ||
+    Boolean(announcementNumber) ||
     Boolean(actType) ||
     Boolean(modelType) ||
     Boolean(contractType) ||
@@ -411,7 +419,7 @@ export default async function OportunidadesPage({
           </div>
 
           <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
               <MercadoCpvInput
                 defaultValue={cpv}
                 label="CPV"
@@ -430,6 +438,16 @@ export default async function OportunidadesPage({
                   name="entity"
                   defaultValue={entity}
                   placeholder="Nome ou NIPC"
+                  className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Nº de Anúncio</label>
+                <input
+                  name="announcement_number"
+                  defaultValue={announcementNumber}
+                  placeholder="Nº DR ou BASE"
                   className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
                 />
               </div>
@@ -537,38 +555,38 @@ export default async function OportunidadesPage({
                 />
               </div>
 
-<div className="flex items-end justify-end gap-2">
-  {hasFilters ? (
-    <Link
-      href="/oportunidades"
-      className="inline-flex h-10 items-center justify-center text-gray-500 text-sm font-medium px-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
-    >
-      Limpar
-    </Link>
-  ) : (
-    <span
-      aria-hidden="true"
-      className="hidden md:inline-flex h-10 items-center justify-center px-4 rounded-xl border border-transparent invisible"
-    >
-      Limpar
-    </span>
-  )}
+            <div className="flex items-end justify-end gap-2">
+              {hasFilters ? (
+                <Link
+                  href="/oportunidades"
+                  className="inline-flex h-10 items-center justify-center text-gray-500 text-sm font-medium px-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
+                >
+                  Limpar
+                </Link>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="hidden md:inline-flex h-10 items-center justify-center px-4 rounded-xl border border-transparent invisible"
+                >
+                  Limpar
+                </span>
+              )}
 
-  <div className="flex flex-col">
-    <p className="text-xs text-gray-500 mb-1">
-      Filtrar para aplicar seleção
-    </p>
+              <div className="flex flex-col items-end">
+                <p className="text-xs text-gray-500 mb-1">
+                  Filtrar para aplicar seleção
+                </p>
 
-    <button
-      type="submit"
-      className="inline-flex h-10 w-full md:w-auto items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold whitespace-nowrap transition-all hover:opacity-90"
-      style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
-    >
-      <Filter className="w-4 h-4" />
-      Filtrar
-    </button>
-  </div>
-</div>
+                <button
+                  type="submit"
+                  className="inline-flex h-10 items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold whitespace-nowrap text-center transition-all hover:opacity-90"
+                  style={{ background: "rgba(74, 222, 128, 1)", color: "#1a1a1a" }}
+                >
+                  <Filter className="w-4 h-4" />
+                  Filtrar
+                </button>
+              </div>
+            </div>
 
             </div>
           </form>
@@ -581,6 +599,7 @@ export default async function OportunidadesPage({
             filters={{
               cpv,
               entity,
+              announcement_number: announcementNumber,
               limit: String(PAGE_SIZE),
               sort,
               act_type: actType,

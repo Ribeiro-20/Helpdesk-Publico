@@ -12,6 +12,11 @@ interface AnnouncementVersion {
   change_summary: unknown;
 }
 
+interface CpvDisplayItem {
+  code: string;
+  description: string | null;
+}
+
 interface AnnouncementDetail {
   id: string;
   title: string;
@@ -108,6 +113,10 @@ export default function AnnouncementModal({
   const [data, setData] = useState<{
     announcement: AnnouncementDetail;
     versions: AnnouncementVersion[];
+    cpv?: {
+      main: CpvDisplayItem | null;
+      list: CpvDisplayItem[];
+    };
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -148,6 +157,8 @@ export default function AnnouncementModal({
 
   const announcement = data?.announcement;
   const versions = data?.versions ?? [];
+  const cpvMain = data?.cpv?.main ?? null;
+  const cpvListDisplay = data?.cpv?.list ?? [];
   const displayStatus = announcement ? effectiveStatus(announcement) : "active";
   const cpvList = Array.isArray(announcement?.cpv_list) ? (announcement!.cpv_list as string[]) : [];
   const piecesUrl = announcement?.raw_payload ? extractUrl(announcement.raw_payload) : null;
@@ -155,6 +166,31 @@ export default function AnnouncementModal({
   const statusLabel = STATUS_LABEL[displayStatus] ?? displayStatus;
   const primaryLink = announcement?.detail_url ?? piecesUrl;
   const announcementTypeLabel = announcement?.procedure_type ?? announcement?.act_type;
+  const entityDisplay = announcement?.entity_name
+    ? announcement.entity_nif
+      ? `${announcement.entity_name} (${announcement.entity_nif})`
+      : announcement.entity_name
+    : null;
+
+  function truncateText(value: string, max = 30): string {
+    const normalized = value.trim();
+    if (normalized.length <= max) return normalized;
+    return `${normalized.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+  }
+
+  function CpvLink({ item }: { item: CpvDisplayItem }) {
+    const description = truncateText(item.description ?? "", 30);
+    const label = description ? `${item.code} - ${description}` : item.code;
+    return (
+      <Link
+        href={`/market?cpv=${encodeURIComponent(item.code)}`}
+        title={item.description ?? item.code}
+        className="inline-flex max-w-full items-center text-sm font-semibold text-sky-700 underline underline-offset-2 transition-colors hover:text-sky-800"
+      >
+        <span className="truncate">{label}</span>
+      </Link>
+    );
+  }
 
   return (
     <div
@@ -286,21 +322,26 @@ export default function AnnouncementModal({
                       DESCRIÇÃO
                     </p>
                     <p className="text-sm text-gray-800 leading-relaxed">
-                      {/* Meter a puxar o cpv */}
-                      Serviços de fornecimento de refeições (catering) a escolas
+                      {announcement.description ?? "-"}
                     </p>
                   </div>
                 </div>
               </div>
 
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoCard title="CPV principal">
-                    <Field label="CPV principal" value={announcement.cpv_main} mono />
-                    {!announcement.cpv_main && cpvList.length === 0 && (
+                    {cpvMain ? (
+                      <CpvLink item={cpvMain} />
+                    ) : announcement.cpv_main ? (
+                      <Link
+                        href={`/market?cpv=${encodeURIComponent(announcement.cpv_main)}`}
+                        title={announcement.cpv_main}
+                        className="inline-flex max-w-full items-center text-sm font-semibold text-sky-700 underline underline-offset-2 transition-colors hover:text-sky-800"
+                      >
+                        <span className="truncate">{announcement.cpv_main}</span>
+                      </Link>
+                    ) : (
                       <p className="text-sm text-gray-400">Sem CPV identificado no anúncio.</p>
                     )}
                   </InfoCard>
@@ -331,19 +372,40 @@ export default function AnnouncementModal({
                 {}
                 <div className="w-full">
                   <InfoCard title="Entidade adjudicante">
-                    <Field label="ENTIDADE(S) ADJUDICANTE(S)" value={announcement.entity_name} />
-                    <Field label="NIPC" value={announcement.entity_nif} mono />
+                    <Field label="ENTIDADE(S) ADJUDICANTE(S)" value={entityDisplay} />
                   </InfoCard>
                 </div>
               </div>
 
-              {announcement.description && (
-                <InfoCard title="DESCRIÇÃO DO PROCEDIMENTO">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {announcement.description}
-                  </p>
-                </InfoCard>
-              )}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
+                    Lista CPV
+                  </h3>
+                </div>
+                <hr className="border-gray-200 mb-4" />
+                <div className="flex flex-wrap gap-2">
+                  {cpvListDisplay.length > 0 ? (
+                    cpvListDisplay.map((item) => (
+                      <CpvLink key={item.code} item={item} />
+                    ))
+                  ) : cpvList.length > 0 ? (
+                    cpvList.map((code) => (
+                      <Link
+                        key={code}
+                        href={`/market?cpv=${encodeURIComponent(code)}`}
+                        title={code}
+                        className="inline-flex max-w-full items-center text-sm font-semibold text-sky-700 underline underline-offset-2 transition-colors hover:text-sky-800"
+                      >
+                        <span className="truncate">{code}</span>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-400">Sem lista de CPV identificada no anúncio.</p>
+                  )}
+                </div>
+              </div>
 
               {versions.length > 0 && (
                 <InfoCard title={`Histórico de versões (${versions.length})`}>

@@ -25,6 +25,7 @@ type SearchParams = {
   limit?: string;
   cpv?: string;
   entity?: string;
+  announcement_number?: string;
   act_type: string;
   model: string;
   procedure?: string;
@@ -78,6 +79,7 @@ function buildHref(page: number, params: SearchParams): string {
   if (params.limit) qp.set("limit", params.limit);
   if (params.cpv) qp.set("cpv", params.cpv);
   if (params.entity) qp.set("entity", params.entity);
+  if (params.announcement_number) qp.set("announcement_number", params.announcement_number);
   if (params.act_type) qp.set("act_type", params.act_type);
   if (params.model) qp.set("model", params.model);
   if (params.procedure) qp.set("procedure", params.procedure);
