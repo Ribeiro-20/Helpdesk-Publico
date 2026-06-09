@@ -556,7 +556,7 @@ export default async function OportunidadesPage({
 
   <div className="flex flex-col">
     <p className="text-xs text-gray-500 mb-1">
-      Prima Filtrar para aplicar os filtros selecionados
+      Filtrar para aplicar seleção
     </p>
 
     <button

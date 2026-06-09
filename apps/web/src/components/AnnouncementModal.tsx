@@ -204,7 +204,7 @@ export default function AnnouncementModal({
                 <div className="flex items-center gap-2 mb-3">
                   <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
                   <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
-                    Classificação
+                    ENQUADRAMENTO
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
@@ -266,65 +266,44 @@ export default function AnnouncementModal({
                 <div className="flex items-center gap-2 mb-3">
                   <Calendar className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
                   <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
-                    Datas
+                    DADOS DO PROCEDIMENTO
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
+                
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      DATA DE PUBLICAÇÃO
-                    </p>
-                    <p className="text-sm text-gray-800">{fmtDate(announcement.publication_date)}</p>
-                  </div>
-                  <div>
+                  <div className="col-span-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
-                      Duração estimada do contrato
+                      PRAZO
                     </p>
                     <p className="text-sm text-gray-800">
                       {announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}
                     </p>
-                    <p className="text-sm text-gray-800">{fmtDate(announcement.proposal_deadline_at)}</p>
                   </div>
-                  {showSource && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                        Fonte
-                      </p>
-                      <p className="text-sm text-gray-800">{announcement.source ?? "-"}</p>
-                    </div>
-                  )}
+
+                  <div className="col-span-1 sm:col-span-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
+                      DESCRIÇÃO
+                    </p>
+                    <p className="text-sm text-gray-800 leading-relaxed">
+                      {/* Meter a puxar o cpv */}
+                      Serviços de fornecimento de refeições (catering) a escolas
+                    </p>
+                  </div>
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
-                    CPV(s) do PROCEDIMENTO
-                  </h3>
                 </div>
-                <hr className="border-gray-200 mb-4" />
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoCard title="CPV principal">
                     <Field label="CPV principal" value={announcement.cpv_main} mono />
-                    {cpvList.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">Lista CPV</p>
-                        <div className="flex flex-wrap gap-1">
-                          {cpvList.map((code) => (
-                            <span key={code} className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">
-                              {code}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     {!announcement.cpv_main && cpvList.length === 0 && (
                       <p className="text-sm text-gray-400">Sem CPV identificado no anúncio.</p>
                     )}
                   </InfoCard>
-
                   <InfoCard title="Referências">
                     <Field label="Nº DR / Base" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
                     {showSource && <Field label="Fonte" value={announcement.source} />}
@@ -345,27 +324,21 @@ export default function AnnouncementModal({
                 <div className="flex items-center gap-2 mb-3">
                   <Calendar className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
                   <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
-                    Entidades
+                    ENTIDADE(S) ADJUDICANTE(S)
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {}
+                <div className="w-full">
                   <InfoCard title="Entidade adjudicante">
-                    <Field label="Entidade" value={announcement.entity_name} />
+                    <Field label="ENTIDADE(S) ADJUDICANTE(S)" value={announcement.entity_name} />
                     <Field label="NIPC" value={announcement.entity_nif} mono />
-                  </InfoCard>
-
-                  <InfoCard title="Estado do anúncio">
-                    <Field label="Estado" value={statusLabel} />
-                    <Field label="Tipo de procedimento" value={announcement.procedure_type} />
-                    <Field label="Tipo de anúncio" value={announcement.act_type} />
-                    <Field label="Tipo de contrato" value={announcement.contract_type} />
                   </InfoCard>
                 </div>
               </div>
 
               {announcement.description && (
-                <InfoCard title="Descrição">
+                <InfoCard title="DESCRIÇÃO DO PROCEDIMENTO">
                   <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                     {announcement.description}
                   </p>
@@ -402,7 +375,7 @@ export default function AnnouncementModal({
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
                   >
-                    Ver no anúncio original →
+                    Ligação para anúncio no Diário da República →
                   </Link>
                 ) : (
                   <span />
