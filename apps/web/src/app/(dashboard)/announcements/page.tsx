@@ -50,7 +50,7 @@ const ACT_TYPE_CANONICAL = [
 ] as const;
 
 const ACT_TYPE_VARIANTS: Record<string, string[]> = {
-  "Anúncio de procedimento": ["Anúncio de procedimento", "Anuncio de procedimento"],
+  "Anúncio de procedimento": ["Anúncio de procedimento", "Anúncio de procedimento"],
   "Anúncio de concurso urgente": ["Anúncio de concurso urgente", "Anuncio de concurso urgente"],
   "Declaração de retificação de anúncio": [
     "Declaração de retificação de anúncio",

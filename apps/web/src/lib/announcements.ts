@@ -2,7 +2,7 @@
 
 export const STATUS_BADGE: Record<string, string> = {
   active: "bg-green-100 text-green-700",
-  expired: "bg-amber-100 text-amber-700",
+  expired: "bg-red-100 text-red-700",
   cancelled: "bg-red-100 text-red-700",
   closed: "bg-gray-100 text-gray-600",
 };
