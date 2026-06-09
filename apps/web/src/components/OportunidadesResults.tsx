@@ -66,6 +66,11 @@ function isNearDeadline(value: string | null, hours = 120): boolean {
   return diffMs >= 0 && diffMs <= hours * 60 * 60 * 1000;
 }
 
+function displayProcedureType(value: string | null): string {
+  if (!value) return "-";
+  return value === "Anuncio de procedimento" ? "Anúncio de procedimento" : value;
+}
+
 function buildHref(page: number, params: SearchParams): string {
   const qp = new URLSearchParams();
   if (page > 1) qp.set("page", String(page));
@@ -142,7 +147,7 @@ export default function OportunidadesResults({
                   >
                     <td className="px-4 py-3 max-w-xs align-top">
                       <p className="text-green-600 font-medium line-clamp-2">{op.title ?? "Sem titulo"}</p>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{op.procedure_type ?? "-"}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{displayProcedureType(op.procedure_type)}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{op.entity_name ?? "-"}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums align-top">{fmtDate(op.publication_date)}</td>

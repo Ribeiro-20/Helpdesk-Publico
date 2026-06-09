@@ -154,6 +154,7 @@ export default function AnnouncementModal({
   const statusClass = STATUS_BADGE[displayStatus] ?? "bg-gray-100 text-gray-600";
   const statusLabel = STATUS_LABEL[displayStatus] ?? displayStatus;
   const primaryLink = announcement?.detail_url ?? piecesUrl;
+  const announcementTypeLabel = announcement?.procedure_type ?? announcement?.act_type;
 
   return (
     <div
@@ -213,14 +214,9 @@ export default function AnnouncementModal({
                       Tipo de anúncio
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {announcement.act_type && (
-                        <span className="inline-block text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
-                          {announcement.act_type}
-                        </span>
-                      )}
-                      {announcement.procedure_type && (
+                      {announcementTypeLabel && (
                         <span className="inline-block text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
-                          {announcement.procedure_type}
+                          {announcementTypeLabel}
                         </span>
                       )}
                       {announcement.contract_type && (
@@ -252,13 +248,13 @@ export default function AnnouncementModal({
                 </div>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Publicação
+                    DATA DE PUBLICAÇÃO
                   </p>
                   <p className="text-xl font-medium text-gray-700">{fmtDate(announcement.publication_date)}</p>
                 </div>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Data limite
+                    DATA LIMITE PROPOSTAS
                   </p>
                   <p className="text-xl font-medium text-gray-700">
                     {announcement.proposal_deadline_at ? fmtDate(announcement.proposal_deadline_at) : (announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-")}
@@ -277,19 +273,16 @@ export default function AnnouncementModal({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Publicação
+                      DATA DE PUBLICAÇÃO
                     </p>
                     <p className="text-sm text-gray-800">{fmtDate(announcement.publication_date)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Prazo (dias)
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
+                      Duração estimada do contrato
                     </p>
-                    <p className="text-sm text-gray-800">{announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Data limite
+                    <p className="text-sm text-gray-800">
+                      {announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}
                     </p>
                     <p className="text-sm text-gray-800">{fmtDate(announcement.proposal_deadline_at)}</p>
                   </div>
@@ -308,7 +301,7 @@ export default function AnnouncementModal({
                 <div className="flex items-center gap-2 mb-3">
                   <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
                   <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
-                    CPV
+                    CPV(s) do PROCEDIMENTO
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
