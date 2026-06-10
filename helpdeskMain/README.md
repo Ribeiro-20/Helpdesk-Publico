@@ -31,3 +31,11 @@ python manage.py poll_subscriptions
 ```
 
 Most of apps inside this folder are subject to change/deletion.
+
+# Structure
+
+## helpdesk
+## core
+## eupago
+## hubspot
+## toconline

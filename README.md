@@ -7,13 +7,20 @@
 
 Python package installation script
 ```sh
-pip install django
-pip install djangorestframework
-pip install markdown
-pip install django-filter
-pip install faker
-pip install mailtrap
+pip install django;
+pip install djangorestframework;
+pip install markdown;
+pip install django-filter;
+pip install faker;
+pip install mailtrap;
 ```
+
+## API Key Setup
+
+Header authentication
+Eupago API Key:
+TOConline API Key:
+Hubspot Api Key:
 # Credentials
 - estagio2026HelpDesk
     - admin password 123

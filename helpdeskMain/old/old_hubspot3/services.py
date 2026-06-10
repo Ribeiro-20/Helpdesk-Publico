@@ -1,3 +1,4 @@
+# Application Imports
 import json
 import os
 import urllib.request
@@ -11,6 +12,8 @@ try:
 except Exception:
     app_settings = None
 
+from .serializer import PaymentContactSerializer
+
 logger = logging.getLogger(__name__)
 
 # Maps to the Database Models
@@ -22,38 +25,35 @@ STATUS_MAP = {
     "EXPIRED": models.TransactionStatus.EXPIRED,
 }
 
-# Single point entry for Webhook
-def update(request):
-    request_transaction = request["transaction"]
+class webhookEupagoService:
+    def webhook_process(self, request):
+        request_transaction = request["transaction"]
 
-    # Update transaction to DB.
-    models.Transaction.objects.filter(
-        trid=request_transaction["trid"]
-    ).update(
-        status=STATUS_MAP.get(request_transaction["status"])
-    )
+        # Update transaction to DB.
+        models.Transaction.objects.filter(
+            trid=request_transaction["trid"]
+        ).update(
+            status=STATUS_MAP.get(request_transaction["status"])
+        )
 
-    ## All of this subjected to change.
-    ## Hardcoded email addresses till TocOnline full integration - Change INSERTEMAIL
-    match request_transaction["status"]:
-        case "PAID":
-            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction paid: trid %s;", request_transaction["trid"])
+        ## All of this subjected to change.
+        ## Hardcoded email addresses till TocOnline full integration - Change INSERTEMAIL
+        match request_transaction["status"]:
+            case "PAID":
+                logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction paid: trid %s;", request_transaction["trid"])
 
-        case "REFUNDED":
-            # ?
-            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction refunded: trid %s;", request_transaction["trid"])
-        case "ERROR":
-            # Error handling?
-            logger.error("[EUPAGO | formulariopagamento -> Services.py] Error returned: trid %s;", request_transaction["trid"])
-        case "CANCELED":
-            # Cancelado pagamento
-            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction canceled: trid %s;", request_transaction["trid"])
-        case "EXPIRED":
-            # Expirado pagamento
-            logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction expired: trid %s;", request_transaction["trid"])
-
-
-from .serializer import PaymentContactSerializer
+            case "REFUNDED":
+                # ?
+                logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction refunded: trid %s;", request_transaction["trid"])
+            case "ERROR":
+                # Error handling?
+                logger.error("[EUPAGO | formulariopagamento -> Services.py] Error returned: trid %s;", request_transaction["trid"])
+            case "CANCELED":
+                # Cancelado pagamento
+                logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction canceled: trid %s;", request_transaction["trid"])
+            case "EXPIRED":
+                # Expirado pagamento
+                logger.info("[EUPAGO | formulariopagamento -> Services.py] Transaction expired: trid %s;", request_transaction["trid"])
 
 def on_new_payment_subscription(record_id: int, membership_timestamp: Optional[object], raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """
@@ -122,4 +122,4 @@ def on_new_payment_subscription(record_id: int, membership_timestamp: Optional[o
     except Exception:
         logger.exception("[POLL | formulariopagamento -> services] Logging failed for contact %s", record_id)
 
-    return response
+    return response

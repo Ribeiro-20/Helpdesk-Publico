@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('formulariopagamento', '0001_initial'),
+        ('old_hubspot3', '0001_initial'),
     ]
 
     operations = [

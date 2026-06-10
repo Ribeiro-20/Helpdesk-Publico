@@ -2,4 +2,4 @@ from django.apps import AppConfig
 
 
 class HubspotEntradaConfig(AppConfig):
-    name = 'hubspot_entrada'
+    name = 'old_hubspot_entrada2'

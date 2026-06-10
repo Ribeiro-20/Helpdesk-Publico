@@ -45,9 +45,11 @@ INSTALLED_APPS = [
 	'rest_framework',
 
     # Internal apps
-    'formulariopagamento',
     'core',
-    'formulariosubscricao',
+    'eupago',
+    'hubspot',
+    'toconline',
+    'checkout',
 ]
 
 MIDDLEWARE = [

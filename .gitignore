@@ -5,3 +5,4 @@ env/
 .venv/
 venv/
 helpdeskMain/db.sqlite3
+.idea/
