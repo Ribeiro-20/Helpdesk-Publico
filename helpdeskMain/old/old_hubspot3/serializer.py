@@ -2,8 +2,8 @@ from rest_framework import serializers
 from core import serializer as core_serializer
 
 class webhook_dataSerializer(serializers.Serializer):
-    transaction = core_serializer.transactionSerializer()
-    channel = core_serializer.channelSerializer()
+    transaction = core_serializer.transactionSerializerDTO()
+    channel = core_serializer.channelSerializerDTO()
     data = serializers.CharField(max_length=255)
 
 
@@ -29,4 +29,4 @@ class PaymentContactSerializer(serializers.Serializer):
     createdAt = serializers.DateTimeField(required=False, allow_null=True)
     updatedAt = serializers.DateTimeField(required=False, allow_null=True)
     archived = serializers.BooleanField(required=False)
-    url = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    url = serializers.CharField(required=False, allow_null=True, allow_blank=True)

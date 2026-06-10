@@ -1,6 +1,27 @@
 from rest_framework import serializers
-from core import serializer as core_serializer
-class EupagoWebhookSerializer(serializers.Serializer):
-    transaction = core_serializer.transactionSerializer()
-    channel = core_serializer.channelSerializer()
-    data = serializers.CharField(max_length=255)
+class amountSerializer(serializers.Serializer):
+    value = serializers.FloatField()
+    currency = serializers.CharField()
+
+class feesSerializer(serializers.Serializer):
+    value = serializers.FloatField()
+    currency = serializers.CharField()
+
+class transactionSerializerDTO(serializers.Serializer):
+    entity = serializers.IntegerField()
+    reference = serializers.IntegerField()
+    identifier = serializers.CharField()
+    method = serializers.CharField()
+    amount = amountSerializer()
+    fees = feesSerializer()
+    date = serializers.DateTimeField()
+    trid = serializers.IntegerField()
+    status = serializers.CharField()
+
+class channelSerializerDTO(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+
+class EupagoWebhookSerializerDTO(serializers.Serializer):
+    transactions = transactionSerializerDTO()
+    channel = channelSerializerDTO()
+    data = serializers.CharField(required=False)

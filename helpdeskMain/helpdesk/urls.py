@@ -18,6 +18,6 @@ from django.contrib import admin
 from django.urls import include, path
 
 urlpatterns = [
-    path('', include("old.old_hubspot3.urls")),
+    path('', include("eupago.urls")),
     path('admin/', admin.site.urls),
 ]
