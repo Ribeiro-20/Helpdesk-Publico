@@ -1,5 +1,8 @@
+import logging
+logger = logging.getLogger(__name__)
+
 from core import models
-from eupago.domain.TransactionEvent import TransactionStatus
+from eupago.domain.transactionevent import TransactionStatus
 
 # Maps to the Database Models
 DatabaseMap = {
@@ -25,16 +28,32 @@ class EupagoWebhookService:
         dispatch[transaction.status](transaction);
 
     def _process_webhook_paid(self,transaction):
+
+        # Payment has been processed?
+        # Complete payment and make the necessary adjusts to client database.
         pass
 
     def _process_webhook_refunded(self,transaction):
+
+        # Payment has been refunded?
+        # Warn of such event & pause client.
         pass
 
     def _process_webhook_error(self,transaction):
+        logger.warning("Payment error: %s", transaction)
+
+        # Handle the error?
+        # Force recheck if needed to send again.
         pass
 
     def _process_webhook_canceled(self,transaction):
+
+        # Payment canceled?
+        # Force recheck if needed to send again.
         pass
 
     def _process_webhook_expired(self):
+
+        # Payment expired?
+        # Force recheck if needed to send again.
         pass

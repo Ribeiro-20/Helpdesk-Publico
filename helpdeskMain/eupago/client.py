@@ -1,18 +1,22 @@
 import os
 
+from eupago.dto.out.mbwayrequest import MBWayRequest
+
+# Client must go to service
+# To be removed: This note
 
 class EupagoClient:
     def __init__(self):
         self._apikey = os.environ.get("EAPI_KEY")
 
-    def createMultibancoReference(self):
+    def create_multibanco_reference(self, request):
         pass
 
-    def createCreditCardLink(self):
+    def create_credit_card(self, request):
         pass
 
-    def createDirectDebitPayment(self):
+    def create_direct_debit_payment(self, request):
         pass
 
-    def createMBWAY(self):
+    def create_mbway(self, request: MBWayRequest):
         pass

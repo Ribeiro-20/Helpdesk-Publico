@@ -28,7 +28,7 @@ def WebhookUpdate(request):
 
     # DTO -> Domain Object
     try:
-        transaction = mapper.toTransaction(
+        transaction = mapper.to_transaction(
             serialized.validated_data["transactions"]
         )
     except (KeyError, TypeError, ValueError) as e:

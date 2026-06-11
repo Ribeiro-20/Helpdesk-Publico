@@ -1,4 +1,5 @@
 from rest_framework import serializers
+
 class amountSerializer(serializers.Serializer):
     value = serializers.FloatField()
     currency = serializers.CharField()

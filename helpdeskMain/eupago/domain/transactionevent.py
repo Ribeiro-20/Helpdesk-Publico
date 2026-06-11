@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 
-from eupago.domain import Money
+from eupago.domain.money import Money
 
 #Decouple this if it gets bigger
 class TransactionStatus(Enum):
