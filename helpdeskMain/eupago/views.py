@@ -6,7 +6,7 @@ from eupago.mapper import Mapper
 import json
 import logging
 
-from .webhook import EupagoWebhookService
+from eupago.services.webhook import EupagoWebhookService
 
 logger = logging.getLogger(__name__)
 webhook = EupagoWebhookService()

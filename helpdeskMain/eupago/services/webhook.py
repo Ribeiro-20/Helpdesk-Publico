@@ -1,4 +1,5 @@
 from core import models
+from eupago.domain.TransactionEvent import TransactionStatus
 
 # Maps to the Database Models
 DatabaseMap = {
@@ -13,13 +14,14 @@ class EupagoWebhookService:
 
     def process_webhook(self, transaction):
         dispatch = {
-            "PAID": self._process_webhook_paid,
-            "REFUNDED": self._process_webhook_refunded,
-            "ERROR": self._process_webhook_error,
-            "CANCELED": self._process_webhook_canceled,
-            "EXPIRED": self._process_webhook_expired,
+            TransactionStatus.PAID: self._process_webhook_paid,
+            TransactionStatus.REFUNDED: self._process_webhook_refunded,
+            TransactionStatus.ERROR: self._process_webhook_error,
+            TransactionStatus.CANCELED: self._process_webhook_canceled,
+            TransactionStatus.EXPIRED: self._process_webhook_expired,
         }
 
+        # Add verifications later
         dispatch[transaction.status](transaction);
 
     def _process_webhook_paid(self,transaction):

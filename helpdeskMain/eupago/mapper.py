@@ -3,17 +3,17 @@ from eupago.domain.TransactionEvent import TransactionEvent, TransactionStatus, 
 
 # In the future change this into a method for better testability/modularity and bug handling.
 DTO_PAYMENT_MAPPER = {
-    "Multibanco": PaymentMethod.MBREFERENCE,
-    "Mbway": PaymentMethod.MBWAY,
-    "Creditcard": PaymentMethod.CREDITCARD
+    "multibanco": PaymentMethod.MBREFERENCE,
+    "mbway": PaymentMethod.MBWAY,
+    "creditcard": PaymentMethod.CREDITCARD
 }
 
 DTO_STATUS_MAPPER = {
-    "Paid": TransactionStatus.PAID,
-    "Refund": TransactionStatus.REFUNDED,
-    "Error": TransactionStatus.ERROR,
-    "Cancel": TransactionStatus.CANCELED,
-    "Expired": TransactionStatus.EXPIRED,
+    "paid": TransactionStatus.PAID,
+    "refund": TransactionStatus.REFUNDED,
+    "error": TransactionStatus.ERROR,
+    "cancel": TransactionStatus.CANCELED,
+    "expired": TransactionStatus.EXPIRED,
 }
 
 class Mapper:
@@ -25,10 +25,10 @@ class Mapper:
             dto["entity"],
             dto["reference"],
             dto["identifier"],
-            DTO_PAYMENT_MAPPER[dto["method"]],
+            DTO_PAYMENT_MAPPER[dto["method"].casefold()],
             self.toMoney(dto["amount"]),
             self.toMoney(dto["fees"]),
             dto["date"],
             dto["trid"],
-            DTO_STATUS_MAPPER[dto["status"]]
+            DTO_STATUS_MAPPER[dto["status"].casefold()]
         )
