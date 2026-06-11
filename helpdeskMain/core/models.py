@@ -9,6 +9,7 @@ class TransactionStatus(models.IntegerChoices):
     CANCELED = 4
     EXPIRED = 5
 
+# Transaction for storing payments
 class Transaction(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     entity = models.IntegerField()
@@ -27,14 +28,5 @@ class Transaction(models.Model):
 
     status = models.IntegerField(choices=TransactionStatus.choices, db_index=True)
 
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-#WIP
-class Subscription(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    record_id = models.BigIntegerField(null=True, blank=True, db_index=True)
-    membership_timestamp = models.DateTimeField(null=True, blank=True, db_index=True)
-    raw = models.JSONField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -28,6 +28,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     "platinum-gibberish-spirits.ngrok-free.dev", # To be removed in production
     "127.0.0.1", # To be removed in production
+    "localhost",
     # Add EUPAGO Webhook IP to allowed hosts!
 ]
 
@@ -45,9 +46,11 @@ INSTALLED_APPS = [
 	'rest_framework',
 
     # Internal apps
-    'formulariopagamento',
     'core',
-    'formulariosubscricao',
+    'eupago',
+    'hubspot',
+    'toconline',
+    'checkout',
 ]
 
 MIDDLEWARE = [
@@ -133,9 +136,16 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
 
+    "formatters": {
+        "verbose": {
+            "format": "%(levelname)s | %(name)s | %(asctime)s | %(message)s"
+        }
+    },
+
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
+            "formatter": "verbose",
         },
     },
 
