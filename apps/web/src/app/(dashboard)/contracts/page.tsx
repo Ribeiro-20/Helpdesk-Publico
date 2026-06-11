@@ -49,26 +49,41 @@ function discountBadge(base: number | null, contract: number | null) {
 }
 
 /** Extract display name from contract party payloads (string or object). */
+function decodeHtml(str: string): string {
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
 function extractName(raw: unknown): string {
   if (typeof raw === "string") {
-    const idx = raw.indexOf(" - ");
-    return idx === -1 ? raw : raw.slice(idx + 3);
+    const s = decodeHtml(raw);
+    const idx = s.indexOf(" - ");
+    return idx === -1 ? s : s.slice(idx + 3);
   }
 
   if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
     const directName = record.name;
     if (typeof directName === "string" && directName.trim()) {
-      return directName;
+      return decodeHtml(directName.trim());
     }
 
     const nif = record.nif;
     const full = record.value ?? record.label ?? record.text;
     if (typeof full === "string" && full.trim()) {
-      const idx = full.indexOf(" - ");
-      if (idx !== -1) return full.slice(idx + 3);
-      if (typeof nif === "string" && full.startsWith(`${nif} `)) {
-        return full.slice(nif.length).trim();
+      const s = decodeHtml(full);
+      const idx = s.indexOf(" - ");
+      if (idx !== -1) return s.slice(idx + 3);
+      if (typeof nif === "string" && s.startsWith(`${nif} `)) {
+        return s.slice(nif.length).trim();
       }
       return full;
     }
