@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import InfoPopover from "@/components/InfoPopover";
-import { STATUS_BADGE, STATUS_LABEL, effectiveStatus } from "@/lib/announcements";
+import { STATUS_BADGE, STATUS_LABEL, cleanAnnouncementText, effectiveStatus } from "@/lib/announcements";
 
 export type OpportunityRow = {
   id: string;
@@ -140,6 +140,9 @@ export default function OportunidadesResults({
                 const statusLabel = STATUS_LABEL[displayStatus] ?? displayStatus;
                 const statusClass = STATUS_BADGE[displayStatus] ?? "bg-gray-100 text-gray-600";
                 const nearDeadline = isNearDeadline(op.proposal_deadline_at);
+                const title = cleanAnnouncementText(op.title) || "Sem título";
+                const entityName = cleanAnnouncementText(op.entity_name) || "-";
+                const procedureType = cleanAnnouncementText(displayProcedureType(op.procedure_type)) || "-";
 
                 return (
                   <tr
@@ -148,10 +151,10 @@ export default function OportunidadesResults({
                     onClick={() => setSelectedAnnouncementId(op.id)}
                   >
                     <td className="px-4 py-3 max-w-xs align-top">
-                      <p className="text-green-600 font-medium line-clamp-2">{op.title ?? "Sem titulo"}</p>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{displayProcedureType(op.procedure_type)}</p>
+                      <p className="text-green-600 font-medium line-clamp-2">{title}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{procedureType}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{op.entity_name ?? "-"}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{entityName}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums align-top">{fmtDate(op.publication_date)}</td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs tabular-nums align-top">
                       <span>{fmtDate(op.proposal_deadline_at)}</span>

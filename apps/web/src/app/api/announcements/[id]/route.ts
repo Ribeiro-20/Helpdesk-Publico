@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import { extractProcedurePiecesUrl } from "@/lib/announcements";
 import { NextResponse } from "next/server";
 
 function normalizeCpvCode(raw: unknown): string | null {
@@ -35,7 +36,7 @@ export async function GET(
 
   const cpvMainRaw = announcement.cpv_main ? String(announcement.cpv_main) : null;
   const cpvListRaw: string[] = Array.isArray(announcement.cpv_list)
-    ? announcement.cpv_list.map((value) => String(value))
+    ? announcement.cpv_list.map((value: unknown) => String(value))
     : [];
   const normalizedMain = normalizeCpvCode(cpvMainRaw);
   const normalizedListCodes = Array.from(
@@ -46,8 +47,8 @@ export async function GET(
   );
 
   const cpvShortCodes = Array.from(
-    new Set(normalizedCodes.filter((code) => /^\d{8}$/.test(code)).map((code) => cpvCore8(code))),
-  ).filter(Boolean);
+    new Set(normalizedCodes.map((code) => cpvCore8(code)).filter((code) => code.length === 8)),
+  );
 
   const cpvDisplayMap = new Map<string, { code: string; description: string | null }>();
   if (cpvShortCodes.length > 0) {
@@ -73,9 +74,6 @@ export async function GET(
   const resolveCpv = (raw: unknown) => {
     const normalized = normalizeCpvCode(raw);
     if (!normalized) return null;
-    if (/^\d{8}$/.test(normalized)) {
-      return cpvDisplayMap.get(cpvCore8(normalized)) ?? { code: normalized, description: null };
-    }
     const core = cpvCore8(normalized);
     return core ? cpvDisplayMap.get(core) ?? { code: normalized, description: null } : { code: normalized, description: null };
   };
@@ -90,5 +88,10 @@ export async function GET(
     ).values(),
   ).filter((item): item is { code: string; description: string | null } => Boolean(item));
 
-  return NextResponse.json({ announcement, versions: versions ?? [], cpv: { main: cpvMain, list: cpvList } });
+  return NextResponse.json({
+    announcement,
+    versions: versions ?? [],
+    cpv: { main: cpvMain, list: cpvList },
+    procedure_pieces_url: extractProcedurePiecesUrl(announcement.raw_payload),
+  });
 }

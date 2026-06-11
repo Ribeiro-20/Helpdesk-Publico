@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
+import { cleanAnnouncementText, effectiveStatus, extractProcedurePiecesUrl, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
 import { ArrowLeft } from "lucide-react";
+
+type CpvDisplayItem = {
+  code: string;
+  description: string | null;
+};
 
 function InfoCard({
   title,
@@ -41,35 +46,24 @@ function Field({
   );
 }
 
-function pickRaw(payload: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = payload[key];
-    if (value == null || value === "") continue;
-    if (Array.isArray(value)) {
-      if (value.length > 0) return String(value[0]);
-      continue;
-    }
-    return String(value);
-  }
-  return null;
-}
+function CpvMarketLink({ item }: { item: CpvDisplayItem }) {
+  const value = item.code.trim();
+  if (!value) return null;
+  const description = cleanAnnouncementText(item.description);
+  const label = description ? `${value} - ${description}` : value;
 
-function extractProcedurePiecesUrl(payload: Record<string, unknown>): string | null {
-  const detalle = payload.detalhe_conteudo;
-  if (!detalle || typeof detalle !== "object") return null;
-
-  const texto = (detalle as Record<string, unknown>).Texto;
-  if (typeof texto !== "string" || !texto.trim()) return null;
-
-  const labeled = texto.match(/Link\s+para\s+acesso\s+[àa]\s*s\s*pe[cç]as\s+do\s+concurso\s*\(URL\)\s*:\s*(https?:\/\/\S+)/i)
-    ?? texto.match(/Link\s+para\s+acesso\s+[àa]s\s+pe[cç]as\s+do\s+concurso\s*\(URL\)\s*:\s*(https?:\/\/\S+)/i);
-  if (labeled) return labeled[1];
-
-  const acingov = texto.match(/https?:\/\/\S*downloadProcedurePiece\/\S+/i);
-  if (acingov) return acingov[0];
-
-  const generic = texto.match(/https?:\/\/\S+/i);
-  return generic ? generic[0] : null;
+  return (
+    <Link
+      href={`/market?cpv=${encodeURIComponent(value)}`}
+      title={`Ver mercado para CPV ${label}`}
+      className="inline-flex max-w-full rounded bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 hover:text-blue-800"
+    >
+      <span className="break-words">
+        <span className="font-mono">{value}</span>
+        {description ? ` - ${description}` : ""}
+      </span>
+    </Link>
+  );
 }
 
 function normalizeCpvCode(raw: unknown): string | null {
@@ -117,16 +111,18 @@ export default async function AnnouncementDetailPage({
 
   const cpvShortCodes = Array.from(
     new Set(
-      [normalizedMainCpv, ...normalizedListCpvs].filter((code): code is string => Boolean(code && /^\d{8}$/.test(code))),
+      [normalizedMainCpv, ...normalizedListCpvs]
+        .map((code) => (code ? cpvCore8(code) : ""))
+        .filter((code) => code.length === 8),
     ),
   );
 
-  const cpvDisplayMap = new Map<string, string>();
+  const cpvDisplayMap = new Map<string, CpvDisplayItem>();
   if (cpvShortCodes.length > 0) {
     const orFilter = cpvShortCodes.map((code) => `id.ilike.${code}-%`).join(",");
     const { data: cpvRows } = await supabase
       .from("cpv_codes")
-      .select("id")
+      .select("id, descricao")
       .or(orFilter)
       .limit(Math.max(20, cpvShortCodes.length * 3));
 
@@ -134,30 +130,34 @@ export default async function AnnouncementDetailPage({
       const id = String((row as { id?: unknown }).id ?? "").trim();
       if (!id) continue;
       const core = cpvCore8(id);
-      if (core && !cpvDisplayMap.has(core)) cpvDisplayMap.set(core, id);
+      if (core && !cpvDisplayMap.has(core)) {
+        cpvDisplayMap.set(core, {
+          code: id,
+          description: cleanAnnouncementText((row as { descricao?: unknown }).descricao as string | null) || null,
+        });
+      }
     }
   }
 
-  const resolveCpvDisplay = (code: string | null | undefined): string | null => {
+  const resolveCpvDisplay = (code: string | null | undefined): CpvDisplayItem | null => {
     const normalized = normalizeCpvCode(code);
     if (!normalized) return null;
-    if (/^\d{8}$/.test(normalized)) return cpvDisplayMap.get(normalized) ?? normalized;
-    return normalized;
+    const core = cpvCore8(normalized);
+    return (core ? cpvDisplayMap.get(core) : null) ?? { code: normalized, description: null };
   };
 
   const cpvMainDisplay = resolveCpvDisplay(normalizedMainCpv);
   const cpvListDisplay = Array.from(
-    new Set(normalizedListCpvs.map((code) => resolveCpvDisplay(code)).filter((code): code is string => Boolean(code))),
+    new Map(
+      normalizedListCpvs
+        .map((code) => resolveCpvDisplay(code))
+        .filter((item): item is CpvDisplayItem => Boolean(item))
+        .map((item) => [item.code, item] as const),
+    ).values(),
   );
   const displayStatus = effectiveStatus(ann);
   const rawPayload = (ann.raw_payload ?? {}) as Record<string, unknown>;
-  const payloadRoot = (rawPayload.payload && typeof rawPayload.payload === "object")
-    ? (rawPayload.payload as Record<string, unknown>)
-    : rawPayload;
-  const piecesUrl =
-    pickRaw(payloadRoot, ["PecasProcedimento", "linkPecasProc"]) ??
-    extractProcedurePiecesUrl(payloadRoot) ??
-    ann.detail_url;
+  const piecesUrl = extractProcedurePiecesUrl(rawPayload) ?? ann.detail_url;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -216,18 +216,18 @@ export default async function AnnouncementDetailPage({
         </InfoCard>
 
         <InfoCard title="CPV">
-          <Field label="CPV principal" value={cpvMainDisplay} mono />
+          {cpvMainDisplay && (
+            <div>
+              <p className="text-xs text-gray-400 mb-1">CPV principal</p>
+              <CpvMarketLink item={cpvMainDisplay} />
+            </div>
+          )}
           {cpvListDisplay.length > 0 && (
             <div>
               <p className="text-xs text-gray-400 mb-1">Lista CPV</p>
               <div className="flex flex-wrap gap-1">
-                {cpvListDisplay.map((c: string) => (
-                  <span
-                    key={c}
-                    className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono"
-                  >
-                    {c}
-                  </span>
+                {cpvListDisplay.map((item) => (
+                  <CpvMarketLink key={item.code} item={item} />
                 ))}
               </div>
             </div>
