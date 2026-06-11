@@ -174,7 +174,7 @@ function parseCompetitors(raw: string): string[] {
     ) {
       const next = trimmed.slice(i + 1).trimStart();
       const isSuffix =
-        /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i.test(next);
+        /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unip\b|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i.test(next);
       if (!isSuffix) {
         entries.push(current.trim());
         current = "";
