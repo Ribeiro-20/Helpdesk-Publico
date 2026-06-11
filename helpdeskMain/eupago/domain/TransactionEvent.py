@@ -4,6 +4,7 @@ from enum import Enum
 
 from eupago.domain import Money
 
+#Decouple this if it gets bigger
 class TransactionStatus(Enum):
     PAID = "PAID"
     REFUNDED = "REFUNDED"
@@ -21,7 +22,7 @@ class TransactionEvent:
     entity: int
     reference: int
     identifier: int
-    method: str
+    method: PaymentMethod
     amount: Money
     fees: Money
     date: datetime
