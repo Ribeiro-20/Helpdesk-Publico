@@ -15,12 +15,14 @@ pip install faker;
 pip install mailtrap;
 ```
 
-## API Key Setup
+## Key Setup
 
+For setup of authentication you need to setup first the API keys for the environment.
 Header authentication
-Eupago API Key:
-TOConline API Key:
-Hubspot Api Key:
+Eupago API Key (EAPI_KEY)
+TOConline API Key (TAPI_KEY)
+Hubspot Api Key (HAPI_KEY)
+
 # Credentials
 - estagio2026HelpDesk
     - admin password 123

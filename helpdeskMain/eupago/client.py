@@ -3,7 +3,7 @@ import os
 
 class EupagoClient:
     def __init__(self):
-        self._apikey = os.environ.get("HAPI_KEY")
+        self._apikey = os.environ.get("EAPI_KEY")
 
     def createMultibancoReference(self):
         pass
