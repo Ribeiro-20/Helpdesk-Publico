@@ -16,6 +16,7 @@ export default function MercadoSingleSelect({
   value,
   onChange,
   disabled = false,
+  maxVisibleOptions,
 }: {
   name: string;
   label: string;
@@ -24,6 +25,7 @@ export default function MercadoSingleSelect({
   value?: string;
   onChange?: (nextValue: string) => void;
   disabled?: boolean;
+  maxVisibleOptions?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(defaultValue);
@@ -74,7 +76,10 @@ export default function MercadoSingleSelect({
       </button>
 
       {open && !disabled && (
-        <div className="absolute z-[130] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden py-1">
+        <div
+          className="absolute z-[130] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto py-1"
+          style={maxVisibleOptions ? { maxHeight: `${maxVisibleOptions * 42}px` } : undefined}
+        >
           {options.map((opt) => {
             const isActive = selectedOption?.value === opt.value;
             const isDisabledOption = opt.disabled === true;
