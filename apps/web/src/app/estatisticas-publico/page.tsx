@@ -457,12 +457,12 @@ export default async function EstatisticasPublicoPage({
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
+                      <a
                         href={contractsHref}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-800"
                       >
                         Ver contratos
-                      </Link>
+                      </a>
                     </td>
                   </tr>
                 );
