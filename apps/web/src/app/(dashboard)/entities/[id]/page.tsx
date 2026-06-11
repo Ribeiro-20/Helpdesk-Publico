@@ -197,7 +197,7 @@ export default async function EntityDetailPage({
         {/* Dados gerais */}
         <InfoCard title="Dados Gerais">
           <Field label="Nome" value={entity.name} />
-          <Field label="NIF" value={entity.nif} mono />
+          <Field label="NIPC" value={entity.nif} mono />
           <Field label="Tipo" value={TYPE_LABEL[entity.entity_type] ?? entity.entity_type} />
           <Field label="Localização" value={entity.location} />
           <Field label="Sector" value={entity.sector} />

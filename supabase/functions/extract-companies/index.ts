@@ -18,7 +18,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { parseNifNome } from "../_shared/baseApi.ts";
+import { parseNifNome, parseNifNomeList } from "../_shared/baseApi.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -55,25 +55,12 @@ function mostFrequentLocation(locations: string[]): string | null {
 }
 
 // ---------------------------------------------------------------------------
-// Parse competitors text
-// Competitors field is a free-text string — format varies.
-// Common patterns: "NIF - Nome; NIF - Nome" or "NIF - Nome\nNIF - Nome"
-// We try to split by common separators and parse each chunk.
+// Parse competitors text. The BASE API returns this as free text and sometimes
+// omits spaces around the NIF/name separator, e.g. "501234567-Nome".
 // ---------------------------------------------------------------------------
 
 function parseCompetitors(text: string | null): Array<{ nif: string; name: string }> {
-  if (!text) return [];
-  // Split by semicolons, newlines, or pipe
-  const chunks = text.split(/[;\n|]/).map((s) => s.trim()).filter(Boolean);
-  const result: Array<{ nif: string; name: string }> = [];
-  for (const chunk of chunks) {
-    // Only parse if it starts with digits (looks like a NIF)
-    if (/^\d{5,}/.test(chunk)) {
-      const parsed = parseNifNome(chunk);
-      if (parsed.nif) result.push(parsed);
-    }
-  }
-  return result;
+  return parseNifNomeList(text);
 }
 
 Deno.serve(async (req) => {

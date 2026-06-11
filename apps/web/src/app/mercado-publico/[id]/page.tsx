@@ -303,7 +303,7 @@ export default async function PublicContractDetailPage({
 
         {/* Info grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Entidade adjudicante */}
+          {/* Entidade Adjudicante */}
           <InfoCard title="Entidade Adjudicante">
             {entities.length === 0 ? (
               <p className="text-sm text-gray-400">Sem informação</p>

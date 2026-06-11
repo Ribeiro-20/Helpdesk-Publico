@@ -8,6 +8,7 @@ import InfoPopover from "@/components/InfoPopover";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
+import CurrencyValueField from "../../components/CurrencyValueField";
 import { FileText, Filter, House } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ type OportunidadesSearchParams = {
   limit?: string;
   cpv?: string;
   entity?: string;
+  announcement_number?: string;
   act_type?: string;
   model?: string;
   procedure?: string;
@@ -47,12 +49,6 @@ type OpportunityRow = {
   base_price: number | null;
   currency: string | null;
   status: string;
-};
-
-type OpportunityFacetRow = {
-  act_type: string | null;
-  procedure_type: string | null;
-  contract_type: string | null;
 };
 
 const CONTRACT_TYPE_CANONICAL = [
@@ -95,11 +91,11 @@ const ACT_TYPE_CANONICAL = [
 ] as const;
 
 const ACT_TYPE_VARIANTS: Record<string, string[]> = {
-  "Anúncio de procedimento": ["Anúncio de procedimento", "Anuncio de procedimento"],
-  "Anúncio de concurso urgente": ["Anúncio de concurso urgente", "Anuncio de concurso urgente"],
+  "Anúncio de procedimento": ["Anúncio de procedimento", "Anúncio de procedimento"],
+  "Anúncio de concurso urgente": ["Anúncio de concurso urgente", "Anúncio de concurso urgente"],
   "Declaração de retificação de anúncio": [
     "Declaração de retificação de anúncio",
-    "Declaracao de retificacao de anuncio",
+    "Declaração de retificação de anúncio",
   ],
   "Aviso de prorrogação de prazo": ["Aviso de prorrogação de prazo", "Aviso de prorrogacao de prazo"],
   "Anúncio de Alteração": ["Anúncio de Alteração", "Anúncio de alteração", "Anuncio de Alteracao"],
@@ -250,6 +246,7 @@ export default async function OportunidadesPage({
 
   const cpv = (params.cpv ?? "").trim();
   const entity = (params.entity ?? "").trim();
+  const announcementNumber = (params.announcement_number ?? "").trim();
   const rawSort = (params.sort ?? "publication_date_desc").trim();
   const sort = [
     "publication_date_desc",
@@ -294,46 +291,30 @@ export default async function OportunidadesPage({
 
   let opportunities: OpportunityRow[] = [];
   let totalCount = 0;
-  let actTypeOptions: string[] = [];
-  let modelTypeOptions: string[] = [];
-  let contractTypeOptions: string[] = [];
+  const actTypeOptions = [...ACT_TYPE_CANONICAL];
+  const modelTypeOptions = [...MODEL_TYPE_CANONICAL];
+  const contractTypeOptions = [...CONTRACT_TYPE_CANONICAL];
 
   if (tenantId) {
-    const { data: facetData } = await supabase
-      .from("announcements")
-      .select("act_type, procedure_type, contract_type")
-      .eq("tenant_id", tenantId);
-
-    const facetRows = (facetData ?? []) as OpportunityFacetRow[];
-    const actTypeSet = new Set<string>();
-    const contractTypeSet = new Set<string>();
-
-    for (const row of facetRows) {
-      if (row.act_type) {
-        const normalizedAct = normalizeActType(row.act_type);
-        if (ACT_TYPE_CANONICAL.includes(normalizedAct as (typeof ACT_TYPE_CANONICAL)[number])) {
-          actTypeSet.add(normalizedAct);
-        }
-      }
-      if (row.contract_type) {
-        const normalizedContract = normalizeContractType(row.contract_type);
-        if (CONTRACT_TYPE_CANONICAL.includes(normalizedContract as (typeof CONTRACT_TYPE_CANONICAL)[number])) {
-          contractTypeSet.add(normalizedContract);
-        }
-      }
-    }
-
-    actTypeOptions = [...ACT_TYPE_CANONICAL];
-    modelTypeOptions = [...MODEL_TYPE_CANONICAL];
-    contractTypeOptions = [...CONTRACT_TYPE_CANONICAL];
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let query = supabase
       .from("announcements")
       .select(
         "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_at, cpv_main, base_price, currency, status",
+        { count: "exact" },
       )
-      .eq("tenant_id", tenantId)
-      .limit(5000);
+      .eq("tenant_id", tenantId);
+
+      // Keep expired opportunities visible for 30 days after their proposal deadline.
+      const expiryCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const expiryCutoffDate = `${expiryCutoff.getUTCFullYear()}-${String(
+        expiryCutoff.getUTCMonth() + 1,
+      ).padStart(2, "0")}-${String(expiryCutoff.getUTCDate()).padStart(2, "0")}`;
+
+      // Include rows where status == 'active' OR (status == 'expired' AND proposal_deadline_at >= cutoff).
+      query = query.or(`status.eq.active,and(status.eq.expired,proposal_deadline_at.gte.${expiryCutoffDate})`);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) query = query.ilike("entity_name", `%${entity}%`);
@@ -346,34 +327,57 @@ export default async function OportunidadesPage({
     if (contractType) {
       query = query.in("contract_type", contractTypeFilterValues(contractType));
     }
+    if (announcementNumber) {
+      query = query.or(
+        `dr_announcement_no.ilike.%${announcementNumber}%,base_announcement_id.ilike.%${announcementNumber}%`,
+      );
+    }
     if (minValue) query = query.gte("base_price", Number.parseFloat(minValue));
     if (maxValue) query = query.lte("base_price", Number.parseFloat(maxValue));
     if (fromDate) query = query.gte("publication_date", fromDate);
     if (toDate) query = query.lte("publication_date", toDate);
 
     if (sort === "publication_date_asc") {
-      query = query.order("publication_date", { ascending: true });
+      query = query
+        .order("publication_date", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true, nullsFirst: false })
+        .order("id", { ascending: true });
     } else if (sort === "value_desc") {
-      query = query.order("base_price", { ascending: false }).order("publication_date", { ascending: false });
+      query = query
+        .order("base_price", { ascending: false, nullsFirst: false })
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     } else if (sort === "value_asc") {
-      query = query.order("base_price", { ascending: true }).order("publication_date", { ascending: false });
+      query = query
+        .order("base_price", { ascending: true, nullsFirst: false })
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     } else if (sort === "deadline_asc") {
-      query = query.order("proposal_deadline_at", { ascending: true }).order("publication_date", { ascending: false });
+      query = query
+        .order("proposal_deadline_at", { ascending: true, nullsFirst: false })
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     } else {
-      query = query.order("publication_date", { ascending: false });
+      query = query
+        .order("publication_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: false });
     }
 
-    const { data } = await query;
-    const rows = (data ?? []) as OpportunityRow[];
+    const { data, count } = await query.range(from, to);
 
-    totalCount = rows.length;
-    opportunities = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    totalCount = count ?? 0;
+    opportunities = (data ?? []) as OpportunityRow[];
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const hasFilters =
     Boolean(cpv) ||
     Boolean(entity) ||
+    Boolean(announcementNumber) ||
     Boolean(actType) ||
     Boolean(modelType) ||
     Boolean(contractType) ||
@@ -395,9 +399,9 @@ export default async function OportunidadesPage({
             <div className="flex items-center gap-3">
               <FileText className="w-6 h-6 text-green-500" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Oportunidades de Contratação Publica</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Oportunidades de Contratação Pública</h1>
                 <p className="text-gray-500 text-sm mt-0.5">
-                  {totalCount.toLocaleString("pt-PT")} anuncios encontrados
+                  {totalCount.toLocaleString("pt-PT")} anúncios ativos encontrados
                 </p>
               </div>
             </div>
@@ -408,32 +412,42 @@ export default async function OportunidadesPage({
                 className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
               >
                 <House className="h-4 w-4" />
-                Pagina inicial
+                Página inicial
               </Link>
               <BackButton fallbackHref="/" className="w-fit shrink-0" />
             </div>
           </div>
 
           <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
               <MercadoCpvInput
                 defaultValue={cpv}
                 label="CPV"
                 placeholder="CPV (ex: 331 ou 45000000)"
-                infoText="Indique o código CPV que pretende pesquisar"
+                infoText="Indique o código CPV que pretende pesquisar (atualização automática da página por inserção de código)"
                 inputClassName="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
                 debounceMs={250}
               />
 
               <div>
                 <div className="flex items-center gap-1 mb-1">
-                  <label className="block text-xs text-gray-400">Entidade adjudicante</label>
+                  <label className="block text-xs text-gray-400">Entidade Adjudicante</label>
                   <InfoPopover text="Indique nome ou NIPC da Entidade que pretende pesquisar" />
                 </div>
                 <input
                   name="entity"
                   defaultValue={entity}
                   placeholder="Nome ou NIPC"
+                  className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Nº de Anúncio</label>
+                <input
+                  name="announcement_number"
+                  defaultValue={announcementNumber}
+                  placeholder="Nº DR ou BASE"
                   className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
                 />
               </div>
@@ -479,49 +493,37 @@ export default async function OportunidadesPage({
             <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
               <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">De Data</label>
-                  <InfoPopover text="Data inicial para o tipo de data selecionado." />
+                  <label className="block text-xs text-gray-400">Data de publicação</label>
                 </div>
                 <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">Ate data</label>
-                  <InfoPopover text="Data final para o tipo de data selecionado." />
+                  <label className="block text-xs text-gray-400">Prazo de fim</label>
                 </div>
                 <MercadoDateDropdown name="to_date" defaultValue={toDate} />
               </div>
 
               <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="grid grid-cols-2 gap-1.5 w-full">
-                  <div className="w-full">
-                    <div className="flex items-center gap-1 mb-1">
-                      <label className="block text-xs text-gray-400">Valor minimo</label>
-                      <InfoPopover text="Valor mínimo do contrato em euros." />
-                    </div>
-                    <input
-                      name="min_value"
-                      type="number"
-                      defaultValue={minValue}
-                      placeholder="0"
-                      className="h-10 border border-gray-200 rounded-lg px-2.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-                    />
-                  </div>
+                <div className="mb-2">
+                  <label className="block text-xs text-gray-400">Ordenar valor por</label>
+                </div>
 
-                  <div className="w-full">
-                    <div className="flex items-center gap-1 mb-1">
-                      <label className="block text-xs text-gray-400">Valor maximo</label>
-                      <InfoPopover text="Valor máximo do contrato em euros." />
-                    </div>
-                    <input
-                      name="max_value"
-                      type="number"
-                      defaultValue={maxValue}
-                      placeholder="10000000"
-                      className="h-10 border border-gray-200 rounded-lg px-2.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-                    />
-                  </div>
+                <div className="grid grid-cols-2 gap-1.5 w-full">
+                  <CurrencyValueField
+                    name="min_value"
+                    label="Mínimo"
+                    defaultValue={minValue}
+                    placeholder="0"
+                  />
+
+                  <CurrencyValueField
+                    name="max_value"
+                    label="Máximo"
+                    defaultValue={maxValue}
+                    placeholder="10000000"
+                  />
                 </div>
               </div>
 
@@ -531,9 +533,9 @@ export default async function OportunidadesPage({
                   label="Apresentar"
                   defaultValue={String(PAGE_SIZE)}
                   options={[
-                    { value: "25", label: "25 anuncios" },
-                    { value: "50", label: "50 anuncios" },
-                    { value: "100", label: "100 anuncios" },
+                    { value: "25", label: "25 Anúncios" },
+                    { value: "50", label: "50 Anúncios" },
+                    { value: "100", label: "100 Anúncios" },
                   ]}
                 />
               </div>
@@ -541,43 +543,50 @@ export default async function OportunidadesPage({
               <div>
                 <MercadoSingleSelect
                   name="sort"
-                  label="Ordenar"
+                  label="Ordenar Oportunidades por"
                   defaultValue={sort}
                   options={[
                     { value: "publication_date_desc", label: "Mais recentes" },
                     { value: "publication_date_asc", label: "Mais antigos" },
                     { value: "value_desc", label: "Maior valor" },
                     { value: "value_asc", label: "Menor valor" },
-                    { value: "deadline_asc", label: "Prazo mais proximo" },
+                    { value: "deadline_asc", label: "Fim mais próximo" },
                   ]}
                 />
               </div>
 
-              <div className="flex items-end justify-end gap-2">
-                {hasFilters ? (
-                  <Link
-                    href="/oportunidades"
-                    className="inline-flex h-10 items-center justify-center text-gray-500 text-sm font-medium px-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
-                  >
-                    Limpar
-                  </Link>
-                ) : (
-                  <span
-                    aria-hidden="true"
-                    className="hidden md:inline-flex h-10 items-center justify-center px-4 rounded-xl border border-transparent invisible"
-                  >
-                    Limpar
-                  </span>
-                )}
+            <div className="flex items-end justify-end gap-2">
+              {hasFilters ? (
+                <Link
+                  href="/oportunidades"
+                  className="inline-flex h-10 items-center justify-center text-gray-500 text-sm font-medium px-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
+                >
+                  Limpar
+                </Link>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="hidden md:inline-flex h-10 items-center justify-center px-4 rounded-xl border border-transparent invisible"
+                >
+                  Limpar
+                </span>
+              )}
+
+              <div className="flex flex-col items-end">
+                <p className="text-xs text-gray-500 mb-1">
+                  Filtrar para aplicar seleção
+                </p>
+
                 <button
                   type="submit"
                   className="inline-flex h-10 w-full md:w-auto items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold whitespace-nowrap transition-all hover:opacity-90"
                   style={{ background: "#3f6f27", color: "#ffffff" }}
                 >
                   <Filter className="w-4 h-4" />
-                  Pesquisar
+                  Filtrar
                 </button>
               </div>
+            </div>
 
             </div>
           </form>
@@ -590,6 +599,7 @@ export default async function OportunidadesPage({
             filters={{
               cpv,
               entity,
+              announcement_number: announcementNumber,
               limit: String(PAGE_SIZE),
               sort,
               act_type: actType,

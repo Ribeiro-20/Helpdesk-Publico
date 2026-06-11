@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import InfoPopover from "@/components/InfoPopover";
-import { STATUS_BADGE, STATUS_LABEL, effectiveStatus } from "@/lib/announcements";
+import { STATUS_BADGE, STATUS_LABEL, cleanAnnouncementText, effectiveStatus } from "@/lib/announcements";
 
 export type OpportunityRow = {
   id: string;
@@ -25,6 +25,7 @@ type SearchParams = {
   limit?: string;
   cpv?: string;
   entity?: string;
+  announcement_number?: string;
   act_type: string;
   model: string;
   procedure?: string;
@@ -66,6 +67,11 @@ function isNearDeadline(value: string | null, hours = 120): boolean {
   return diffMs >= 0 && diffMs <= hours * 60 * 60 * 1000;
 }
 
+function displayProcedureType(value: string | null): string {
+  if (!value) return "-";
+  return value === "Anuncio de procedimento" ? "Anúncio de procedimento" : value;
+}
+
 function buildHref(page: number, params: SearchParams): string {
   const qp = new URLSearchParams();
   if (page > 1) qp.set("page", String(page));
@@ -73,6 +79,7 @@ function buildHref(page: number, params: SearchParams): string {
   if (params.limit) qp.set("limit", params.limit);
   if (params.cpv) qp.set("cpv", params.cpv);
   if (params.entity) qp.set("entity", params.entity);
+  if (params.announcement_number) qp.set("announcement_number", params.announcement_number);
   if (params.act_type) qp.set("act_type", params.act_type);
   if (params.model) qp.set("model", params.model);
   if (params.procedure) qp.set("procedure", params.procedure);
@@ -113,10 +120,10 @@ export default function OportunidadesResults({
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Objecto</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Adjudicante</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Data inicio</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">Data fim</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">OBJETO DO CONTRATO</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">ADJUDICANTE(S)</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">DATA PUBLICAÇÃO</th>
+                <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">DATA LIMITE</th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1">
                     CPV
@@ -133,6 +140,9 @@ export default function OportunidadesResults({
                 const statusLabel = STATUS_LABEL[displayStatus] ?? displayStatus;
                 const statusClass = STATUS_BADGE[displayStatus] ?? "bg-gray-100 text-gray-600";
                 const nearDeadline = isNearDeadline(op.proposal_deadline_at);
+                const title = cleanAnnouncementText(op.title) || "Sem título";
+                const entityName = cleanAnnouncementText(op.entity_name) || "-";
+                const procedureType = cleanAnnouncementText(displayProcedureType(op.procedure_type)) || "-";
 
                 return (
                   <tr
@@ -141,10 +151,10 @@ export default function OportunidadesResults({
                     onClick={() => setSelectedAnnouncementId(op.id)}
                   >
                     <td className="px-4 py-3 max-w-xs align-top">
-                      <p className="text-green-600 font-medium line-clamp-2">{op.title ?? "Sem titulo"}</p>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{op.procedure_type ?? "-"}</p>
+                      <p className="text-green-600 font-medium line-clamp-2">{title}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{procedureType}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{op.entity_name ?? "-"}</td>
+                    <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{entityName}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums align-top">{fmtDate(op.publication_date)}</td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs tabular-nums align-top">
                       <span>{fmtDate(op.proposal_deadline_at)}</span>
@@ -162,7 +172,7 @@ export default function OportunidadesResults({
                     <td className="px-4 py-3 text-center align-top">
                       {nearDeadline ? (
                         <span className="inline-block text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
-                          Prox do fim
+                          Próx. fim
                         </span>
                       ) : (
                         <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium ${statusClass}`}>
@@ -219,6 +229,7 @@ export default function OportunidadesResults({
         <AnnouncementModal
           announcementId={selectedAnnouncementId}
           onClose={() => setSelectedAnnouncementId(null)}
+          showSource={false}
         />
       )}
     </>

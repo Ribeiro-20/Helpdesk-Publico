@@ -3,13 +3,18 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Calendar, Loader2, Tag, X } from "lucide-react";
-import { STATUS_BADGE, STATUS_LABEL, effectiveStatus } from "@/lib/announcements";
+import { STATUS_BADGE, STATUS_LABEL, cleanAnnouncementText, effectiveStatus, extractProcedurePiecesUrl } from "@/lib/announcements";
 
 interface AnnouncementVersion {
   id: string;
   raw_hash: string;
   changed_at: string;
   change_summary: unknown;
+}
+
+interface CpvDisplayItem {
+  code: string;
+  description: string | null;
 }
 
 interface AnnouncementDetail {
@@ -82,30 +87,23 @@ function fmtDate(value: string | null): string {
   return parsed.toLocaleDateString("pt-PT");
 }
 
-function extractUrl(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const record = payload as Record<string, unknown>;
-  const direct = record.detail_url ?? record.detailUrl ?? record.url;
-  if (typeof direct === "string" && direct.trim()) return direct;
-  const nested = record.payload;
-  if (nested && typeof nested === "object") {
-    const nestedRecord = nested as Record<string, unknown>;
-    const nestedUrl = nestedRecord.detail_url ?? nestedRecord.detailUrl ?? nestedRecord.url;
-    if (typeof nestedUrl === "string" && nestedUrl.trim()) return nestedUrl;
-  }
-  return null;
-}
-
 export default function AnnouncementModal({
   announcementId,
   onClose,
+  showSource = true,
 }: {
   announcementId: string;
   onClose: () => void;
+  showSource?: boolean;
 }) {
   const [data, setData] = useState<{
     announcement: AnnouncementDetail;
     versions: AnnouncementVersion[];
+    procedure_pieces_url?: string | null;
+    cpv?: {
+      main: CpvDisplayItem | null;
+      list: CpvDisplayItem[];
+    };
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -146,12 +144,38 @@ export default function AnnouncementModal({
 
   const announcement = data?.announcement;
   const versions = data?.versions ?? [];
+  const cpvMain = data?.cpv?.main ?? null;
+  const cpvListDisplay = data?.cpv?.list ?? [];
   const displayStatus = announcement ? effectiveStatus(announcement) : "active";
   const cpvList = Array.isArray(announcement?.cpv_list) ? (announcement!.cpv_list as string[]) : [];
-  const piecesUrl = announcement?.raw_payload ? extractUrl(announcement.raw_payload) : null;
+  const piecesUrl =
+    data?.procedure_pieces_url ??
+    (announcement?.raw_payload ? extractProcedurePiecesUrl(announcement.raw_payload) : null);
   const statusClass = STATUS_BADGE[displayStatus] ?? "bg-gray-100 text-gray-600";
   const statusLabel = STATUS_LABEL[displayStatus] ?? displayStatus;
-  const primaryLink = announcement?.detail_url ?? piecesUrl;
+  const drLink = announcement?.detail_url;
+  const displayTitle = cleanAnnouncementText(announcement?.title) || "Anúncio sem título";
+  const displayDescription = cleanAnnouncementText(announcement?.description) || "-";
+  const announcementTypeLabel = cleanAnnouncementText(announcement?.procedure_type ?? announcement?.act_type);
+  const contractTypeLabel = cleanAnnouncementText(announcement?.contract_type);
+  const entityDisplay = announcement?.entity_name
+    ? announcement.entity_nif
+      ? `${announcement.entity_name} (${announcement.entity_nif})`
+      : announcement.entity_name
+    : null;
+
+  function CpvValue({ item }: { item: CpvDisplayItem }) {
+    const description = cleanAnnouncementText(item.description);
+    const label = description ? `${item.code} - ${description}` : item.code;
+    return (
+      <span
+        title={label}
+        className="inline-flex max-w-full items-start rounded-md bg-blue-50 px-2 py-1 text-sm font-semibold text-sky-800"
+      >
+        <span className="whitespace-normal break-words">{label}</span>
+      </span>
+    );
+  }
 
   return (
     <div
@@ -170,7 +194,7 @@ export default function AnnouncementModal({
             <div className="h-6 w-3/4 bg-white/10 rounded animate-pulse" />
           ) : (
             <h2 className="text-white text-lg font-bold leading-snug">
-              {announcement?.title || "Anúncio sem título"}
+              {displayTitle}
             </h2>
           )}
           <button
@@ -211,19 +235,14 @@ export default function AnnouncementModal({
                       Tipo de anúncio
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {announcement.act_type && (
-                        <span className="inline-block text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
-                          {announcement.act_type}
-                        </span>
-                      )}
-                      {announcement.procedure_type && (
+                      {announcementTypeLabel && (
                         <span className="inline-block text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
-                          {announcement.procedure_type}
+                          {announcementTypeLabel}
                         </span>
                       )}
-                      {announcement.contract_type && (
+                      {contractTypeLabel && (
                         <span className="inline-block text-sm px-3 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700">
-                          {announcement.contract_type}
+                          {contractTypeLabel}
                         </span>
                       )}
                     </div>
@@ -250,13 +269,13 @@ export default function AnnouncementModal({
                 </div>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Publicação
+                    DATA DE PUBLICAÇÃO
                   </p>
                   <p className="text-xl font-medium text-gray-700">{fmtDate(announcement.publication_date)}</p>
                 </div>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                    Data limite
+                    DATA LIMITE PROPOSTAS
                   </p>
                   <p className="text-xl font-medium text-gray-700">
                     {announcement.proposal_deadline_at ? fmtDate(announcement.proposal_deadline_at) : (announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-")}
@@ -272,30 +291,24 @@ export default function AnnouncementModal({
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
+                
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Publicação
+                  <div className="col-span-1">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
+                      PRAZO
                     </p>
-                    <p className="text-sm text-gray-800">{fmtDate(announcement.publication_date)}</p>
+                    <p className="text-sm text-gray-800">
+                      {announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Prazo (dias)
+
+                  <div className="col-span-1 sm:col-span-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
+                      DESCRIÇÃO
                     </p>
-                    <p className="text-sm text-gray-800">{announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Data limite
+                    <p className="text-sm text-gray-800 leading-relaxed">
+                      {displayDescription}
                     </p>
-                    <p className="text-sm text-gray-800">{fmtDate(announcement.proposal_deadline_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
-                      Fonte
-                    </p>
-                    <p className="text-sm text-gray-800">{announcement.source ?? "-"}</p>
                   </div>
                 </div>
               </div>
@@ -310,36 +323,23 @@ export default function AnnouncementModal({
                 <hr className="border-gray-200 mb-4" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoCard title="CPV principal">
-                    <Field label="CPV principal" value={announcement.cpv_main} mono />
-                    {cpvList.length > 0 && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-1">Lista CPV</p>
-                        <div className="flex flex-wrap gap-1">
-                          {cpvList.map((code) => (
-                            <span key={code} className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono">
-                              {code}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {!announcement.cpv_main && cpvList.length === 0 && (
+                    {cpvMain ? (
+                      <CpvValue item={cpvMain} />
+                    ) : announcement.cpv_main ? (
+                      <span
+                        title={announcement.cpv_main}
+                        className="inline-flex max-w-full items-start rounded-md bg-blue-50 px-2 py-1 text-sm font-semibold text-sky-800"
+                      >
+                        <span className="whitespace-normal break-words">{announcement.cpv_main}</span>
+                      </span>
+                    ) : (
                       <p className="text-sm text-gray-400">Sem CPV identificado no anúncio.</p>
                     )}
                   </InfoCard>
-
                   <InfoCard title="Referências">
                     <Field label="Nº DR / Base" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
-                    <Field label="Fonte" value={announcement.source} />
+                    {showSource && <Field label="Fonte" value={announcement.source} />}
                     <Field label="Versões" value={versions.length} />
-                    {piecesUrl && (
-                      <div>
-                        <p className="text-xs text-gray-400 mb-0.5">Peças do procedimento</p>
-                        <a href={piecesUrl} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline text-sm break-all">
-                          {piecesUrl}
-                        </a>
-                      </div>
-                    )}
                   </InfoCard>
                 </div>
               </div>
@@ -352,28 +352,42 @@ export default function AnnouncementModal({
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {}
+                <div className="w-full">
                   <InfoCard title="Entidade adjudicante">
-                    <Field label="Entidade" value={announcement.entity_name} />
-                    <Field label="NIF" value={announcement.entity_nif} mono />
-                  </InfoCard>
-
-                  <InfoCard title="Estado do anúncio">
-                    <Field label="Estado" value={statusLabel} />
-                    <Field label="Tipo de procedimento" value={announcement.procedure_type} />
-                    <Field label="Tipo de anúncio" value={announcement.act_type} />
-                    <Field label="Tipo de contrato" value={announcement.contract_type} />
+                    <Field label="ENTIDADE(S) ADJUDICANTE(S)" value={entityDisplay} />
                   </InfoCard>
                 </div>
               </div>
 
-              {announcement.description && (
-                <InfoCard title="Descrição">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                    {announcement.description}
-                  </p>
-                </InfoCard>
-              )}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
+                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
+                    Lista CPV
+                  </h3>
+                </div>
+                <hr className="border-gray-200 mb-4" />
+                <div className="flex flex-wrap gap-2">
+                  {cpvListDisplay.length > 0 ? (
+                    cpvListDisplay.map((item) => (
+                      <CpvValue key={item.code} item={item} />
+                    ))
+                  ) : cpvList.length > 0 ? (
+                    cpvList.map((code) => (
+                      <span
+                        key={code}
+                        title={code}
+                        className="inline-flex max-w-full items-start rounded-md bg-blue-50 px-2 py-1 text-sm font-semibold text-sky-800"
+                      >
+                        <span className="whitespace-normal break-words">{code}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-400">Sem lista de CPV identificada no anúncio.</p>
+                  )}
+                </div>
+              </div>
 
               {versions.length > 0 && (
                 <InfoCard title={`Histórico de versões (${versions.length})`}>
@@ -398,18 +412,28 @@ export default function AnnouncementModal({
               )}
 
               <div className="flex justify-between items-center gap-3 pt-1">
-                {primaryLink ? (
-                  <Link
-                    href={primaryLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
-                  >
-                    Ver no anúncio original →
-                  </Link>
-                ) : (
-                  <span />
-                )}
+                <div className="flex flex-wrap items-center gap-3">
+                  {drLink && (
+                    <Link
+                      href={drLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
+                      Ligação para anúncio no Diário da República →
+                    </Link>
+                  )}
+                  {piecesUrl && (
+                    <Link
+                      href={piecesUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100"
+                    >
+                      Acesso peças de procedimento
+                    </Link>
+                  )}
+                </div>
                 <button
                   onClick={onClose}
                   className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"

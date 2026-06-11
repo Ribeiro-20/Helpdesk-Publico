@@ -167,7 +167,7 @@ export default async function CompanyDetailPage({
         {/* Dados gerais */}
         <InfoCard title="Dados Gerais">
           <Field label="Nome" value={company.name} />
-          <Field label="NIF" value={company.nif} mono />
+          <Field label="NIPC" value={company.nif} mono />
           <Field label="Localização" value={company.location} />
           <Field
             label="Taxa de vitória"
