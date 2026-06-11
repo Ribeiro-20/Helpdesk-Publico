@@ -19,7 +19,7 @@ class transactionSerializerDTO(serializers.Serializer):
     status = serializers.CharField()
 
 class channelSerializerDTO(serializers.Serializer):
-    name = serializers.CharField(max_length=255)
+    name = serializers.CharField()
 
 class EupagoWebhookSerializerDTO(serializers.Serializer):
     transactions = transactionSerializerDTO()

@@ -28,6 +28,7 @@ DEBUG = True
 ALLOWED_HOSTS = [
     "platinum-gibberish-spirits.ngrok-free.dev", # To be removed in production
     "127.0.0.1", # To be removed in production
+    "localhost",
     # Add EUPAGO Webhook IP to allowed hosts!
 ]
 

@@ -11,7 +11,7 @@ DatabaseMap = {
 
 class EupagoWebhookService:
 
-    def process_webhook(self, data):
+    def process_webhook(self, transaction):
         dispatch = {
             "PAID": self._process_webhook_paid,
             "REFUNDED": self._process_webhook_refunded,
@@ -20,18 +20,18 @@ class EupagoWebhookService:
             "EXPIRED": self._process_webhook_expired,
         }
 
-        print(data)
+        dispatch[transaction.status](transaction);
 
-    def _process_webhook_paid(self):
+    def _process_webhook_paid(self,transaction):
         pass
 
-    def _process_webhook_refunded(self):
+    def _process_webhook_refunded(self,transaction):
         pass
 
-    def _process_webhook_error(self):
+    def _process_webhook_error(self,transaction):
         pass
 
-    def _process_webhook_canceled(self):
+    def _process_webhook_canceled(self,transaction):
         pass
 
     def _process_webhook_expired(self):
