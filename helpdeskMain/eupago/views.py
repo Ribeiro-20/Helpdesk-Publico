@@ -21,12 +21,12 @@ def WebhookUpdate(request):
 
     serialized = EupagoWebhookSerializerDTO(data=json.loads(request.body))
 
-    # Serialize DTO
+    # Serialize DICT
     if not serialized.is_valid():
         logger.warning("Invalid data received in webhook update: %s", serialized.errors)
         return HttpResponse(status=400)
 
-    # DTO -> Domain Object
+    # Serialized Object -> Domain Object
     try:
         transaction = mapper.to_transaction(
             serialized.validated_data["transactions"]
