@@ -1,6 +1,6 @@
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
-from .serializer import EupagoWebhookSerializerDTO
+from eupago.serializer import EupagoWebhookSerializerDTO
 from eupago.mapper.mapper import Mapper
 
 import json
