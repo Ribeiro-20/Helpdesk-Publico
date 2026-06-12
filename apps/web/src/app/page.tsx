@@ -146,7 +146,7 @@ export default async function HomePage() {
           #hp-global-hero .hp-global-hero-main { font-size: 0.9rem; line-height: 1.4; margin-bottom: 8px; }
           #hp-global-hero .hp-global-hero-sub { font-size: 0.78rem; line-height: 1.55; }
           #hp-global-hero .hp-global-hero-wave { height: 220px; margin-top: 12px; }
-          #hp-global-hero .hp-global-hero-bottom-title { font-size: 1.35rem; margin-top: 16px; }
+          #hp-global-hero .hp-global-hero-bottom-title { font-size: 1.35rem; margin-top: 36px; }
         }
       `;
 
@@ -224,7 +224,7 @@ export default async function HomePage() {
             top: "95px",
             width: "25px",
             height: "25px",
-            background: GREEN,
+            background: "#2f5218",
             opacity: 0.8,
           }}
         />
@@ -249,7 +249,7 @@ export default async function HomePage() {
             bottom: "100px",
             width: "180px",
             height: "180px",
-            background: GREEN,
+            background: "#2f5218",
             opacity: 0.8,
           }}
         />
@@ -295,7 +295,7 @@ function Card({
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl transition-colors sm:h-20 sm:w-20">
         <Icon
           className="h-8 w-8 sm:h-10 sm:w-10"
-          style={{ color: green }}
+          style={{ color: "#2f5218" }}
           strokeWidth={1.5}
         />
       </div>
