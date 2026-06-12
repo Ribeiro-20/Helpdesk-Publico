@@ -25,4 +25,4 @@ class channelSerializerDTO(serializers.Serializer):
 class EupagoWebhookSerializerDTO(serializers.Serializer):
     transactions = transactionSerializerDTO()
     channel = channelSerializerDTO()
-    data = serializers.CharField(required=False)
+    webhook_data = serializers.CharField(required=False,source="data")

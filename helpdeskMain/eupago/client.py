@@ -1,18 +1,18 @@
 import os
 import requests
 
+
 class EupagoClient:
     def __init__(self):
         self._apikey = os.environ.get("EAPI_KEY")
         self._endpoint = os.environ.get("EENDPOINT")
-
 
     # Easier Testability + Bug Handling
     def _post(self, path: str, payload: dict):
         url = f"{self._endpoint}{path}"
 
         headers = {
-            "Authorization": ("ApiKey " + self._apikey),
+            "Authorization": f"ApiKey {self._apikey}",
             "Content-Type": "application/json",
         }
 

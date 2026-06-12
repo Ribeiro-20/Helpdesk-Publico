@@ -24,7 +24,7 @@ newService = MBWayService(newClient, newMapper)
 
 dto = MBWayRequest(
     identifier="order-12345",
-    amount=Money(25.50, "EUR"),
+    amount=Money(2550, "EUR"),
     customer_phone="912345678",
     country_code="351",
     notify=True,
