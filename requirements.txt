@@ -5,3 +5,5 @@ django-filter
 faker
 pytest
 pytest-django
+python-dotenv
+requests
