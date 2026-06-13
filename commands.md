@@ -10,7 +10,7 @@ Example :
 python manage.py create_mbway_payment \
   --identifier "order-123" \
   --amount 2550 \
-  --currency EUR \
+  --currency "EUR" \
   --customer-phone 912345678 \
   --country-code 351 \
   --notify \
