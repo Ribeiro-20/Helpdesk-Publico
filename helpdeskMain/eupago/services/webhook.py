@@ -1,3 +1,4 @@
+from eupago.domain.transactionevent import TransactionEvent
 import logging
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ DatabaseMap = {
 
 class EupagoWebhookService:
 
-    def process_webhook(self, transaction):
+    def process_webhook(self, transaction: TransactionEvent):
         dispatch = {
             TransactionStatus.PAID: self._process_webhook_paid,
             TransactionStatus.REFUNDED: self._process_webhook_refunded,
@@ -25,9 +26,13 @@ class EupagoWebhookService:
         }
 
         # Add verifications later
-        dispatch[transaction.status](transaction);
+        dispatch[transaction.status](transaction)
 
-    def _process_webhook_paid(self,transaction):
+    def _process_webhook_paid(self,transaction: TransactionEvent):
+        logger.info("Payment paid: %s",transaction.identifier)
+
+        # Update on DB.
+
 
         # Payment has been processed?
         # Complete payment and make the necessary adjusts to client database.

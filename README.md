@@ -1,32 +1,38 @@
-# Requirements
+# Project Setup
 
+## Requirements
 
-## Python Installation
+- Python 3.x 🐍
+- pip
 
-* [Python](https://www.python.org/) 🐍
+---
 
-Python package installation script
-```sh
-pip install django;
-pip install djangorestframework;
-pip install markdown;
-pip install django-filter;
-pip install faker;
-pip install mailtrap;
-pip install pytest;
-pip install pytest-django;
+## Install Dependencies
+
+```bash
+pip install -r requirements.txt
 ```
 
-## Key Setup
+# Environment Variables
 
-For setup of authentication you need to setup first the API keys for the environment.
-Header authentication
-Eupago API Key (EAPI_KEY)
-TOConline API Key (TAPI_KEY)
-Hubspot Api Key (HAPI_KEY)
+Follow .env.template:
+```sh
+EAPI_KEY=your_eupago_api_key
+TAPI_KEY=your_toconline_api_key
+HAPI_KEY=your_hubspot_api_key
+```
 
-# Credentials
-- estagio2026HelpDesk
-    - admin password 123
+# Run Project
 
-![Python](https://img.shields.io/badge/python-3.x-blue?logo=python&logoColor=white)
+python manage.py migrate
+python manage.py runserver
+
+# Testing
+
+pytest
+
+# Admin (optional)
+
+- URL: /admin
+- User: estagio2026HelpDesk
+- Password: 123

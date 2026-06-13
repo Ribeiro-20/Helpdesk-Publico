@@ -1,3 +1,4 @@
+from eupago.client import EupagoClient
 from eupago.dto.input.mbway_response import MBWayResponse
 from eupago.domain.money import Money
 from eupago.dto.out.mbway_request import MBWayRequest
@@ -8,7 +9,7 @@ from faker import Faker
 
 def test_service():
     fake = Faker()
-    client = Mock()
+    client = Mock(spec=EupagoClient)
 
     # fake Eupago API response
     client.create_mbway.return_value = {
@@ -43,3 +44,4 @@ def test_service():
 
     # also verify client was actually used correctly
     client.create_mbway.assert_called_once()
+    client.create_mbway

@@ -16,6 +16,7 @@ class PaymentMethod(Enum):
     MBWAY = "MBWAY"
     MBREFERENCE = "MBREFERENCE"
     CREDITCARD = "CREDITCARD"
+    DIRECTDEBIT = "DIRECTDEBIT"
 
 @dataclass
 class TransactionEvent:
