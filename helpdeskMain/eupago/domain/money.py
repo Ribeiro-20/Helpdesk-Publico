@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-
+# Add logger
 @dataclass
 class Money:
     amount: int # CHECK OUT FLOAT/INT

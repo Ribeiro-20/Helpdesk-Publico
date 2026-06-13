@@ -52,7 +52,7 @@ class EupagoWebhookService:
         # Force recheck if needed to send again.
         pass
 
-    def _process_webhook_expired(self):
+    def _process_webhook_expired(self, transaction):
 
         # Payment expired?
         # Force recheck if needed to send again.

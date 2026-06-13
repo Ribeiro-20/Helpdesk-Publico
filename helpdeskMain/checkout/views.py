@@ -10,6 +10,7 @@ from checkout.serializer import CheckoutFormSerializer
 
 @csrf_exempt #TEMP DURING DEV!!
 def CheckoutEntry(request):
+    
     if request.method != "POST":
         logger.warning("Invalid method for checkout form: %s", request.method)
         return HttpResponse(status=405)
