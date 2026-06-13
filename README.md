@@ -13,6 +13,8 @@ pip install markdown;
 pip install django-filter;
 pip install faker;
 pip install mailtrap;
+pip install pytest;
+pip install pytest-django;
 ```
 
 ## Key Setup
