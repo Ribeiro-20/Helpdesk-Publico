@@ -7,3 +7,5 @@ pytest
 pytest-django
 python-dotenv
 requests
+pylint
+pyrefly
