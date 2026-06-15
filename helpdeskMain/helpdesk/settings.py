@@ -27,6 +27,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     "platinum-gibberish-spirits.ngrok-free.dev", # To be removed in production
+    "retrial-overfed-uncle.ngrok-free.dev",
     "127.0.0.1", # To be removed in production
     "localhost",
     # Add EUPAGO Webhook IP to allowed hosts!
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
 	'django.contrib.staticfiles',
 	'rest_framework',
+    'corsheaders',
 
     # Internal apps
     'core',
@@ -54,6 +56,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -158,3 +161,5 @@ LOGGING = {
 # settings.py
 from dotenv import load_dotenv
 load_dotenv()
+
+CORS_ALLOW_ALL_ORIGINS = True
