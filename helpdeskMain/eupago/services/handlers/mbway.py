@@ -13,6 +13,4 @@ class MBWayService:
     def create_payment(self, dto: MBWayRequest) -> MBWayResponse:
         response = self._mapper.to_mbwayresponse(self._client.create_mbway(self._mapper.to_payload(dto)))
 
-        
-
         return response
