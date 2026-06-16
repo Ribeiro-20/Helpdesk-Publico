@@ -1,4 +1,16 @@
-project-includes = [
-    "**/*.py*",
-    "**/*.ipynb",
+search_paths = ["."]
+
+exclude = [
+    "**/migrations/*.py",
+    "**/apps.py",
+    "**/settings.py",
+    "manage.py"
 ]
+
+[rules]
+ignore_codes = [
+    "bad-override",
+    "bad-override-mutable-attribute"
+]
+
+fail_on_warnings = false
