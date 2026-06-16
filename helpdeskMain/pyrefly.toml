@@ -2,6 +2,3 @@ project-includes = [
     "**/*.py*",
     "**/*.ipynb",
 ]
-
-[tool.pyrefly]
-search-path = ["."]
