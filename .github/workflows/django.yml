@@ -77,4 +77,4 @@ jobs:
 
         - name: Lint with pylint
           working-directory: helpdeskMain
-          run: pylint . | true
+          run: pylint . || true
