@@ -174,7 +174,7 @@ export default async function HomePage() {
           </div>
         </div>
 
-        <div className="hp-global-hero-wave" style={{ marginLeft: "calc(-50vw + 50%)", marginRight: "calc(-50vw + 50%)", width: "100vw", position: "relative", zIndex: 2, marginTop: "-60px" }}>
+        <div className="hp-global-hero-wave" style={{ marginLeft: "calc(-50vw + 50%)", marginRight: "calc(-50vw + 50%)", width: "100vw", position: "relative", zIndex: 2, marginTop: "-95px" }}>
           <svg viewBox="0 0 1440 340" preserveAspectRatio="none" style={{ width: "100%", height: "280px", display: "block" }}>
             <path
               d="M0,180 C180,80 360,260 540,160 C720,60 900,220 1080,150 C1260,80 1360,140 1440,130 L1440,260 C1260,300 1080,220 900,280 C720,340 540,240 360,300 C180,360 80,280 0,310 Z"
