@@ -57,7 +57,7 @@ jobs:
         working-directory: helpdeskMain
         run: pytest -q
 
-    pylint:
+  pylint:
       runs-on: ubuntu-latest
 
       strategy:
