@@ -1,12 +1,10 @@
+from checkout.serializer import CheckoutFormSerializer
 import json
 
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 import logging
 logger = logging.getLogger(__name__)
-
-from checkout.serializer import CheckoutFormSerializer
-
 
 @csrf_exempt #TEMP DURING DEV!!
 def CheckoutEntry(request):
@@ -20,6 +18,9 @@ def CheckoutEntry(request):
     # Serialize DICT
     if not serialized.is_valid():
         logger.warning("Invalid data received in checkout form: %s", serialized.errors)
-        return HttpResponse(status=400)
+        return HttpResponse(serialized.errors, status=400)
 
+    print(serialized.data["dados_pagamento"])
+
+    return HttpResponse(status=204)
     # Need further data to work with / Waiting for other team members
