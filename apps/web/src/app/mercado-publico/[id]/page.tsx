@@ -272,7 +272,7 @@ export default async function PublicContractDetailPage({
               <p className="text-xs text-gray-400 mb-1">Preço Contratual</p>
               <p
                 className="text-xl font-bold"
-                style={{ color: "rgba(74, 222, 128, 1)" }}
+                style={{ color: "#3f6f27" }}
               >
                 {fmtEur(contract.contract_price)}
               </p>
@@ -303,7 +303,7 @@ export default async function PublicContractDetailPage({
 
         {/* Info grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Entidade adjudicante */}
+          {/* Entidade Adjudicante */}
           <InfoCard title="Entidade Adjudicante">
             {entities.length === 0 ? (
               <p className="text-sm text-gray-400">Sem informação</p>
@@ -312,7 +312,7 @@ export default async function PublicContractDetailPage({
                 <div key={i} className="flex items-start gap-2">
                   <div
                     className="w-1.5 h-1.5 rounded-full mt-2 shrink-0"
-                    style={{ background: "rgba(74, 222, 128, 1)" }}
+                    style={{ background: "#3f6f27" }}
                   />
                   <div>
                     <p className="text-sm font-medium text-gray-900">
@@ -465,8 +465,7 @@ export default async function PublicContractDetailPage({
               href={contract.procedure_docs_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-sm font-medium hover:underline transition-colors"
-              style={{ color: "rgba(74, 222, 128, 1)" }}
+              className="inline-flex items-center gap-2 text-sm font-medium hover:underline transition-colors text-green-600"
             >
               <ExternalLink className="w-4 h-4 shrink-0" />
               Peças do Procedimento / Contrato

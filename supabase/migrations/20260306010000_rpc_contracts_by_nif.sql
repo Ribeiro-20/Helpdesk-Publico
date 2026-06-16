@@ -160,3 +160,10 @@ begin
   return query select v_rows, v_count;
 end;
 $$;
+
+-- Grants para anon e authenticated poderem chamar as funções via API
+grant execute on function contracts_by_entity_nif(uuid, text, int) to anon, authenticated;
+grant execute on function contracts_by_winner_nif(uuid, text, int) to anon, authenticated;
+grant execute on function count_contracts_by_entity_nif(uuid, text) to anon, authenticated;
+grant execute on function count_contracts_by_winner_nif(uuid, text) to anon, authenticated;
+grant execute on function search_contracts(uuid, text, text, text, text, numeric, numeric, date, date, text, int, int) to anon, authenticated;

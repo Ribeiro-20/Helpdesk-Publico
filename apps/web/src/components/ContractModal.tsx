@@ -51,13 +51,20 @@ interface Contract {
 }
 
 function decodeHtml(str: string): string {
-  return str
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'");
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
 }
 
 function extractName(raw: unknown): string {
@@ -167,7 +174,7 @@ function parseCompetitors(raw: string): string[] {
     ) {
       const next = trimmed.slice(i + 1).trimStart();
       const isSuffix =
-        /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i.test(next);
+        /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unip\b|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i.test(next);
       if (!isSuffix) {
         entries.push(current.trim());
         current = "";
@@ -199,7 +206,7 @@ function fmtDate(d: string | null): string {
 }
 
 const HEADER_BG = "rgba(26, 27, 31, 1)";
-const GREEN = "rgba(74, 222, 128, 1)";
+const GREEN = "#3f6f27";
 
 export default function ContractModal({
   contractId,
