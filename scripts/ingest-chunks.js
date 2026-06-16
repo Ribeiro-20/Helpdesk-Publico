@@ -154,6 +154,11 @@ function isValidDate(dateStr) {
 }
 
 function readTokenFromEnv(envPath) {
+  const envToken = process.env.BASE_API_TOKEN?.trim();
+  if (envToken && envToken !== "<your BASE API token>") {
+    return envToken;
+  }
+
   try {
     const content = fs.readFileSync(envPath, "utf-8");
     const match = content.match(/BASE_API_TOKEN\s*=\s*(.+)/);

@@ -123,7 +123,7 @@ async function runDirectIngestFallback(range) {
 
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [scriptPath, "--from", range.from, "--to", range.to, "--limit", "200000"],
+    [scriptPath, "--from", range.from, "--to", range.to],
     {
       cwd: __dirname,
       maxBuffer: 1024 * 1024 * 10,

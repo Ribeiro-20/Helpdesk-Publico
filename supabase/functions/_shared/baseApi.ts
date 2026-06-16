@@ -252,9 +252,46 @@ function parsePrice(val: unknown): number | null {
 }
 
 export function parseNifNome(raw: string): { nif: string; name: string } {
-  const idx = raw.indexOf(" - ");
-  if (idx === -1) return { nif: raw.trim(), name: raw.trim() };
-  return { nif: raw.slice(0, idx).trim(), name: raw.slice(idx + 3).trim() };
+  const value = String(raw ?? "").trim();
+  if (!value || value === "-" || value === "—") return { nif: "", name: "" };
+
+  const match = value.match(/^\s*(?:NIF|NIPC)?\s*:?\s*(\d{9})(?:\s*[-–—]\s*(.+))?\s*$/i);
+  if (!match) return { nif: "", name: value };
+
+  const nif = match[1];
+  const name = (match[2] ?? "").trim();
+  return { nif, name: name || nif };
+}
+
+export function parseNifNomeList(text: string | null | undefined): Array<{ nif: string; name: string }> {
+  if (!text) return [];
+
+  const value = String(text);
+  const matches = Array.from(value.matchAll(/\d{9}/g));
+  const result: Array<{ nif: string; name: string }> = [];
+  const seen = new Set<string>();
+
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const nif = match[0];
+    if (seen.has(nif)) continue;
+
+    const start = (match.index ?? 0) + nif.length;
+    const end = matches[i + 1]?.index ?? value.length;
+    const rawName = value
+      .slice(start, end)
+      .replace(/^[\s\-–—:]+/, "")
+      .replace(/[\s;,|]+$/, "")
+      .trim();
+
+    const parsed = parseNifNome(rawName ? `${nif} - ${rawName}` : nif);
+    if (parsed.nif) {
+      result.push(parsed);
+      seen.add(parsed.nif);
+    }
+  }
+
+  return result;
 }
 
 async function fetchContractsByYear(year: number): Promise<Record<string, unknown>[]> {
@@ -328,9 +365,11 @@ export async function listAllContracts(
 }
 
 export function mapToContract(payload: Record<string, unknown>): BaseContractMapped {
-  const rawCpvs = Array.isArray(payload.cpv)
-    ? (payload.cpv as string[]).map(extractCpvCode)
-    : [];
+  // 1. CPV: Can be "cpv" or "CPV", and can be a string or an array
+  const cpvSource = (payload.cpv ?? payload.CPV) as string | string[] | undefined;
+  const rawCpvs = Array.isArray(cpvSource)
+    ? cpvSource.map(extractCpvCode)
+    : cpvSource ? [extractCpvCode(String(cpvSource))] : [];
   const cpvMain = rawCpvs[0] ?? null;
 
   const publicationDate = parsePtDate(payload.dataPublicacao as string) ?? null;
@@ -339,21 +378,29 @@ export function mapToContract(payload: Record<string, unknown>): BaseContractMap
   const closeDate = parsePtDate(payload.dataFechoContrato as string) ?? null;
   const effectiveDate = signingDate ?? publicationDate;
 
+  // 2. Contract Type: Can be a string or an array
   const contractType = Array.isArray(payload.tipoContrato)
     ? (payload.tipoContrato as string[])[0] ?? null
     : typeof payload.tipoContrato === "string"
     ? payload.tipoContrato
     : null;
 
-  const contractingEntities = Array.isArray(payload.adjudicante)
-    ? (payload.adjudicante as string[])
-    : [];
-  const winners = Array.isArray(payload.adjudicatarios)
-    ? (payload.adjudicatarios as string[])
-    : [];
-  const executionLocations = Array.isArray(payload.localExecucao)
-    ? (payload.localExecucao as string[])
-    : [];
+  // 3. Entities: Can be a string or an array
+  const adjudicanteSource = payload.adjudicante as string | string[] | undefined;
+  const contractingEntities = Array.isArray(adjudicanteSource)
+    ? (adjudicanteSource as string[])
+    : adjudicanteSource ? [String(adjudicanteSource)] : [];
+
+  const adjudicatariosSource = payload.adjudicatarios as string | string[] | undefined;
+  const winners = Array.isArray(adjudicatariosSource)
+    ? (adjudicatariosSource as string[])
+    : adjudicatariosSource ? [String(adjudicatariosSource)] : [];
+
+  const executionLocationsSource = payload.localExecucao as string | string[] | undefined;
+  const executionLocations = Array.isArray(executionLocationsSource)
+    ? (executionLocationsSource as string[])
+    : executionLocationsSource ? [String(executionLocationsSource)] : [];
+
   const executionDays = typeof payload.prazoExecucao === "number"
     ? payload.prazoExecucao
     : payload.prazoExecucao

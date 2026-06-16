@@ -1,0 +1,250 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createEmailProvider, buildMiContractAlertEmail } from "../_shared/emailProvider.ts";
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Content-Type": "application/json",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS });
+  }
+
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { autoRefreshToken: false, persistSession: false } },
+    );
+
+    // Resolve tenant_id
+    const { data: tenant, error: tenantErr } = await supabase
+      .from("tenants")
+      .select("id")
+      .limit(1)
+      .single();
+
+    if (tenantErr || !tenant) {
+      return new Response(
+        JSON.stringify({ error: "No tenant found. Run bootstrap first." }),
+        { status: 400, headers: CORS },
+      );
+    }
+    const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "http://localhost:3000";
+
+    // 1. Fetch active subscritores
+    const { data: subscribers, error: subsErr } = await supabase
+      .from("mi_subscribers")
+      .select("id, email, name, cpv_filter, min_progress")
+      .eq("is_active", true);
+
+    if (subsErr) throw subsErr;
+    if (!subscribers || subscribers.length === 0) {
+      return new Response(
+        JSON.stringify({ message: "No active subscribers found." }),
+        { status: 200, headers: CORS },
+      );
+    }
+
+    // 2. Query high-progress contracts from optimized Postgres RPC
+    const { data: contracts, error: contractsErr } = await supabase.rpc(
+      "get_high_progress_contracts",
+      { min_pct: 0.75, max_pct: 1.05 }
+    );
+
+    if (contractsErr) throw contractsErr;
+
+    const candidateContracts = contracts ?? [];
+    if (candidateContracts.length === 0) {
+      return new Response(
+        JSON.stringify({ message: "No contracts found in the 75% - 105% progress range." }),
+        { status: 200, headers: CORS },
+      );
+    }
+
+    // 3. Match contracts to subscribers and queue PENDING notifications
+    let notificationsCreated = 0;
+
+    for (const sub of subscribers) {
+      const matchedContracts = candidateContracts.filter((c: any) => {
+        // Apply CPV prefix filter if defined
+        if (sub.cpv_filter) {
+          const cleanFilter = sub.cpv_filter.trim().toUpperCase();
+          const mainCpv = (c.cpv_main ?? "").trim().toUpperCase();
+          if (!mainCpv.startsWith(cleanFilter)) {
+            return false;
+          }
+        }
+        // Apply subscriber's specific min_progress threshold
+        if (c.progress < (sub.min_progress ?? 0.75)) {
+          return false;
+        }
+        return true;
+      });
+
+      for (const contract of matchedContracts) {
+        // Insert PENDING notification (UNIQUE constraint will avoid duplicate emails automatically)
+        const { error: insertErr } = await supabase
+          .from("mi_contract_notifications")
+          .insert({
+            subscriber_id: sub.id,
+            contract_id: contract.id,
+            progress_at_send: contract.progress,
+            status: "PENDING",
+          });
+
+        if (!insertErr) {
+          notificationsCreated++;
+        }
+      }
+    }
+
+    // 4. Process PENDING notifications and send emails
+    const { data: pendingNotifications, error: notifErr } = await supabase
+      .from("mi_contract_notifications")
+      .select(`
+        id,
+        subscriber_id,
+        contract_id,
+        progress_at_send,
+        mi_subscribers (
+          email,
+          name
+        ),
+        contracts (
+          object,
+          contracting_entities,
+          winners,
+          contract_price,
+          signing_date,
+          execution_deadline_days
+        )
+      `)
+      .eq("status", "PENDING");
+
+    if (notifErr) throw notifErr;
+
+    // Group pending by subscriber
+    const grouped = new Map<string, { subscriber: any; items: any[] }>();
+
+    for (const notif of pendingNotifications ?? []) {
+      const sub = notif.mi_subscribers as any;
+      const contract = notif.contracts as any;
+      if (!sub || !contract) continue;
+
+      const subId = notif.subscriber_id;
+      if (!grouped.has(subId)) {
+        grouped.set(subId, { subscriber: sub, items: [] });
+      }
+
+      grouped.get(subId)!.items.push({
+        notifId: notif.id,
+        progress: notif.progress_at_send,
+        ...contract,
+      });
+    }
+
+    const emailProvider = createEmailProvider();
+    let emailsSent = 0;
+    let emailsFailed = 0;
+
+    // Helper to format entity/winner names
+    function cleanEntityName(raw: unknown): string {
+      if (typeof raw === "string") {
+        return raw.replace(/^[\s\-\/\.]+/g, "").trim();
+      }
+      if (raw && typeof raw === "object") {
+        const record = raw as Record<string, unknown>;
+        const val = record.value ?? record.label ?? record.text ?? record.name;
+        if (typeof val === "string") return val.replace(/^[\s\-\/\.]+/g, "").trim();
+      }
+      return "—";
+    }
+
+    for (const [subId, group] of grouped.entries()) {
+      const sub = group.subscriber;
+      const items = group.items;
+
+      try {
+        // Map items to the email template format
+        const contractsForEmail = items.map((item) => {
+          const entityRaw = Array.isArray(item.contracting_entities) ? item.contracting_entities[0] : item.contracting_entities;
+          const winnerRaw = Array.isArray(item.winners) ? item.winners[0] : item.winners;
+
+          // Estimate end date
+          const signingDate = new Date(item.signing_date);
+          const endDate = new Date(signingDate);
+          endDate.setDate(endDate.getDate() + (item.execution_deadline_days || 0));
+          const estimatedEndDate = endDate.toISOString().slice(0, 10);
+
+          return {
+            object: item.object,
+            entity: cleanEntityName(entityRaw),
+            winner: cleanEntityName(winnerRaw),
+            progress: item.progress,
+            contractPrice: item.contract_price,
+            signingDate: item.signing_date,
+            deadlineDays: item.execution_deadline_days || 0,
+            estimatedEndDate,
+          };
+        });
+
+        // Build the email body
+        const { subject, html, text } = buildMiContractAlertEmail({
+          subscriberName: sub.name || "Subscritor",
+          contracts: contractsForEmail,
+          appBaseUrl,
+        });
+
+        // Send the email
+        const result = await emailProvider.send({
+          to: sub.email,
+          subject,
+          html,
+          text,
+        });
+
+        if (result.success) {
+          emailsSent++;
+          const notifIds = items.map((item) => item.notifId);
+          await supabase
+            .from("mi_contract_notifications")
+            .update({ status: "SENT", sent_at: new Date().toISOString() })
+            .in("id", notifIds);
+        } else {
+          emailsFailed++;
+          const notifIds = items.map((item) => item.notifId);
+          await supabase
+            .from("mi_contract_notifications")
+            .update({ status: "FAILED", error: result.error ?? "Provider error" })
+            .in("id", notifIds);
+        }
+      } catch (grpErr) {
+        console.error(`[mi-contract-alerts] Group error for subscriber ${sub.email}:`, grpErr);
+        emailsFailed++;
+        const notifIds = items.map((item) => item.notifId);
+        await supabase
+          .from("mi_contract_notifications")
+          .update({ status: "FAILED", error: String(grpErr) })
+          .in("id", notifIds);
+      }
+    }
+
+    return new Response(
+      JSON.stringify({
+        notifications_created: notificationsCreated,
+        emails_sent: emailsSent,
+        emails_failed: emailsFailed,
+      }),
+      { status: 200, headers: CORS },
+    );
+  } catch (err) {
+    console.error("[mi-contract-alerts] Fatal error:", err);
+    return new Response(
+      JSON.stringify({ error: String(err) }),
+      { status: 500, headers: CORS },
+    );
+  }
+});

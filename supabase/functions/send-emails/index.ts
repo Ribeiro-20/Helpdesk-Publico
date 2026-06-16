@@ -27,7 +27,7 @@ const CORS = {
   "Content-Type": "application/json",
 };
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS });
   }
@@ -61,13 +61,12 @@ Deno.serve(async (req) => {
 
     const batchSize = Number(body.batch_size ?? 50);
     const appBaseUrl =
-      Deno.env.get("APP_BASE_URL") ?? "http://localhost:3000";
+      Deno.env.get("APP_BASE_URL") ?? "http://localhost:3001";
 
     // Fetch PENDING notifications with related data
     const { data: notifications, error: fetchErr } = await supabase
       .from("notifications")
-      .select(
-        `
+      .select(`
         id,
         client_id,
         announcement_id,
@@ -77,17 +76,8 @@ Deno.serve(async (req) => {
           is_active,
           max_emails_per_day
         ),
-        announcements (
-          title,
-          entity_name,
-          publication_date,
-          cpv_main,
-          base_price,
-          currency,
-          detail_url
-        )
-      `,
-      )
+        announcements (*)
+      `)
       .eq("tenant_id", tenantId)
       .eq("status", "PENDING")
       .order("created_at", { ascending: true })
@@ -149,26 +139,85 @@ Deno.serve(async (req) => {
           currency: announcement.currency,
           detailUrl: announcement.detail_url,
           appBaseUrl,
+          announcement: announcement as Record<string, unknown>,
         });
 
-        const result = await emailProvider.send({
-          to: client.email,
-          subject,
-          html,
-          text,
-        });
+          // Try to fetch the PDF version of the announcement and attach it
+          const attachments: Array<{ name: string; content: string; contentType?: string }> = [];
+          try {
+            const pdfUrl = `${appBaseUrl.replace(/\/$/,"")}/api/announcements/${notif.announcement_id}/pdf`;
+            const pdfRes = await fetch(pdfUrl);
+            if (pdfRes.ok) {
+              const arr = await pdfRes.arrayBuffer();
+              // convert ArrayBuffer to base64 (Deno-friendly)
+              const bytes = new Uint8Array(arr);
+              let binary = "";
+              const chunkSize = 0x8000; // 32KB chunks
+              for (let i = 0; i < bytes.length; i += chunkSize) {
+                const chunk = bytes.subarray(i, i + chunkSize);
+                binary += String.fromCharCode.apply(null, Array.from(chunk));
+              }
+              const b64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
+              const filename = `anuncio-${String(notif.announcement_id)}.pdf`;
+              attachments.push({ name: filename, content: b64, contentType: "application/pdf" });
+            } else {
+              console.warn(`[send-emails] could not fetch pdf (${pdfRes.status}) for announcement ${notif.announcement_id}`);
+            }
+          } catch (e) {
+            console.warn("[send-emails] error fetching announcement pdf:", e);
+          }
+
+          const result = await emailProvider.send({
+            to: client.email,
+            subject,
+            html,
+            text,
+            ...(attachments.length > 0 ? { attachments } : {}),
+          });
 
         if (result.success) {
           await supabase
             .from("notifications")
             .update({ status: "SENT", sent_at: new Date().toISOString() })
             .eq("id", notif.id);
+
+          // record email history
+          try {
+            await supabase.from("email_histories").insert({
+              tenant_id: tenantId,
+              notification_id: notif.id,
+              subject,
+              html,
+              text,
+              payload: { subject, html, text, client, announcement },
+              status: "SENT",
+            });
+          } catch (e) {
+            console.error("[send-emails] could not insert email_history:", e);
+          }
+
           stats.sent++;
         } else {
           await supabase
             .from("notifications")
             .update({ status: "FAILED", error: result.error ?? "Unknown" })
             .eq("id", notif.id);
+
+          try {
+            await supabase.from("email_histories").insert({
+              tenant_id: tenantId,
+              notification_id: notif.id,
+              subject,
+              html,
+              text,
+              payload: { subject, html, text, client, announcement },
+              status: "FAILED",
+              error: result.error ?? null,
+            });
+          } catch (e) {
+            console.error("[send-emails] could not insert email_history:", e);
+          }
+
           stats.failed++;
         }
       } catch (sendErr) {
@@ -177,6 +226,22 @@ Deno.serve(async (req) => {
           .from("notifications")
           .update({ status: "FAILED", error: String(sendErr) })
           .eq("id", notif.id);
+
+        try {
+          await supabase.from("email_histories").insert({
+            tenant_id: tenantId,
+            notification_id: notif.id,
+            subject: null,
+            html: null,
+            text: null,
+            payload: { error: String(sendErr), client, announcement },
+            status: "FAILED",
+            error: String(sendErr),
+          });
+        } catch (e) {
+          console.error("[send-emails] could not insert email_history:", e);
+        }
+
         stats.failed++;
         stats.errors++;
       }

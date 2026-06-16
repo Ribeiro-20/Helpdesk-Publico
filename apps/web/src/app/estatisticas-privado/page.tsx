@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
 const BODY_BG = "rgba(248, 250, 252, 1)";
-const GREEN = "rgba(74, 222, 128, 1)";
+const GREEN = "#3f6f27";
 
 type PageParams = {
   page?: string;
@@ -341,7 +341,7 @@ export default async function EstatisticasPrivadoPage({
             <button
               type="submit"
               className="inline-flex items-center justify-center gap-1 px-4 py-2 rounded-xl text-sm font-medium text-white transition-all shadow-sm hover:opacity-90 h-[38px]"
-              style={{ background: GREEN, color: "#1a1a1a" }}
+              style={{ background: GREEN, color: "#ffffff" }}
             >
               <Filter className="w-4 h-4" />
               Pesquisar
@@ -399,12 +399,12 @@ export default async function EstatisticasPrivadoPage({
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
+                      <a
                         href={contractsHref}
                         className="inline-flex items-center gap-1 text-xs font-semibold text-green-700 hover:text-green-800"
                       >
                         Ver contratos
-                      </Link>
+                      </a>
                     </td>
                   </tr>
                 );

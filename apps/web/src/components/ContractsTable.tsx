@@ -11,6 +11,7 @@ export interface ContractRow {
   object: string | null;
   procedure_type: string | null;
   contract_type?: string | null;
+  publication_date: string | null;
   signing_date: string | null;
   execution_deadline_days?: number | null;
   execution_locations?: string[];
@@ -89,21 +90,36 @@ function resolveStatusBadge(contract: ContractRow): {
   };
 }
 
+function decodeHtml(str: string): string {
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
 function extractName(raw: unknown): string {
   if (typeof raw === "string") {
-    const idx = raw.indexOf(" - ");
-    return idx === -1 ? raw : raw.slice(idx + 3);
+    const s = decodeHtml(raw);
+    const idx = s.indexOf(" - ");
+    return idx === -1 ? s : s.slice(idx + 3);
   }
 
   if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
     const directName = record.name;
-    if (typeof directName === "string" && directName.trim()) return directName;
+    if (typeof directName === "string" && directName.trim()) return decodeHtml(directName.trim());
 
     const value = record.value ?? record.label ?? record.text;
     if (typeof value === "string" && value.trim()) {
-      const idx = value.indexOf(" - ");
-      return idx === -1 ? value : value.slice(idx + 3);
+      const s = decodeHtml(value);
+      const idx = s.indexOf(" - ");
+      return idx === -1 ? s : s.slice(idx + 3);
     }
   }
 
@@ -217,7 +233,7 @@ export default function ContractsTable({
                   <span className="inline-flex items-center gap-1">
                     CPV
                     <InfoPopover
-                      text="passe o rato por cima do código cpv para ver a descrição."
+                      text="Passe o cursor sobre o código CPV para visualizar a descrição"
                       ariaLabel="Informação sobre coluna CPV"
                       placement="bottom"
                     />
@@ -271,7 +287,7 @@ export default function ContractsTable({
                       {winnerName}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">
-                      {formatDate(c.signing_date)}
+                      {formatDate(c.publication_date)}
                     </td>
                     <td className="px-4 py-3 w-[110px]">
                       {c.cpv_main ? (
@@ -335,9 +351,7 @@ export default function ContractsTable({
                 key={p}
                 href={buildQs(p)}
                 className={p === page ? ACTIVE : BTN}
-                style={
-                  p === page ? { background: "rgba(74, 222, 128, 1)" } : {}
-                }
+                style={p === page ? { background: "#3f6f27" } : {}}
               >
                 {p}
               </Link>

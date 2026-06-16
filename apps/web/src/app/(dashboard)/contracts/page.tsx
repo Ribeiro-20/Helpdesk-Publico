@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;
 
 const STATUS_BADGE: Record<string, string> = {
-  active: "bg-green-100 text-green-700",
+  active: "bg-brand-100 text-brand-700",
   closed: "bg-gray-100 text-gray-600",
   modified: "bg-amber-100 text-amber-700",
 };
@@ -22,13 +22,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 function formatEur(val: number | null): string {
   if (val == null) return "\u2014";
-  if (val >= 1_000_000) {
-    return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M \u20AC`;
-  }
-  if (val >= 1_000) {
-    return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k \u20AC`;
-  }
-  return val.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " \u20AC";
+  return val.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " \u20AC";
 }
 
 function formatDate(d: string | null): string {
@@ -46,7 +40,7 @@ function discountBadge(base: number | null, contract: number | null) {
   return (
     <span
       className={`inline-block text-xs px-1.5 py-0.5 rounded font-medium ${
-        isDiscount ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+        isDiscount ? "bg-brand-50 text-brand-700" : "bg-red-50 text-red-700"
       }`}
     >
       {isDiscount ? "-" : "+"}{Math.abs(pct).toFixed(0)}%
@@ -55,26 +49,41 @@ function discountBadge(base: number | null, contract: number | null) {
 }
 
 /** Extract display name from contract party payloads (string or object). */
+function decodeHtml(str: string): string {
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
 function extractName(raw: unknown): string {
   if (typeof raw === "string") {
-    const idx = raw.indexOf(" - ");
-    return idx === -1 ? raw : raw.slice(idx + 3);
+    const s = decodeHtml(raw);
+    const idx = s.indexOf(" - ");
+    return idx === -1 ? s : s.slice(idx + 3);
   }
 
   if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
     const directName = record.name;
     if (typeof directName === "string" && directName.trim()) {
-      return directName;
+      return decodeHtml(directName.trim());
     }
 
     const nif = record.nif;
     const full = record.value ?? record.label ?? record.text;
     if (typeof full === "string" && full.trim()) {
-      const idx = full.indexOf(" - ");
-      if (idx !== -1) return full.slice(idx + 3);
-      if (typeof nif === "string" && full.startsWith(`${nif} `)) {
-        return full.slice(nif.length).trim();
+      const s = decodeHtml(full);
+      const idx = s.indexOf(" - ");
+      if (idx !== -1) return s.slice(idx + 3);
+      if (typeof nif === "string" && s.startsWith(`${nif} `)) {
+        return s.slice(nif.length).trim();
       }
       return full;
     }
@@ -124,7 +133,6 @@ export default async function ContractsPage({
   const from = (page - 1) * PAGE_SIZE;
 
   // Use search_contracts RPC for JSONB-aware filtering
-  const hasNifFilter = entityNifFilter || winnerNifFilter;
   const hasAnyFilter = cpvFilter || entityFilter || entityNifFilter || winnerFilter || winnerNifFilter || procedureFilter || minValue || maxValue || fromDate || toDate;
 
   // Combine entity text filter with NIF: if user typed entity name, search in JSONB text;
@@ -174,6 +182,18 @@ export default async function ContractsPage({
   }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  const cpvCodes = [...new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[])];
+  const cpvDescriptions: Record<string, string> = {};
+  if (cpvCodes.length > 0) {
+    const { data: cpvData } = await supabase
+      .from("cpv_codes")
+      .select("id, descricao")
+      .in("id", cpvCodes);
+    for (const row of (cpvData ?? []) as Array<{ id: string; descricao: string }>) {
+      if (row.id) cpvDescriptions[row.id] = row.descricao ?? "";
+    }
+  }
 
   // Build query string helper
   function buildQs(overrides: Record<string, string | number> = {}) {
@@ -381,9 +401,18 @@ export default async function ContractsPage({
                     </td>
                     <td className="px-4 py-3">
                       {c.cpv_main ? (
-                        <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap">
-                          {c.cpv_main}
-                        </span>
+                        <div className="relative inline-flex group">
+                          <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap">
+                            {c.cpv_main}
+                          </span>
+                          {cpvDescriptions[c.cpv_main] && (
+                            <div className="pointer-events-none absolute z-50 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible left-0 top-[calc(100%+6px)]">
+                              <span className="absolute h-2 w-2 rotate-45 bg-white border-l border-t border-gray-200 left-2 -top-1" />
+                              <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">CPV</p>
+                              <p className="text-xs leading-5 text-gray-700">{cpvDescriptions[c.cpv_main]}</p>
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         "\u2014"
                       )}
@@ -392,11 +421,6 @@ export default async function ContractsPage({
                       <span className="text-gray-900 font-medium text-xs">
                         {formatEur(c.contract_price)}
                       </span>
-                      {discountBadge(c.base_price, c.contract_price) && (
-                        <span className="ml-1.5">
-                          {discountBadge(c.base_price, c.contract_price)}
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span

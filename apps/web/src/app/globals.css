@@ -4,7 +4,12 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+    overflow-x: hidden;
+}
+
 body {
+    overflow-x: hidden;
     background-color: rgba(248, 250, 252, 1);
     color: #111827;
     font-family:

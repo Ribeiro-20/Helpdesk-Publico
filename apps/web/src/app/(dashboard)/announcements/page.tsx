@@ -50,7 +50,7 @@ const ACT_TYPE_CANONICAL = [
 ] as const;
 
 const ACT_TYPE_VARIANTS: Record<string, string[]> = {
-  "Anúncio de procedimento": ["Anúncio de procedimento", "Anuncio de procedimento"],
+  "Anúncio de procedimento": ["Anúncio de procedimento", "Anúncio de procedimento"],
   "Anúncio de concurso urgente": ["Anúncio de concurso urgente", "Anuncio de concurso urgente"],
   "Declaração de retificação de anúncio": [
     "Declaração de retificação de anúncio",
@@ -364,11 +364,16 @@ export default async function AnnouncementsPage({
   if (dateTo) query = query.lte("publication_date", dateTo);
 
   if (sortCol === "publication_date") {
-    query = query.order(sortCol, { ascending: sortDir === "asc", nullsFirst: false });
+    query = query
+      .order("publication_date", { ascending: sortDir === "asc", nullsFirst: false })
+      .order("created_at", { ascending: sortDir === "asc", nullsFirst: false })
+      .order("id", { ascending: sortDir === "asc" });
   } else {
     query = query
       .order(sortCol, { ascending: sortDir === "asc", nullsFirst: false })
-      .order("publication_date", { ascending: false });
+      .order("publication_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false });
   }
 
   query = query.range(from, to);
@@ -611,6 +616,7 @@ export default async function AnnouncementsPage({
           </button>
           <a
             href={exportQs()}
+            download
             className="h-10 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
           >
             <FileSpreadsheet className="h-4 w-4 text-white" />

@@ -27,6 +27,7 @@ type AnnouncementRow = {
   source: string | null;
   proposal_deadline_at: string | null;
   detail_url: string | null;
+  raw_payload: unknown;
   act_type: string | null;
   procedure_type: string | null;
   contract_type: string | null;
@@ -43,6 +44,55 @@ function toIsoDatePt(value: string | null): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString("pt-PT");
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function rawString(payload: Record<string, unknown>, key: string): string | null {
+  const value = payload[key];
+  if (value == null || value === "") return null;
+  if (Array.isArray(value)) return value.length > 0 ? String(value[0]).trim() : null;
+  const normalized = String(value).trim();
+  return normalized || null;
+}
+
+function pick(payload: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = rawString(payload, key);
+    if (value) return value;
+  }
+  return null;
+}
+
+function payloadRoot(rawPayload: unknown): Record<string, unknown> {
+  const root = asRecord(rawPayload) ?? {};
+  return asRecord(root.payload) ?? root;
+}
+
+function extractProcedurePiecesFromText(text: string): string | null {
+  if (!text.trim()) return null;
+
+  const labeled = text.match(
+    /Link\s+para\s+acesso[^\r\n:]*pe\S*as\s+do\s+concurso\s*\(URL\)\s*:\s*(https?:\/\/[^\s\r\n]+)/i,
+  );
+  if (labeled) return labeled[1];
+
+  const knownPlatform = text.match(
+    /https?:\/\/[^\s\r\n]*(?:downloadProcedurePiece|donwloadProcedurePiece|public-tender-documents|acessoDocs\.jsp\?codigoAcesso=)[^\s\r\n]*/i,
+  );
+  return knownPlatform ? knownPlatform[0] : null;
+}
+
+function extractProcedurePiecesUrl(rawPayload: unknown): string {
+  const root = payloadRoot(rawPayload);
+  const direct = pick(root, ["PecasProcedimento", "linkPecasProc", "procedure_docs_url"]);
+  if (direct) return direct;
+
+  const detail = asRecord(root.detalhe_conteudo);
+  const detailText = typeof detail?.Texto === "string" ? detail.Texto : "";
+  return extractProcedurePiecesFromText(detailText) ?? "";
 }
 
 function applyFilters(
@@ -118,7 +168,7 @@ export async function GET(req: NextRequest) {
       let query = supabase
         .from("announcements")
         .select(
-          "id, title, entity_name, entity_nif, publication_date, cpv_main, cpv_list, base_price, currency, status, source, proposal_deadline_at, detail_url, act_type, procedure_type, contract_type, base_announcement_id, dr_announcement_no",
+          "id, title, entity_name, entity_nif, publication_date, cpv_main, cpv_list, base_price, currency, status, source, proposal_deadline_at, detail_url, raw_payload, act_type, procedure_type, contract_type, base_announcement_id, dr_announcement_no",
         )
         .order(SORTABLE[sortCol], {
           ascending: sortDir === "asc",
@@ -147,7 +197,6 @@ export async function GET(req: NextRequest) {
       if (chunk.length < CHUNK_SIZE) break;
       offset += CHUNK_SIZE;
     }
-
     const now = new Date();
     const worksheetRows = rows.map((ann) => {
       // Entidade(s): "Nome (NIF)" ou só o nome se não houver NIF
@@ -167,6 +216,7 @@ export async function GET(req: NextRequest) {
       const cpvList = Array.isArray(ann.cpv_list) && ann.cpv_list.length > 0
         ? (ann.cpv_list as string[]).join(", ")
         : ann.cpv_main ?? "";
+      const procedurePiecesUrl = extractProcedurePiecesUrl(ann.raw_payload);
 
       return {
         "Número do Anúncio": ann.dr_announcement_no ?? ann.base_announcement_id ?? "",
@@ -178,7 +228,7 @@ export async function GET(req: NextRequest) {
         "Tipo de Ato": ann.act_type ?? "",
         "Modelo do Anúncio": ann.procedure_type ?? "",
         "Tipo de Contrato": ann.contract_type ?? "",
-        "Ligação para Peças": ann.detail_url ?? "",
+        "Peças do procedimento": procedurePiecesUrl,
         "ID do Procedimento": ann.base_announcement_id ?? "",
       };
     });
@@ -193,7 +243,7 @@ export async function GET(req: NextRequest) {
       "Tipo de Ato",
       "Modelo do Anúncio",
       "Tipo de Contrato",
-      "Ligação para Peças",
+      "Peças do procedimento",
       "ID do Procedimento",
     ];
 
@@ -202,21 +252,18 @@ export async function GET(req: NextRequest) {
         ? XLSX.utils.json_to_sheet(worksheetRows, { header: headers })
         : XLSX.utils.aoa_to_sheet([headers]);
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Anuncios");
-
-    const fileBuffer = XLSX.write(workbook, {
-      type: "buffer",
-      bookType: "xlsx",
-    });
+    const fileBuffer = Buffer.concat([
+      Buffer.from("\ufeff", "utf8"),
+      Buffer.from(XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }), "utf8"),
+    ]);
 
     const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `anuncios-${timestamp}.xlsx`;
+    const filename = `anuncios-${timestamp}.csv`;
 
     return new NextResponse(fileBuffer, {
       status: 200,
       headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });

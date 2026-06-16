@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getSupabasePublicEnv } from "@/lib/supabase/env";
 import CpvSearchInput, { type CpvCode } from "./CpvSearchInput";
 import { Mail, Phone, UserRound, X } from "lucide-react";
 
@@ -17,6 +18,13 @@ type Client = {
   id: string;
   name: string;
   company_name: string | null;
+  entity_nipc?: string | null;
+  distrito?: string | null;
+  pais?: string | null;
+  position_title?: string | null;
+  department?: string | null;
+  classification?: string[] | null;
+  subscription_type?: string | null;
   cpv_s_alerta_concursos_publicos: string | null;
   notification_regions: string[] | null;
   contact_name: string | null;
@@ -84,6 +92,21 @@ function normalizeRegion(value: string): string {
     .trim();
 }
 
+function normalizeDistrict(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function isValidDistrictSelection(value: string): boolean {
+  const normalized = normalizeDistrict(value);
+  if (!normalized) return false;
+  if (normalized === "todos") return true;
+  return DISTRICT_OPTIONS.some((district) => normalizeDistrict(district) === normalized);
+}
+
 function normalizeClientRegions(value: string[] | null | undefined): string[] {
   if (!Array.isArray(value) || value.length === 0) return ["Todos"];
 
@@ -98,7 +121,7 @@ function normalizeClientRegions(value: string[] | null | undefined): string[] {
     });
 
   if (mapped.some((item) => normalizeRegion(item) === "todos")) return ["Todos"];
-  return [...new Set(mapped)];
+  return Array.from(new Set(mapped));
 }
 
 function splitContactName(contactName: string | null) {
@@ -123,6 +146,25 @@ function normalizeCpvPattern(input: string): string {
   if (!trimmed) return "";
   const idx = trimmed.indexOf(" - ");
   return (idx === -1 ? trimmed : trimmed.slice(0, idx)).trim();
+}
+
+function normalizeDigits(value: string, maxDigits: number): string {
+  return value.replace(/\D/g, "").slice(0, maxDigits);
+}
+
+function getNineDigitValidationMessage(rawValue: string, label: string): string | null {
+  if (/\D/.test(rawValue)) return `${label} aceita apenas números.`;
+  if (rawValue.length > 0 && rawValue.length < 9) return `${label} precisa de 9 dígitos.`;
+  return null;
+}
+
+function sanitizeNameInput(rawValue: string): string {
+  return rawValue.replace(/\d/g, "");
+}
+
+function getNameValidationMessage(rawValue: string, label: string): string | null {
+  if (/\d/.test(rawValue)) return `${label} não aceita números.`;
+  return null;
 }
 
 function inferManualMatchType(pattern: string): "EXACT" | "PREFIX" {
@@ -156,8 +198,121 @@ function ClientForm({
   initialData?: Client;
 }) {
   const isEdit = !!initialData;
-  const { firstName, lastName } = splitContactName(initialData?.contact_name ?? null);
-  const defaultClassification: string[] = [];
+  const districtTypeaheadRef = useRef("");
+  const districtTypeaheadTimeoutRef = useRef<number | null>(null);
+  const { firstName: initialFirstName, lastName: initialLastName } = splitContactName(initialData?.contact_name ?? null);
+  const defaultClassification: string[] = initialData?.classification ?? [];
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
+  const [positionTitle, setPositionTitle] = useState(initialData?.position_title ?? "");
+  const [department, setDepartment] = useState(initialData?.department ?? "");
+  const [entityNipc, setEntityNipc] = useState(() =>
+    normalizeDigits(initialData?.entity_nipc ?? "", 9),
+  );
+  const [phoneNumber, setPhoneNumber] = useState(() =>
+    normalizeDigits(initialData?.phone ? initialData.phone.replace(/^PT\s*/, "") : "", 9),
+  );
+  const [entityNipcError, setEntityNipcError] = useState<string | null>(null);
+  const [phoneNumberError, setPhoneNumberError] = useState<string | null>(null);
+  const [firstNameError, setFirstNameError] = useState<string | null>(null);
+  const [lastNameError, setLastNameError] = useState<string | null>(null);
+  const [positionTitleError, setPositionTitleError] = useState<string | null>(null);
+  const [departmentError, setDepartmentError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!entityNipcError) return;
+    const timeoutId = window.setTimeout(() => setEntityNipcError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [entityNipcError]);
+
+  useEffect(() => {
+    if (!phoneNumberError) return;
+    const timeoutId = window.setTimeout(() => setPhoneNumberError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [phoneNumberError]);
+
+  useEffect(() => {
+    if (!firstNameError) return;
+    const timeoutId = window.setTimeout(() => setFirstNameError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [firstNameError]);
+
+  useEffect(() => {
+    if (!lastNameError) return;
+    const timeoutId = window.setTimeout(() => setLastNameError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [lastNameError]);
+
+  useEffect(() => {
+    if (!positionTitleError) return;
+    const timeoutId = window.setTimeout(() => setPositionTitleError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [positionTitleError]);
+
+  useEffect(() => {
+    if (!departmentError) return;
+    const timeoutId = window.setTimeout(() => setDepartmentError(null), 5000);
+    return () => window.clearTimeout(timeoutId);
+  }, [departmentError]);
+
+  function handleFirstNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setFirstName(sanitizeNameInput(raw));
+    setFirstNameError(getNameValidationMessage(raw, "O nome"));
+  }
+
+  function handleLastNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setLastName(sanitizeNameInput(raw));
+    setLastNameError(getNameValidationMessage(raw, "O sobrenome"));
+  }
+
+  function handlePositionTitleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setPositionTitle(sanitizeNameInput(raw));
+    setPositionTitleError(getNameValidationMessage(raw, "O cargo"));
+  }
+
+  function handleDepartmentChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setDepartment(sanitizeNameInput(raw));
+    setDepartmentError(getNameValidationMessage(raw, "O departamento"));
+  }
+
+  function handleEntityNipcChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setEntityNipc(normalizeDigits(raw, 9));
+    setEntityNipcError(getNineDigitValidationMessage(raw, "O NIPC"));
+  }
+
+  function handlePhoneNumberChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    setPhoneNumber(normalizeDigits(raw, 9));
+    setPhoneNumberError(getNineDigitValidationMessage(raw, "O número de telefone"));
+  }
+
+  function handleDistrictKeyDown(e: React.KeyboardEvent<HTMLSelectElement>) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key.length !== 1) return;
+
+    const options = ["todos", ...DISTRICT_OPTIONS];
+    districtTypeaheadRef.current += e.key;
+    const normalizedBuffer = normalizeDistrict(districtTypeaheadRef.current);
+
+    const match = options.find((option) => normalizeDistrict(option).startsWith(normalizedBuffer));
+    if (match) {
+      e.currentTarget.value = match;
+    }
+
+    if (districtTypeaheadTimeoutRef.current) {
+      window.clearTimeout(districtTypeaheadTimeoutRef.current);
+    }
+    districtTypeaheadTimeoutRef.current = window.setTimeout(() => {
+      districtTypeaheadRef.current = "";
+      districtTypeaheadTimeoutRef.current = null;
+    }, 700);
+  }
+
   return (
     <form
       onSubmit={onSubmit}
@@ -185,7 +340,7 @@ function ClientForm({
 
             <div>
               <label className={LABEL}>País *</label>
-              <select name="pais" required className={INPUT} defaultValue="todos">
+              <select name="pais" required className={INPUT} defaultValue={initialData?.pais ?? "todos"}>
                 {COUNTRY_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -196,7 +351,13 @@ function ClientForm({
 
             <div className="md:col-span-2">
               <label className={LABEL}>Distrito *</label>
-              <select name="distrito" required className={INPUT} defaultValue="">
+              <select
+                name="distrito"
+                required
+                className={INPUT}
+                defaultValue={initialData?.distrito ?? ""}
+                onKeyDown={handleDistrictKeyDown}
+              >
                 <option value="" disabled>
                   Selecione um distrito
                 </option>
@@ -216,8 +377,19 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="509123456"
-                defaultValue=""
+                inputMode="numeric"
+                maxLength={9}
+                minLength={9}
+                pattern="\d{9}"
+                title="O NIPC deve ter exatamente 9 dígitos."
+                value={entityNipc}
+                onChange={handleEntityNipcChange}
               />
+              {entityNipcError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {entityNipcError}
+                </p>
+              )}
             </div>
           </div>
         </section>
@@ -234,8 +406,14 @@ function ClientForm({
                   required
                   className={INPUT}
                   placeholder="João"
-                  defaultValue={firstName}
+                  value={firstName}
+                  onChange={handleFirstNameChange}
                 />
+                {firstNameError && (
+                  <p className="mt-1 text-xs text-red-600" role="alert">
+                    {firstNameError}
+                  </p>
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <label className={LABEL}>Sobrenome *</label>
@@ -244,8 +422,14 @@ function ClientForm({
                   required
                   className={INPUT}
                   placeholder="Silva"
-                  defaultValue={lastName}
+                  value={lastName}
+                  onChange={handleLastNameChange}
                 />
+                {lastNameError && (
+                  <p className="mt-1 text-xs text-red-600" role="alert">
+                    {lastNameError}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -256,8 +440,19 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="912345678"
-                defaultValue={initialData?.phone ?? ""}
+                inputMode="numeric"
+                maxLength={9}
+                minLength={9}
+                pattern="\d{9}"
+                title="O número de telefone deve ter exatamente 9 dígitos."
+                value={phoneNumber}
+                onChange={handlePhoneNumberChange}
               />
+              {phoneNumberError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {phoneNumberError}
+                </p>
+              )}
             </div>
 
             <div className="md:col-span-2">
@@ -279,8 +474,14 @@ function ClientForm({
                 required
                 className={INPUT}
                 placeholder="Diretor"
-                defaultValue=""
+                value={positionTitle}
+                onChange={handlePositionTitleChange}
               />
+              {positionTitleError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {positionTitleError}
+                </p>
+              )}
             </div>
 
             <div>
@@ -289,8 +490,14 @@ function ClientForm({
                 name="department"
                 className={INPUT}
                 placeholder="Compras"
-                defaultValue=""
+                value={department}
+                onChange={handleDepartmentChange}
               />
+              {departmentError && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {departmentError}
+                </p>
+              )}
             </div>
 
             <div className="md:col-span-2">
@@ -324,7 +531,7 @@ function ClientForm({
 
             <div>
               <label className={LABEL}>Tipo de subscrição</label>
-              <select name="tipo_subscricao" className={INPUT} defaultValue="nenhuma">
+              <select name="tipo_subscricao" className={INPUT} defaultValue={initialData?.subscription_type ?? "nenhuma"}>
                 {SUBSCRIPTION_TYPE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
@@ -491,14 +698,24 @@ export default function ClientsManager({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    // Ensure we load fresh data when the component mounts (covers client-side navigation)
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function reload() {
-    const { data } = await supabase
-      .from("clients")
-      .select(
-        "id, name, company_name, cpv_s_alerta_concursos_publicos, notification_regions, contact_name, phone, email, is_active, notify_mode, max_emails_per_day, created_at, client_cpv_rules (id, pattern, match_type, is_exclusion)",
-      )
-      .order("created_at", { ascending: false });
-    if (data) setClients(data as Client[]);
+    try {
+      const res = await fetch("/api/clients");
+      const json = await res.json();
+      if (json?.ok && Array.isArray(json.data)) {
+        setClients(json.data as Client[]);
+      } else if (json?.error) {
+        setError(json.error);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
     router.refresh();
   }
 
@@ -509,10 +726,51 @@ export default function ClientsManager({
     const fd = new FormData(e.currentTarget);
     const companyName = fd.get("company_name") as string;
     const cpvAlert = normalizeCpvPattern((fd.get("cpv_s_alerta_concursos_publicos") as string) || "");
+    const entityNipc = normalizeDigits((fd.get("entity_nipc") as string) || "", 9);
+    const distritoRaw = ((fd.get("distrito") as string) || "").trim();
+    if (!isValidDistrictSelection(distritoRaw)) {
+      setLoading(false);
+      setError("Selecione um distrito válido da lista.");
+      return;
+    }
+    const distrito = distritoRaw || null;
+    const pais = ((fd.get("pais") as string) || "").trim() || null;
     const firstName = ((fd.get("firstname") as string) || "").trim();
     const lastName = ((fd.get("lastname") as string) || "").trim();
+    if (/\d/.test(firstName)) {
+      setLoading(false);
+      setError("O nome não aceita números.");
+      return;
+    }
+    if (/\d/.test(lastName)) {
+      setLoading(false);
+      setError("O sobrenome não aceita números.");
+      return;
+    }
+    const positionTitle = ((fd.get("position_title") as string) || "").trim();
+    const department = ((fd.get("department") as string) || "").trim();
+    if (/\d/.test(positionTitle)) {
+      setLoading(false);
+      setError("O cargo não aceita números.");
+      return;
+    }
+    if (department && /\d/.test(department)) {
+      setLoading(false);
+      setError("O departamento não aceita números.");
+      return;
+    }
     const countryCode = "PT";
-    const phoneNumber = ((fd.get("phone_number") as string) || "").trim();
+    const phoneNumber = normalizeDigits((fd.get("phone_number") as string) || "", 9);
+    if (entityNipc.length !== 9) {
+      setLoading(false);
+      setError("O NIPC deve ter exatamente 9 dígitos.");
+      return;
+    }
+    if (phoneNumber.length !== 9) {
+      setLoading(false);
+      setError("O número de telefone deve ter exatamente 9 dígitos.");
+      return;
+    }
     const classification = getMultiValues(fd, "classification");
     if (classification.length === 0) {
       setLoading(false);
@@ -521,18 +779,34 @@ export default function ClientsManager({
     }
     const contactName = [firstName, lastName].filter(Boolean).join(" ") || null;
     const phone = phoneNumber ? `${countryCode} ${phoneNumber}` : null;
-    const { data: insertedClient, error: err } = await supabase.from("clients").insert({
+    const createBody = {
       tenant_id: tenantId,
       name: companyName,
       company_name: companyName,
       cpv_s_alerta_concursos_publicos: cpvAlert || null,
       notification_regions: ["Todos"],
+      entity_nipc: entityNipc,
+      distrito,
+      pais,
+      position_title: positionTitle || null,
+      department: department || null,
+      classification: classification,
+      subscription_type: (fd.get("tipo_subscricao") as string) || null,
       contact_name: contactName,
       phone,
       email: fd.get("email") as string,
       notify_mode: "instant",
       max_emails_per_day: 20,
-    }).select("id").single();
+    };
+
+    const resp = await fetch("/api/clients", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(createBody),
+    }).then((r) => r.json());
+
+    const insertedClient = resp.ok ? { id: resp.id } : null;
+    const err = resp.error ? { message: resp.error } : null;
     setLoading(false);
     if (err) { setError(err.message); return; }
 
@@ -564,10 +838,49 @@ export default function ClientsManager({
     const fd = new FormData(e.currentTarget);
     const companyName = fd.get("company_name") as string;
     const cpvAlert = normalizeCpvPattern((fd.get("cpv_s_alerta_concursos_publicos") as string) || "");
+    const distritoRaw = ((fd.get("distrito") as string) || "").trim();
+    if (!isValidDistrictSelection(distritoRaw)) {
+      setLoading(false);
+      setError("Selecione um distrito válido da lista.");
+      return;
+    }
     const firstName = ((fd.get("firstname") as string) || "").trim();
     const lastName = ((fd.get("lastname") as string) || "").trim();
+    if (/\d/.test(firstName)) {
+      setLoading(false);
+      setError("O nome não aceita números.");
+      return;
+    }
+    if (/\d/.test(lastName)) {
+      setLoading(false);
+      setError("O sobrenome não aceita números.");
+      return;
+    }
+    const positionTitle = ((fd.get("position_title") as string) || "").trim();
+    const department = ((fd.get("department") as string) || "").trim();
+    if (/\d/.test(positionTitle)) {
+      setLoading(false);
+      setError("O cargo não aceita números.");
+      return;
+    }
+    if (department && /\d/.test(department)) {
+      setLoading(false);
+      setError("O departamento não aceita números.");
+      return;
+    }
     const countryCode = "PT";
-    const phoneNumber = ((fd.get("phone_number") as string) || "").trim();
+    const phoneNumber = normalizeDigits((fd.get("phone_number") as string) || "", 9);
+    const entityNipc = normalizeDigits((fd.get("entity_nipc") as string) || "", 9);
+    if (entityNipc.length !== 9) {
+      setLoading(false);
+      setError("O NIPC deve ter exatamente 9 dígitos.");
+      return;
+    }
+    if (phoneNumber.length !== 9) {
+      setLoading(false);
+      setError("O número de telefone deve ter exatamente 9 dígitos.");
+      return;
+    }
     const classification = getMultiValues(fd, "classification");
     if (classification.length === 0) {
       setLoading(false);
@@ -576,18 +889,31 @@ export default function ClientsManager({
     }
     const contactName = [firstName, lastName].filter(Boolean).join(" ") || null;
     const phone = phoneNumber ? `${countryCode} ${phoneNumber}` : null;
-    const { error: err } = await supabase
-      .from("clients")
-      .update({
-        name: companyName,
-        company_name: companyName,
-        cpv_s_alerta_concursos_publicos: cpvAlert || null,
-        contact_name: contactName,
-        phone,
-        email: fd.get("email") as string,
-        notify_mode: "instant",
-      })
-      .eq("id", editingId);
+    const updateBody = {
+      id: editingId,
+      name: companyName,
+      company_name: companyName,
+      cpv_s_alerta_concursos_publicos: cpvAlert || null,
+      entity_nipc: entityNipc,
+      distrito: distritoRaw || null,
+      pais: ((fd.get("pais") as string) || null),
+      position_title: positionTitle || null,
+      department: department || null,
+      classification: classification,
+      subscription_type: (fd.get("tipo_subscricao") as string) || null,
+      contact_name: contactName,
+      phone,
+      email: fd.get("email") as string,
+      notify_mode: "instant",
+    };
+
+    const resp = await fetch("/api/clients", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updateBody),
+    }).then((r) => r.json());
+
+    const err = resp.error ? { message: resp.error } : null;
     setLoading(false);
     if (err) { setError(err.message); return; }
 
@@ -624,8 +950,46 @@ export default function ClientsManager({
       }
     }
 
+    const clientIdForMatch = editingId;
+
+    // Refresh UI first
     setEditingId(null);
     await reload();
+
+    // After successful update, trigger match-and-queue for this client and then send-emails.
+    // This will only create notifications for announcements that do not already have notifications
+    // for this client, avoiding duplicate resends.
+    (async () => {
+      try {
+        const { url, anonKey } = getSupabasePublicEnv("Supabase browser client");
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token ?? "";
+
+        // Trigger match-and-queue for this single client
+        await fetch(`${url}/functions/v1/match-and-queue`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({ client_id: clientIdForMatch }),
+        });
+
+        // Then run send-emails to process any newly created PENDING notifications
+        await fetch(`${url}/functions/v1/send-emails`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify({}),
+        });
+      } catch (err) {
+        console.error("Error triggering match/send for client:", err);
+      }
+    })();
   }
 
   async function toggleActive(client: Client) {

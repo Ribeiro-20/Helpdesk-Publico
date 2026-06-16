@@ -18,7 +18,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main() {
   // Parse CLI args
-  let year = 2026;
+  let year = new Date().getFullYear();
   let limit = 1000;
   let fromDate = null;
   let toDate = null;
@@ -47,8 +47,11 @@ async function main() {
       console.error("from_date must be <= to_date");
       process.exit(1);
     }
-    year = Number(fromDate.slice(0, 4));
   }
+
+  const yearsToFetch = fromDate && toDate
+    ? listYearsInclusive(fromDate, toDate)
+    : [year];
 
   // Read token from env files (prefer root .env)
   const envCandidates = [
@@ -75,29 +78,11 @@ async function main() {
   }
 
   console.log(`\n[ingest-direct] Target: ${restBaseUrl}/contracts`);
-  console.log(`[ingest-direct] Fetching contracts for year ${year} (limit: ${limit})`);
+  console.log(
+    `[ingest-direct] Fetching contracts for ${yearsToFetch.length === 1 ? `year ${yearsToFetch[0]}` : `years ${yearsToFetch[0]}..${yearsToFetch[yearsToFetch.length - 1]}`} (limit: ${limit})`
+  );
   if (fromDate && toDate) {
-    console.log(`[ingest-direct] Filtering by signing date in range ${fromDate}..${toDate}`);
-  }
-
-  // Fetch from BASE API
-  const url = `https://www.base.gov.pt/APIBase2/GetInfoContrato?Ano=${year}`;
-  console.log(`[ingest-direct] Fetching: ${url}`);
-
-  const response = await fetch(url, {
-    headers: { "_AcessToken": token },
-  });
-
-  if (!response.ok) {
-    console.error(`Failed to fetch: HTTP ${response.status}`);
-    process.exit(1);
-  }
-
-  const rawPayload = await response.json().catch(() => null);
-  const payload = extractContractsArray(rawPayload);
-  if (!Array.isArray(payload)) {
-    console.error("BASE API response is not a JSON array.");
-    process.exit(1);
+    console.log(`[ingest-direct] Filtering by publication date in range ${fromDate}..${toDate}`);
   }
 
   let inserted = 0;
@@ -136,20 +121,30 @@ async function main() {
   const BATCH_SIZE = 50;
   const rowsToInsert = [];
   const existingIds = new Set();
+  let stopProcessing = false;
 
   try {
     let offset = 0;
     const pageSize = 1000;
+    const rangeFilter = fromDate && toDate
+      ? `or=(and(signing_date.gte.${fromDate},signing_date.lte.${toDate}),and(publication_date.gte.${fromDate},publication_date.lte.${toDate}))`
+      : null;
+
+    console.log(
+      `[ingest-direct] Indexing existing contracts${rangeFilter ? ` in range ${fromDate}..${toDate}` : ""}...`,
+    );
+
     while (true) {
-      const res = await fetch(
-        `${restBaseUrl}/contracts?tenant_id=eq.${tenantId}&select=base_contract_id&limit=${pageSize}&offset=${offset}`,
-        {
-          headers: {
-            "Authorization": `Bearer ${serviceRoleKey}`,
-            "apikey": apiKey,
-          },
+      const query = rangeFilter
+        ? `${restBaseUrl}/contracts?tenant_id=eq.${tenantId}&select=base_contract_id&limit=${pageSize}&offset=${offset}&${rangeFilter}`
+        : `${restBaseUrl}/contracts?tenant_id=eq.${tenantId}&select=base_contract_id&limit=${pageSize}&offset=${offset}`;
+
+      const res = await fetch(query, {
+        headers: {
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "apikey": apiKey,
         },
-      );
+      });
       if (!res.ok) {
         const errText = await res.text();
         console.warn(`[ingest-direct] Could not fetch existing IDs: ${errText.slice(0, 200)}`);
@@ -170,23 +165,45 @@ async function main() {
   async function flushBatch() {
     if (rowsToInsert.length === 0) return;
     try {
-      const res = await fetch(`${restBaseUrl}/contracts`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${serviceRoleKey}`,
-          "apikey": apiKey,
-          "Content-Type": "application/json",
-          "Prefer": "return=minimal",
-        },
-        body: JSON.stringify(rowsToInsert),
-      });
+      // Deduplicate batch by base_contract_id to avoid duplicate insert attempts
+      const uniqueMap = new Map();
+      for (const r of rowsToInsert) {
+        if (!r.base_contract_id) continue;
+        if (!uniqueMap.has(r.base_contract_id)) uniqueMap.set(r.base_contract_id, r);
+      }
+      const uniqueRows = [...uniqueMap.values()];
 
-      if (res.ok) {
-        inserted += rowsToInsert.length;
+      if (uniqueRows.length === 0) {
+        // nothing to insert
       } else {
-        const errText = await res.text();
-        console.error(`HTTP ${res.status}: ${errText.slice(0, 300)}`);
-        errors += rowsToInsert.length;
+        for (const row of uniqueRows) {
+          try {
+            const res = await fetch(`${restBaseUrl}/contracts`, {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${serviceRoleKey}`,
+                "apikey": apiKey,
+                "Content-Type": "application/json",
+                "Prefer": "return=minimal",
+              },
+              body: JSON.stringify([row]),
+            });
+
+            if (res.ok) {
+              inserted += 1;
+            } else if (res.status === 409) {
+              // duplicate key — skip
+              skipped += 1;
+            } else {
+              const errText = await res.text();
+              console.error(`HTTP ${res.status}: ${errText.slice(0, 300)}`);
+              errors += 1;
+            }
+          } catch (e) {
+            console.error(`Row insert error: ${e.message}`);
+            errors += 1;
+          }
+        }
       }
     } catch (err) {
       console.error(`Batch error: ${err.message}`);
@@ -196,79 +213,140 @@ async function main() {
     }
   }
 
-  for (const raw of payload) {
-    if (processed >= limit) break;
-    if (!raw || typeof raw !== "object") {
-      skipped++;
-      continue;
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const rangeDays = fromDate && toDate
+    ? Math.floor((new Date(`${toDate}T00:00:00Z`).getTime() - new Date(`${fromDate}T00:00:00Z`).getTime()) / 86400000) + 1
+    : null;
+  const useRecentWindow = Boolean(
+    fromDate &&
+    toDate &&
+    toDate === todayIso &&
+    rangeDays !== null &&
+    rangeDays > 0 &&
+    rangeDays <= 90,
+  );
+
+  async function processPayload(payload, sourceLabel) {
+    if (!Array.isArray(payload)) {
+      console.error(`BASE API response for ${sourceLabel} is not a JSON array.`);
+      errors++;
+      return;
     }
 
-    fetched++;
-
-    const contract = mapToContract(raw);
-
-    if (fromDate && toDate) {
-      const effectiveDate = contract.signing_date || contract.publication_date;
-      if (!effectiveDate || effectiveDate < fromDate || effectiveDate > toDate) {
+    for (const raw of payload) {
+      if (processed >= limit) {
+        stopProcessing = true;
+        break;
+      }
+      if (!raw || typeof raw !== "object") {
         skipped++;
         continue;
       }
-    }
 
-    if (!contract.base_contract_id) {
-      skipped++;
-      continue;
-    }
+      fetched++;
 
-    if (existingIds.has(contract.base_contract_id)) {
-      skipped++;
-      continue;
-    }
+      const contract = mapToContract(raw);
 
-    rowsToInsert.push({
-      tenant_id: tenantId,
-      source: "BASE_API",
-      base_contract_id: contract.base_contract_id,
-      base_procedure_id: contract.base_procedure_id,
-      base_announcement_no: contract.base_announcement_no,
-      base_incm_id: contract.base_incm_id,
-      object: contract.object,
-      description: contract.description,
-      procedure_type: contract.procedure_type,
-      contract_type: contract.contract_type,
-      announcement_type: contract.announcement_type,
-      legal_regime: contract.legal_regime,
-      legal_basis: contract.legal_basis,
-      publication_date: contract.publication_date,
-      award_date: contract.award_date,
-      signing_date: contract.signing_date,
-      close_date: contract.close_date,
-      base_price: contract.base_price,
-      contract_price: contract.contract_price,
-      effective_price: contract.effective_price,
-      currency: contract.currency,
-      contracting_entities: contract.contracting_entities,
-      winners: contract.winners,
-      competitors: contract.competitors,
-      cpv_main: contract.cpv_main,
-      cpv_list: contract.cpv_list,
-      execution_deadline_days: contract.execution_deadline_days,
-      execution_locations: contract.execution_locations,
-      framework_agreement: contract.framework_agreement,
-      is_centralized: contract.is_centralized,
-      is_ecological: contract.is_ecological,
-      end_type: contract.end_type,
-      procedure_docs_url: contract.procedure_docs_url,
-      observations: contract.observations,
-      raw_payload: raw,
-      raw_hash: computeRawHash(raw),
+      if (fromDate && toDate && !useRecentWindow) {
+        const effectiveDate = contract.publication_date || contract.signing_date;
+        if (!effectiveDate || effectiveDate < fromDate || effectiveDate > toDate) {
+          skipped++;
+          continue;
+        }
+      }
+
+      if (!contract.base_contract_id) {
+        skipped++;
+        continue;
+      }
+
+      if (existingIds.has(contract.base_contract_id)) {
+        skipped++;
+        continue;
+      }
+
+      rowsToInsert.push({
+        tenant_id: tenantId,
+        source: "BASE_API",
+        base_contract_id: contract.base_contract_id,
+        base_procedure_id: contract.base_procedure_id,
+        base_announcement_no: contract.base_announcement_no,
+        base_incm_id: contract.base_incm_id,
+        object: contract.object,
+        description: contract.description,
+        procedure_type: contract.procedure_type,
+        contract_type: contract.contract_type,
+        announcement_type: contract.announcement_type,
+        legal_regime: contract.legal_regime,
+        legal_basis: contract.legal_basis,
+        publication_date: contract.publication_date,
+        award_date: contract.award_date,
+        signing_date: contract.signing_date,
+        close_date: contract.close_date,
+        base_price: contract.base_price,
+        contract_price: contract.contract_price,
+        effective_price: contract.effective_price,
+        currency: contract.currency,
+        contracting_entities: contract.contracting_entities,
+        winners: contract.winners,
+        competitors: contract.competitors,
+        cpv_main: contract.cpv_main,
+        cpv_list: contract.cpv_list,
+        execution_deadline_days: contract.execution_deadline_days,
+        execution_locations: contract.execution_locations,
+        framework_agreement: contract.framework_agreement,
+        is_centralized: contract.is_centralized,
+        is_ecological: contract.is_ecological,
+        end_type: contract.end_type,
+        procedure_docs_url: contract.procedure_docs_url,
+        observations: contract.observations,
+        raw_payload: raw,
+        raw_hash: computeRawHash(raw),
+      });
+      existingIds.add(contract.base_contract_id);
+
+      processed++;
+      if (rowsToInsert.length >= BATCH_SIZE) {
+        await flushBatch();
+        console.log(`[ingest-direct] Progress: processed=${processed} inserted=${inserted} skipped=${skipped} errors=${errors}`);
+      }
+    }
+  }
+
+  if (useRecentWindow) {
+    const url = `https://www.base.gov.pt/APIBase2/GetInfoContrato?numDias=${rangeDays}`;
+    console.log(`[ingest-direct] Fetching: ${url}`);
+
+    const response = await fetch(url, {
+      headers: { "_AcessToken": token },
     });
-    existingIds.add(contract.base_contract_id);
 
-    processed++;
-    if (rowsToInsert.length >= BATCH_SIZE) {
-      await flushBatch();
-      console.log(`[ingest-direct] Progress: processed=${processed} inserted=${inserted} skipped=${skipped} errors=${errors}`);
+    if (!response.ok) {
+      console.error(`Failed to fetch recent window: HTTP ${response.status}`);
+      errors++;
+    } else {
+      const rawPayload = await response.json().catch(() => null);
+      await processPayload(extractContractsArray(rawPayload), `recent-window ${rangeDays}d`);
+    }
+  } else {
+    for (const currentYear of yearsToFetch) {
+      if (stopProcessing) break;
+
+      const url = `https://www.base.gov.pt/APIBase2/GetInfoContrato?Ano=${currentYear}`;
+      console.log(`[ingest-direct] Fetching: ${url}`);
+
+      const response = await fetch(url, {
+        headers: { "_AcessToken": token },
+      });
+
+      if (!response.ok) {
+        console.error(`Failed to fetch year ${currentYear}: HTTP ${response.status}`);
+        errors++;
+        continue;
+      }
+
+      const rawPayload = await response.json().catch(() => null);
+      await processPayload(extractContractsArray(rawPayload), `year ${currentYear}`);
     }
   }
 
@@ -296,6 +374,11 @@ function buildRestBaseUrl(url) {
 }
 
 function readTokenFromEnvCandidates(paths) {
+  const envToken = process.env.BASE_API_TOKEN?.trim();
+  if (envToken && envToken !== "<your BASE API token>") {
+    return envToken;
+  }
+
   for (const envPath of paths) {
     try {
       const content = fs.readFileSync(envPath, "utf-8");
@@ -309,6 +392,16 @@ function readTokenFromEnvCandidates(paths) {
     }
   }
   return null;
+}
+
+function listYearsInclusive(fromDate, toDate) {
+  const years = [];
+  const fromYear = Number(fromDate.slice(0, 4));
+  const toYear = Number(toDate.slice(0, 4));
+  for (let year = fromYear; year <= toYear; year++) {
+    years.push(year);
+  }
+  return years;
 }
 
 function parsePtDate(str) {
