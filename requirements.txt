@@ -10,3 +10,5 @@ requests
 pylint
 pyrefly
 django-cors-headers
+django-stubs
+djangorestframework-stubs
