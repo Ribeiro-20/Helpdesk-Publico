@@ -29,6 +29,8 @@ jobs:
 
       - name: Type check (pyrefly)
         working-directory: helpdeskMain
+        env:
+          PYTHONPATH: .
         run: pyrefly check .
 
   pytest:
@@ -53,6 +55,8 @@ jobs:
 
       - name: Tests
         working-directory: helpdeskMain
+        env:
+          PYTHONPATH: .
         run: pytest -q
 
   pylint:
@@ -77,4 +81,6 @@ jobs:
 
         - name: Lint with pylint
           working-directory: helpdeskMain
+          env:
+            PYTHONPATH: .
           run: pylint . || true
