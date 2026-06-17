@@ -28,8 +28,8 @@ class EupagoWebhookService:
         # Add verifications later
         dispatch[transaction.status](transaction)
 
-    def _process_webhook_paid(self,transaction: TransactionEvent):
-        logger.info("Payment paid: %s",transaction.identifier)
+    def _process_webhook_paid(self, transaction: TransactionEvent):
+        logger.info("Payment paid: %s", transaction)
 
         # Update on DB.
 

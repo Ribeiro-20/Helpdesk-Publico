@@ -13,3 +13,5 @@ django-cors-headers
 django-stubs
 djangorestframework-stubs
 types-requests
+requests-oauthlib
+types-requests-oauthlib
