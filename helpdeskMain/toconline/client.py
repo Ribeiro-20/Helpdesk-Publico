@@ -1,7 +1,10 @@
+import base64
+
+from requests import Response
+import requests
 import logging
 import os
-import requests
-from requests_oauthlib import OAuth2Session
+from urllib.parse import parse_qs
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +16,8 @@ class TOCOnlineClient:
         self._clientsecret = os.environ.get("TCLIENT_SECRET")
         self._oauthredirect = os.environ.get("TREDIRECT_OAUTH")
 
-        self.session = OAuth2Session(
-            client_id=self._clientid,
-            redirect_uri=self._oauthredirect,
-            scope="commerical"
-        )
+        self._get_authorizationcode()
+        self._get_accesscode()
 
     def _get(selfs):
         pass
@@ -28,25 +28,45 @@ class TOCOnlineClient:
     def _patch(self):
         pass
 
-    def _authorizationcode(self) -> None:
+    def _get_authorizationcode(self) -> None:
         url = f"{self._endpointoauth}/auth"
 
+        headers =  {
+            "Content-Type": "application/json",
+        }
+
         query = {
-            "redirect_uri": self._oauthredirect,
             "client_id": self._clientid,
+            "redirect_uri": self._oauthredirect,
             "response_type": "code",
             "scope": "commercial"
         }
+        request: Response = requests.get(url, headers=headers, params=query, allow_redirects=False)
+        request.raise_for_status()
 
-        headers = {
-            "Content-Type": "application/json"
+        redirect =request.headers["location"]
+        res = parse_qs(redirect.split("?")[1])
+
+        self._authorization = res['code'][0]
+
+    def _get_accesscode(self)-> None:
+        url: str = f"{self._endpointoauth}/token"
+
+        body = {
+            "grant_type": "authorization_code",
+            "code": self._authorization,
+            "scope": "commercial",
         }
 
-        logger.debug("A autenticar no OAuth do TOC Online...")
-        response = requests.get(url, params=query, headers=headers, timeout=10, allow_redirects=False)
-        response.raise_for_status()
+        fullcode = f"{self._clientid}:{self._clientsecret}"
+        fullcodebytes = fullcode.encode("ascii")
+        base64encoded = base64.b64encode(fullcodebytes)
+        base64_string = base64encoded.decode("ascii")
 
-        self._authorization = response.headers["location"]
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+            "Authorization": f"Basic: {base64_string}",
+        }
 
-    def _accesscode(self)-> None:
-        pass
+        # Add post later
