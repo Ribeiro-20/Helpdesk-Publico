@@ -17,7 +17,7 @@ export default function MercadoCpvInput({
   defaultValue,
   label = "CPV",
   placeholder = "Insira o código CPV",
-  infoText = "Indique o código CPV que pretende pesquisar",
+  infoText = "Indique o código CPV que pretende pesquisar (atualização automática da página por inserção de código).",
   inputClassName = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all",
   debounceMs = 0,
 }: MercadoCpvInputProps) {
