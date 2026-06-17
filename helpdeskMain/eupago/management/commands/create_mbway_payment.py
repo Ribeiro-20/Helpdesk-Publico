@@ -1,3 +1,4 @@
+from eupago.dto.input.mbway_response import MBWayResponse
 from eupago.domain.money import Money
 from eupago.dto.out.mbway_request import MBWayRequest
 from eupago.mapper.mbway_mapper import MBWayMapper
@@ -25,7 +26,7 @@ class Command(BaseCommand):
 
         parser.add_argument("--payment-phone", required=True, type=str)
 
-    def handle(self, *args, **options):
+    def handle(self, *args, **options) -> None:
         client = EupagoClient()
         mapper = MBWayMapper()
         service = MBWayService(client, mapper)
@@ -42,5 +43,5 @@ class Command(BaseCommand):
             payment_phone=options["payment_phone"],
         )
 
-        result = service.create_payment(dto)
+        result: MBWayResponse = service.create_payment(dto)
         self.stdout.write(str(result))

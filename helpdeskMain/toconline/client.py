@@ -9,23 +9,23 @@ from urllib.parse import parse_qs
 logger = logging.getLogger(__name__)
 
 class TOCOnlineClient:
-    def __init__(self):
-        self._endpoint = os.environ.get("TENDPOINT")
-        self._endpointoauth = os.environ.get("TENDPOINT_OAUTH")
-        self._clientid = os.environ.get("TCLIENTID")
-        self._clientsecret = os.environ.get("TCLIENT_SECRET")
-        self._oauthredirect = os.environ.get("TREDIRECT_OAUTH")
+    def __init__(self) -> None:
+        self._endpoint: str | None = os.environ.get("TENDPOINT")
+        self._endpointoauth: str | None = os.environ.get("TENDPOINT_OAUTH")
+        self._clientid: str | None = os.environ.get("TCLIENTID")
+        self._clientsecret: str | None = os.environ.get("TCLIENT_SECRET")
+        self._oauthredirect: str | None = os.environ.get("TREDIRECT_OAUTH")
 
         self._get_authorizationcode()
         self._get_accesscode()
 
-    def _get(selfs):
+    def _get(selfs) -> None:
         pass
 
-    def _post(self):
+    def _post(self) -> None:
         pass
 
-    def _patch(self):
+    def _patch(self) -> None:
         pass
 
     def _get_authorizationcode(self) -> None:

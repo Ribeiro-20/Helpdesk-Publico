@@ -16,3 +16,5 @@ class MultibancoResponse:
     valor_maximo: str
     data_inicio: str
     data_fim: str
+
+#FIX: THIS
