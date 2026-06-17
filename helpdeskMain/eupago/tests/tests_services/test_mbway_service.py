@@ -44,4 +44,3 @@ def test_service():
 
     # also verify client was actually used correctly
     client.create_mbway.assert_called_once()
-    client.create_mbway

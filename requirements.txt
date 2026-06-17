@@ -12,3 +12,4 @@ pyrefly
 django-cors-headers
 django-stubs
 djangorestframework-stubs
+types-requests
