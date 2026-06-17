@@ -293,7 +293,7 @@ export default function AnnouncementModal({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="col-span-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
-                      PRAZO
+                      PRAZO DE EXECUÇÃO
                     </p>
                     <p className="text-sm text-gray-800">
                       {announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}

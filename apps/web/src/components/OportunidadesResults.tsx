@@ -100,12 +100,14 @@ function buildHref(page: number, params: SearchParams): string {
 
 export default function OportunidadesResults({
   opportunities,
+  cpvDescriptions,
   page,
   totalPages,
   filters,
   hasFilters,
 }: {
   opportunities: OpportunityRow[];
+  cpvDescriptions: Record<string, string>;
   page: number;
   totalPages: number;
   filters: SearchParams;
@@ -143,6 +145,9 @@ export default function OportunidadesResults({
                 const title = cleanAnnouncementText(op.title) || "Sem título";
                 const entityName = cleanAnnouncementText(op.entity_name) || "-";
                 const procedureType = cleanAnnouncementText(displayProcedureType(op.procedure_type)) || "-";
+                const cpvTitle = op.cpv_main
+                  ? cpvDescriptions[op.cpv_main] || "Descrição de CPV indisponível"
+                  : undefined;
 
                 return (
                   <tr
@@ -161,7 +166,12 @@ export default function OportunidadesResults({
                     </td>
                     <td className="px-4 py-3 align-top">
                       {op.cpv_main ? (
-                        <span className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap">{op.cpv_main}</span>
+                        <span
+                          title={cpvTitle}
+                          className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap"
+                        >
+                          {op.cpv_main}
+                        </span>
                       ) : (
                         <span className="text-xs text-gray-400">-</span>
                       )}

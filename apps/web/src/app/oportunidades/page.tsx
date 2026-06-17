@@ -290,6 +290,7 @@ export default async function OportunidadesPage({
   const tenantId = tenant?.id ?? null;
 
   let opportunities: OpportunityRow[] = [];
+  let cpvDescriptions: Record<string, string> = {};
   let totalCount = 0;
   const actTypeOptions = [...ACT_TYPE_CANONICAL];
   const modelTypeOptions = [...MODEL_TYPE_CANONICAL];
@@ -371,6 +372,21 @@ export default async function OportunidadesPage({
 
     totalCount = count ?? 0;
     opportunities = (data ?? []) as OpportunityRow[];
+
+    const cpvCodes = Array.from(
+      new Set(opportunities.map((op) => op.cpv_main).filter(Boolean) as string[]),
+    );
+
+    if (cpvCodes.length > 0) {
+      const { data: cpvRows } = await supabase
+        .from("cpv_codes")
+        .select("id, descricao")
+        .in("id", cpvCodes);
+
+      cpvDescriptions = Object.fromEntries(
+        (cpvRows ?? []).map((row) => [row.id, row.descricao ?? ""]),
+      );
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -593,6 +609,7 @@ export default async function OportunidadesPage({
 
           <OportunidadesResults
             opportunities={opportunities}
+            cpvDescriptions={cpvDescriptions}
             page={page}
             totalPages={totalPages}
             hasFilters={hasFilters}
