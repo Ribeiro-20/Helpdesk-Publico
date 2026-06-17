@@ -13,7 +13,7 @@ class MultibancoRequest:
     valor_maximo: float
     valor_minimo:float
     per_dup: int
-    extrafields: list[ExtraField]
+    extrafields: list
     failOver: str
     email: str
     email: str
