@@ -21,3 +21,11 @@ fullmigrate:
 
 shell:
 	$(WORKING_DIR) python manage.py shell
+
+lint:
+	$(WORKING_DIR) pylint . || true
+
+pyrefly:
+	$(WORKING_DIR) pyrefly check .
+
+pipeline: lint pyrefly test
