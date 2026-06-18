@@ -4,7 +4,7 @@ from eupago.domain.money import Money
 
 # https://eupago.readme.io/reference/multibanco
 
-@dataclass
+@dataclass(frozen=True)
 class MultibancoRequest:
     valor: float
     id: str
@@ -13,14 +13,13 @@ class MultibancoRequest:
     valor_maximo: float
     valor_minimo:float
     per_dup: int
-    extrafields: list
+    extrafields: list["ExtraField"]
     failOver: str
-    email: str
     email: str
     contacto: str
     userID: str
 
-@dataclass
+@dataclass(frozen=True)
 class ExtraField:
     id: int
     valor: str

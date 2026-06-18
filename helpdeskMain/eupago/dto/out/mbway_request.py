@@ -3,7 +3,7 @@ from eupago.domain.money import Money
 
 # https://eupago.readme.io/reference/mbway
 
-@dataclass
+@dataclass(frozen=True)
 class MBWayRequest:
     identifier: str
     amount: Money
