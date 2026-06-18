@@ -384,11 +384,7 @@ verify_jwt = false
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-<<<<<<< Updated upstream
-enabled = true
-=======
 enabled = false
->>>>>>> Stashed changes
 port = 54327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
