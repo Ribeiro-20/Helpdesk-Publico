@@ -221,7 +221,7 @@ export default function ContractsTable({
                   Objecto
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                  Adjudicante
+                  Adjudicante(s)
                 </th>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                   Adjudicatário
