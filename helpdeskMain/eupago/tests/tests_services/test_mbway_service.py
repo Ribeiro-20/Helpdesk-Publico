@@ -41,6 +41,7 @@ def test_service():
     assert result.transactionStatus == "SUCCESS"
     assert result.transactionID == "tx-123"
     assert result.reference == "ref-999"
+    #TODO: Add more assertions to verify the correctness of the result based on the input DTO and the mocked response.
 
     # also verify client was actually used correctly
     client.create_mbway.assert_called_once()

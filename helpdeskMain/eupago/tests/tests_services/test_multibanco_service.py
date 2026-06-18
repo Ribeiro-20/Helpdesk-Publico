@@ -50,6 +50,8 @@ def test_service():
     assert result.sucesso is True
     assert result.estado == 0
     assert result.valor_maximo == "1000.0"
+    #TODO: Add more assertions to verify the correctness of the result based on the input DTO and the mocked response.
+
 
     # also verify client was actually used correctly
     client.create_multibanco_reference.assert_called_once()
