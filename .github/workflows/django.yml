@@ -9,6 +9,7 @@ on:
 jobs:
   pyrefly:
     runs-on: ubuntu-latest
+    environment: devEnv
     env:
       H_APIKEY: ${{ secrets.HAPI_KEY }}
       HENDPOINT: ${{ vars.HENDPOINT }}
@@ -45,6 +46,7 @@ jobs:
 
   pytest:
     runs-on: ubuntu-latest
+    environment: devEnv
     env:
       H_APIKEY: ${{ secrets.HAPI_KEY }}
       HENDPOINT: ${{ vars.HENDPOINT }}
@@ -81,6 +83,7 @@ jobs:
 
   pylint:
       runs-on: ubuntu-latest
+      environment: devEnv
       env:
         H_APIKEY: ${{ secrets.HAPI_KEY }}
         HENDPOINT: ${{ vars.HENDPOINT }}
