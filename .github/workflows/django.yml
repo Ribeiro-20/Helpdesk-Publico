@@ -12,10 +12,8 @@ jobs:
     env:
       H_APIKEY: ${{ secrets.HAPI_KEY }}
       HENDPOINT: ${{ vars.HENDPOINT }}
-      
       EAPI_KEY: ${{ secrets.EAPI_KEY }}
       EENDPOINT: ${{ vars.EENDPOINT }}
-
       TENDPOINT: ${{ secrets.TENDPOINT }}
       TENDPOINT_OAUTH: ${{ secrets.TENDPOINT_OAUTH }}
       TCLIENTID: ${{ secrets.TCLIENTID }}
@@ -48,12 +46,10 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     env:
-      H_APIKEY: ${{ secrets.HAPIKEY }}
+      H_APIKEY: ${{ secrets.HAPI_KEY }}
       HENDPOINT: ${{ vars.HENDPOINT }}
-      
       EAPI_KEY: ${{ secrets.EAPI_KEY }}
       EENDPOINT: ${{ vars.EENDPOINT }}
-
       TENDPOINT: ${{ secrets.TENDPOINT }}
       TENDPOINT_OAUTH: ${{ secrets.TENDPOINT_OAUTH }}
       TCLIENTID: ${{ secrets.TCLIENTID }}
@@ -86,12 +82,10 @@ jobs:
   pylint:
       runs-on: ubuntu-latest
       env:
-        H_APIKEY: ${{ secrets.HAPIKEY }}
+        H_APIKEY: ${{ secrets.HAPI_KEY }}
         HENDPOINT: ${{ vars.HENDPOINT }}
-        
         EAPI_KEY: ${{ secrets.EAPI_KEY }}
         EENDPOINT: ${{ vars.EENDPOINT }}
-
         TENDPOINT: ${{ secrets.TENDPOINT }}
         TENDPOINT_OAUTH: ${{ secrets.TENDPOINT_OAUTH }}
         TCLIENTID: ${{ secrets.TCLIENTID }}
