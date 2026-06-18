@@ -697,13 +697,18 @@ export default async function MercadoPublicoPage({
     let rpcRows: ContractRow[] = [];
     let rpcTotalCount = 0;
 
-    if (rpcResult && Array.isArray(rpcResult) && rpcResult.length > 0) {
-      const result = rpcResult[0] as {
-        rows: ContractRow[];
+    if (rpcResult) {
+      const result = (Array.isArray(rpcResult) ? rpcResult[0] : rpcResult) as {
+        rows: ContractRow[] | string;
         total_count: number;
       };
-      rpcRows = Array.isArray(result.rows) ? result.rows : [];
-      rpcTotalCount = result.total_count ?? 0;
+      if (result) {
+        const rawRows = typeof result.rows === "string"
+          ? (JSON.parse(result.rows) as ContractRow[])
+          : result.rows;
+        rpcRows = Array.isArray(rawRows) ? rawRows : [];
+        rpcTotalCount = Number(result.total_count ?? 0);
+      }
     }
 
     const ids = rpcRows.map((row) => row.id).filter(Boolean);

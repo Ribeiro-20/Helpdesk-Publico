@@ -175,10 +175,18 @@ export default async function ContractsPage({
     p_limit: PAGE_SIZE,
   });
 
-  if (rpcResult && Array.isArray(rpcResult) && rpcResult.length > 0) {
-    const result = rpcResult[0] as { rows: ContractRow[]; total_count: number };
-    contracts = Array.isArray(result.rows) ? result.rows : [];
-    totalCount = result.total_count ?? 0;
+  if (rpcResult) {
+    const result = (Array.isArray(rpcResult) ? rpcResult[0] : rpcResult) as {
+      rows: ContractRow[] | string;
+      total_count: number;
+    };
+    if (result) {
+      const rawRows = typeof result.rows === "string"
+        ? (JSON.parse(result.rows) as ContractRow[])
+        : result.rows;
+      contracts = Array.isArray(rawRows) ? rawRows : [];
+      totalCount = Number(result.total_count ?? 0);
+    }
   }
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
