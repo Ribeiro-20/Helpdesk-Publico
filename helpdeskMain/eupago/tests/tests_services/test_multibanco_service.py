@@ -18,7 +18,7 @@ def test_service():
         "resposta": "Payment created successfully",
         "referencia": "ref-999",
         "valor": "aaaa",
-        "entida": "ent-123",
+        "entidade": "ent-123",
         "valor_minimo": "10.0",
         "valor_maximo": "1000.0",
         "data_inicio": "2024-01-01 00:00:00",
