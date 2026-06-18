@@ -10,7 +10,7 @@ jobs:
   pyrefly:
     runs-on: ubuntu-latest
     env:
-      H_APIKEY: ${{ secrets.HAPIKEY }}
+      H_APIKEY: ${{ secrets.HAPI_KEY }}
       HENDPOINT: ${{ vars.HENDPOINT }}
       
       EAPI_KEY: ${{ secrets.EAPI_KEY }}
