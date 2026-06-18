@@ -506,7 +506,7 @@ export default async function OportunidadesPage({
 
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
               <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div className="flex items-center gap-1 mb-2">
                   <label className="block text-xs text-gray-400">Data de publicação</label>
