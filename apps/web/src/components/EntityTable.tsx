@@ -121,7 +121,7 @@ export default function EntityTable({
                           </div>
                         )}
                         <div>
-                          <p className="text-green-700 font-medium leading-tight">
+                          <p className="text-gray-900 font-medium leading-tight">
                             {row.name}
                           </p>
                           <p className="text-xs text-gray-400 mt-0.5">
