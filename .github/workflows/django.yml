@@ -114,3 +114,8 @@ jobs:
           env:
             PYTHONPATH: .
           run: pylint . || true
+
+        - name: DEBUG ENV
+          run: |
+            echo "HENDPOINT=$HENDPOINT"
+            echo "TENDPOINT=$TENDPOINT"
