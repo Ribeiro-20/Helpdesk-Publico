@@ -9,6 +9,18 @@ on:
 jobs:
   pyrefly:
     runs-on: ubuntu-latest
+    env:
+      H_APIKEY: ${{ secrets.HAPIKEY }}
+      HENDPOINT: ${{ vars.HENDPOINT }}
+      
+      EAPI_KEY: ${{ secrets.EAPI_KEY }}
+      EENDPOINT: ${{ vars.EENDPOINT }}
+
+      TENDPOINT: ${{ secrets.TENDPOINT }}
+      TENDPOINT_OAUTH: ${{ secrets.TENDPOINT_OAUTH }}
+      TCLIENTID: ${{ secrets.TCLIENTID }}
+      TCLIENT_SECRET: ${{ secrets.TCLIENT_SECRET }}
+      TREDIRECT_OAUTH: ${{ secrets.TREDIRECT_OAUTH }}
 
     strategy:
       matrix:
@@ -35,6 +47,18 @@ jobs:
 
   pytest:
     runs-on: ubuntu-latest
+    env:
+      H_APIKEY: ${{ secrets.HAPIKEY }}
+      HENDPOINT: ${{ vars.HENDPOINT }}
+      
+      EAPI_KEY: ${{ secrets.EAPI_KEY }}
+      EENDPOINT: ${{ vars.EENDPOINT }}
+
+      TENDPOINT: ${{ secrets.TENDPOINT }}
+      TENDPOINT_OAUTH: ${{ secrets.TENDPOINT_OAUTH }}
+      TCLIENTID: ${{ secrets.TCLIENTID }}
+      TCLIENT_SECRET: ${{ secrets.TCLIENT_SECRET }}
+      TREDIRECT_OAUTH: ${{ secrets.TREDIRECT_OAUTH }}
 
     strategy:
       matrix:
@@ -61,6 +85,18 @@ jobs:
 
   pylint:
       runs-on: ubuntu-latest
+      env:
+        H_APIKEY: ${{ secrets.HAPIKEY }}
+        HENDPOINT: ${{ vars.HENDPOINT }}
+        
+        EAPI_KEY: ${{ secrets.EAPI_KEY }}
+        EENDPOINT: ${{ vars.EENDPOINT }}
+
+        TENDPOINT: ${{ secrets.TENDPOINT }}
+        TENDPOINT_OAUTH: ${{ secrets.TENDPOINT_OAUTH }}
+        TCLIENTID: ${{ secrets.TCLIENTID }}
+        TCLIENT_SECRET: ${{ secrets.TCLIENT_SECRET }}
+        TREDIRECT_OAUTH: ${{ secrets.TREDIRECT_OAUTH }}
 
       strategy:
         matrix:
