@@ -63,8 +63,8 @@ export default function LoginPage() {
                 className="rounded-lg"
               />
             </div>
-            <h1 className="text-xl font-bold text-gray-900">Base Monitor</h1>
-            <p className="text-gray-400 text-sm mt-1">by Helpdesk Público</p>
+            <h1 className="text-xl font-bold text-gray-900">Área Reservada</h1>
+            <p className="text-gray-400 text-sm mt-1"> Helpdesk Público</p>
           </div>
 
           {/* Form */}

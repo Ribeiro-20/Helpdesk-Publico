@@ -94,7 +94,7 @@ export default function Header() {
                 onClick={() => setMenuOpen(false)}
               >
                 <UserCircle2 className="w-4.5 h-4.5" strokeWidth={1.6} />
-                <span>Área de utilizador</span>
+                <span>Área Reservada</span>
               </Link>
             </div>
           )}

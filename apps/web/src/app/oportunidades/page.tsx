@@ -508,20 +508,6 @@ export default async function OportunidadesPage({
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
               <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">Data de publicação</label>
-                </div>
-                <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">Prazo de fim</label>
-                </div>
-                <MercadoDateDropdown name="to_date" defaultValue={toDate} />
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
                 <div className="mb-2">
                   <label className="block text-xs text-gray-400">Ordenar valor por</label>
                 </div>
@@ -543,6 +529,20 @@ export default async function OportunidadesPage({
                 </div>
               </div>
 
+              <div className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-1 mb-2">
+                  <label className="block text-xs text-gray-400">Data de publicação</label>
+                </div>
+                <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-1 mb-2">
+                  <label className="block text-xs text-gray-400">Prazo de fim</label>
+                </div>
+                <MercadoDateDropdown name="to_date" defaultValue={toDate} />
+              </div>
+
               <div>
                 <MercadoSingleSelect
                   name="limit"
@@ -561,6 +561,7 @@ export default async function OportunidadesPage({
                   name="sort"
                   label="Ordenar Oportunidades por"
                   defaultValue={sort}
+                  autoSubmitOnChange
                   options={[
                     { value: "publication_date_desc", label: "Mais recentes" },
                     { value: "publication_date_asc", label: "Mais antigos" },
