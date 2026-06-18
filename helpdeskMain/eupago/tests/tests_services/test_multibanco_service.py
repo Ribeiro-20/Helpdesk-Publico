@@ -11,6 +11,7 @@ def test_service():
     client = Mock(spec=EupagoClient)
 
     # fake Eupago API response
+    # TODO: Change into Faker data for more realistic testing
     client.create_multibanco_reference.return_value = {
         "sucesso": True,
         "estado": 0,
@@ -43,10 +44,12 @@ def test_service():
         userID="user-123"
     )
 
-    result = service.create_payment(dto)
+    result: MultibancoResponse = service.create_payment(dto)
 
     assert isinstance(result, MultibancoResponse)
     assert result.sucesso is True
+    assert result.estado == 0
+    assert result.valor_maximo == "1000.0"
 
     # also verify client was actually used correctly
     client.create_multibanco_reference.assert_called_once()

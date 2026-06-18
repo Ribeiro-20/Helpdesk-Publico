@@ -8,7 +8,7 @@ class MBWayMapper:
             "payment": {
                 "identifier": dto.identifier,
                 "amount": {
-                    "value": dto.amount.amount, # this is wrong because MONEY is in cents (int) while this output needs to be in float.
+                    "value": dto.amount.amount,
                     "currency": dto.amount.currency,
                 },
                 "customerPhone": dto.customer_phone,

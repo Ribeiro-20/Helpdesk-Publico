@@ -11,7 +11,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser)-> None:
         parser.add_argument("--identifier", required=True, type=str)
-        parser.add_argument("--amount", required=True, type=int, help="Amount in cents (e.g. 2550)")
+        parser.add_argument("--amount", required=True, type=float, help="Amount in eur (float) (e.g. 2550)")
         parser.add_argument("--currency", default="EUR", type=str)
 
         parser.add_argument("--customer-phone", required=True, type=str)

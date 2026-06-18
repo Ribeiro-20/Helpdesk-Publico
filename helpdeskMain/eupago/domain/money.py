@@ -3,7 +3,7 @@ from dataclasses import dataclass
 # Add logger
 @dataclass
 class Money:
-    amount: int # CHECK OUT FLOAT/INT
+    amount: float
     currency: str
 
     def __post_init__(self):

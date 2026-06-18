@@ -11,7 +11,7 @@ class MultibancoResponse:
     resposta: str
     referencia: str
     valor: str
-    entida: str
+    entidade: str
     valor_minimo: str
     valor_maximo: str
     data_inicio: str
