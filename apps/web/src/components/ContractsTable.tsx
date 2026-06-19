@@ -192,7 +192,7 @@ export default function ContractsTable({
 
   const BTN =
     "px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all";
-  const ACTIVE = "px-3 py-1.5 text-sm font-medium rounded-xl text-gray-900";
+  const ACTIVE = "px-3 py-1.5 text-sm font-medium rounded-md text-white";
   const DOTS = "px-2 py-1.5 text-sm text-gray-300";
 
   const pages: (number | "dots")[] = [];
@@ -271,7 +271,7 @@ export default function ContractsTable({
                     onClick={() => setSelectedId(c.id)}
                   >
                     <td className="px-4 py-3 max-w-xs">
-                      <p className="text-green-600 font-medium line-clamp-2">
+                      <p className="text-gray-900 font-medium line-clamp-2">
                         {c.object || "Sem objecto"}
                       </p>
                       {c.procedure_type && (

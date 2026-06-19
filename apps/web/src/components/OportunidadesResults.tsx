@@ -151,8 +151,8 @@ export default function OportunidadesResults({
                     onClick={() => setSelectedAnnouncementId(op.id)}
                   >
                     <td className="px-4 py-3 max-w-xs align-top">
-                      <p className="text-green-600 font-medium line-clamp-2">{title}</p>
-                      <p className="text-xs text-gray-400 mt-0.5 truncate">{procedureType}</p>
+                      <p className="text-gray-900 font-medium line-clamp-2">{op.title ?? "Sem titulo"}</p>
+                      <p className="text-xs text-gray-400 mt-0.5 truncate">{op.procedure_type ?? "-"}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{entityName}</td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums align-top">{fmtDate(op.publication_date)}</td>
@@ -208,7 +208,7 @@ export default function OportunidadesResults({
           )}
 
           <span
-            className="px-3 py-1.5 text-sm font-medium rounded-xl text-gray-900"
+            className="px-3 py-1.5 text-sm font-medium rounded-md text-white"
             style={{ background: "#3f6f27" }}
           >
             {page} / {totalPages}

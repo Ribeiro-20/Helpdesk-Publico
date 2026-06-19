@@ -448,7 +448,7 @@ export default async function EstatisticasPublicoPage({
                     className="hover:bg-green-50/40 transition-colors"
                   >
                     <td className="px-4 py-3">
-                          <p className="text-green-700 font-medium leading-tight">
+                          <p className="text-gray-900 font-medium leading-tight">
                         {row.name}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
@@ -508,7 +508,7 @@ export default async function EstatisticasPublicoPage({
                 href={buildQuery(baseQuery, { page: String(p) })}
                 className={
                   p === safePage
-                    ? "px-3 py-1.5 text-sm font-medium rounded-xl text-gray-900"
+                    ? "px-3 py-1.5 text-sm font-medium rounded-md text-white"
                     : "px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
                 }
                 style={p === safePage ? { background: GREEN } : {}}
