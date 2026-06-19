@@ -30,8 +30,9 @@ export type SupabaseAdminEnv = {
 };
 
 export function getSupabaseAdminEnv(scope = "Supabase Admin"): SupabaseAdminEnv {
-  // Try NEXT_PUBLIC_SUPABASE_URL first as it's guaranteed to be available in the Next build
-  const url = clean(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL);
+  // Prefer internal SUPABASE_URL for server-side calls (bypasses reverse proxy).
+  // Falls back to NEXT_PUBLIC_SUPABASE_URL if SUPABASE_URL is not set.
+  const url = clean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL);
   const serviceRoleKey = clean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   const missing: string[] = [];
