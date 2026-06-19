@@ -27,6 +27,15 @@ const CORS = {
   "Content-Type": "application/json",
 };
 
+function isAnnouncementExpired(deadlineAt: string | null | undefined): boolean {
+  if (!deadlineAt) return false;
+
+  const deadlineMs = Date.parse(deadlineAt);
+  if (!Number.isFinite(deadlineMs)) return false;
+
+  return deadlineMs < Date.now();
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS });
@@ -137,6 +146,7 @@ Deno.serve(async (req: Request) => {
         base_price: number | null;
         currency: string;
         detail_url: string | null;
+        proposal_deadline_at?: string | null;
       } | null;
 
       if (!client || !announcement) {
@@ -145,6 +155,18 @@ Deno.serve(async (req: Request) => {
           .update({ status: "FAILED", error: "Missing client or announcement" })
           .eq("id", notif.id);
         stats.failed++;
+        continue;
+      }
+
+      if (isAnnouncementExpired(announcement.proposal_deadline_at ?? null)) {
+        await supabase
+          .from("notifications")
+          .update({
+            status: "SKIPPED",
+            error: "Announcement deadline expired",
+          })
+          .eq("id", notif.id);
+        stats.processed--;
         continue;
       }
 
