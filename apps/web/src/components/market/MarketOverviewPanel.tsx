@@ -113,7 +113,6 @@ export default function MarketOverviewPanel({
 }) {
   const byContracts = [...items].sort((a, b) => (b.contracts - a.contracts) || (b.totalValue - a.totalValue)).slice(0, 6);
   const byValue = [...items].sort((a, b) => (b.totalValue - a.totalValue) || (b.contracts - a.contracts)).slice(0, 6);
-  const byTicket = [...items].sort((a, b) => (b.avgContractValue - a.avgContractValue) || (b.totalValue - a.totalValue)).slice(0, 6);
 
   return (
     <div className="space-y-5">
@@ -153,14 +152,6 @@ export default function MarketOverviewPanel({
           valueLabel={(item) => formatCurrency(item.totalValue)}
         />
       </div>
-
-      <BarBlock
-        title="CPVs por ticket médio"
-        subtitle="Comparação de valor médio por contrato"
-        rows={byTicket}
-        valueOf={(item) => item.avgContractValue}
-        valueLabel={(item) => formatCurrency(item.avgContractValue)}
-      />
     </div>
   );
 }

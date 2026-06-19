@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 type Option = {
   value: string;
@@ -16,22 +17,30 @@ export default function MercadoSingleSelect({
   value,
   onChange,
   disabled = false,
-  maxVisibleOptions,
+  hideLabel = false,
+  showHiddenInput = true,
+  optionDensity = "default",
+  autoSubmitOnChange = false,
 }: {
   name: string;
-  label: string;
+  label?: string;
   options: Option[];
   defaultValue: string;
   value?: string;
   onChange?: (nextValue: string) => void;
   disabled?: boolean;
-  maxVisibleOptions?: number;
+  hideLabel?: boolean;
+  showHiddenInput?: boolean;
+  optionDensity?: "default" | "compact";
+  autoSubmitOnChange?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(defaultValue);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const isControlled = value !== undefined;
   const currentValue = isControlled ? value : selected;
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!isControlled) setSelected(defaultValue);
@@ -52,11 +61,37 @@ export default function MercadoSingleSelect({
 
   const selectedLabel = selectedOption?.label ?? "";
 
+  function submitClosestForm(nextValue?: string) {
+    const form = wrapperRef.current?.closest("form");
+    if (!(form instanceof HTMLFormElement)) return;
+
+    const formData = new FormData(form);
+    const params = new URLSearchParams();
+
+    formData.forEach((val, key) => {
+      if (key === name && nextValue !== undefined) return;
+      if (typeof val !== "string") return;
+      const cleaned = val.trim();
+      if (!cleaned || cleaned === "all") return;
+      params.append(key, cleaned);
+    });
+
+    if (nextValue !== undefined) {
+      const cleanedNext = nextValue.trim();
+      if (cleanedNext && cleanedNext !== "all") {
+        params.set(name, cleanedNext);
+      }
+    }
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
   return (
     <div ref={wrapperRef} className={`relative ${open ? "z-[120]" : "z-10"}`}>
-      <label className="block text-xs text-gray-400 mb-1">{label}</label>
+      {!hideLabel && label && <label className="block text-xs text-gray-400 mb-1">{label}</label>}
 
-      <input type="hidden" name={name} value={selectedOption?.value ?? ""} />
+      {showHiddenInput && <input type="hidden" name={name} value={selectedOption?.value ?? ""} />}
 
       <button
         type="button"
@@ -76,10 +111,7 @@ export default function MercadoSingleSelect({
       </button>
 
       {open && !disabled && (
-        <div
-          className="absolute z-[130] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-y-auto py-1"
-          style={maxVisibleOptions ? { maxHeight: `${maxVisibleOptions * 42}px` } : undefined}
-        >
+        <div className="absolute z-[130] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden py-1">
           {options.map((opt) => {
             const isActive = selectedOption?.value === opt.value;
             const isDisabledOption = opt.disabled === true;
@@ -92,8 +124,11 @@ export default function MercadoSingleSelect({
                   if (!isControlled) setSelected(opt.value);
                   onChange?.(opt.value);
                   setOpen(false);
+                  if (autoSubmitOnChange) submitClosestForm(opt.value);
                 }}
-                className={`flex items-center justify-between px-3.5 py-2.5 w-full cursor-pointer text-left transition-colors min-h-[42px] disabled:cursor-default disabled:hover:bg-transparent disabled:text-gray-300 ${
+                className={`flex items-center justify-between px-3.5 w-full cursor-pointer text-left transition-colors disabled:cursor-default disabled:hover:bg-transparent disabled:text-gray-300 ${
+                  optionDensity === "compact" ? "py-1 min-h-[30px]" : "py-2.5 min-h-[42px]"
+                } ${
                   isActive ? "bg-green-50 text-green-700" : "hover:bg-gray-50"
                 }`}
               >

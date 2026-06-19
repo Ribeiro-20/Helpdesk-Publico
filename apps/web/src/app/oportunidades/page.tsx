@@ -290,6 +290,7 @@ export default async function OportunidadesPage({
   const tenantId = tenant?.id ?? null;
 
   let opportunities: OpportunityRow[] = [];
+  let cpvDescriptions: Record<string, string> = {};
   let totalCount = 0;
   const actTypeOptions = [...ACT_TYPE_CANONICAL];
   const modelTypeOptions = [...MODEL_TYPE_CANONICAL];
@@ -371,6 +372,21 @@ export default async function OportunidadesPage({
 
     totalCount = count ?? 0;
     opportunities = (data ?? []) as OpportunityRow[];
+
+    const cpvCodes = Array.from(
+      new Set(opportunities.map((op) => op.cpv_main).filter(Boolean) as string[]),
+    );
+
+    if (cpvCodes.length > 0) {
+      const { data: cpvRows } = await supabase
+        .from("cpv_codes")
+        .select("id, descricao")
+        .in("id", cpvCodes);
+
+      cpvDescriptions = Object.fromEntries(
+        (cpvRows ?? []).map((row) => [row.id, row.descricao ?? ""]),
+      );
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -490,22 +506,8 @@ export default async function OportunidadesPage({
 
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">Data de publicação</label>
-                </div>
-                <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">Prazo de fim</label>
-                </div>
-                <MercadoDateDropdown name="to_date" defaultValue={toDate} />
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-stretch">
+              <div className="h-full rounded-xl border-2 border-gray-300 bg-white p-3">
                 <div className="mb-2">
                   <label className="block text-xs text-gray-400">Ordenar valor por</label>
                 </div>
@@ -527,6 +529,20 @@ export default async function OportunidadesPage({
                 </div>
               </div>
 
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-1 mb-2">
+                  <label className="block text-xs text-gray-400">Data de publicação</label>
+                </div>
+                <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
+              </div>
+
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-1 mb-2">
+                  <label className="block text-xs text-gray-400">Prazo de fim</label>
+                </div>
+                <MercadoDateDropdown name="to_date" defaultValue={toDate} />
+              </div>
+
               <div>
                 <MercadoSingleSelect
                   name="limit"
@@ -545,6 +561,7 @@ export default async function OportunidadesPage({
                   name="sort"
                   label="Ordenar Oportunidades por"
                   defaultValue={sort}
+                  autoSubmitOnChange
                   options={[
                     { value: "publication_date_desc", label: "Mais recentes" },
                     { value: "publication_date_asc", label: "Mais antigos" },
@@ -555,44 +572,36 @@ export default async function OportunidadesPage({
                 />
               </div>
 
-            <div className="flex items-end justify-end gap-2">
-              {hasFilters ? (
-                <Link
-                  href="/oportunidades"
-                  className="inline-flex h-10 items-center justify-center text-gray-500 text-sm font-medium px-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
-                >
-                  Limpar
-                </Link>
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className="hidden md:inline-flex h-10 items-center justify-center px-4 rounded-xl border border-transparent invisible"
-                >
-                  Limpar
-                </span>
-              )}
-
-              <div className="flex flex-col items-end">
-                <p className="text-xs text-gray-500 mb-1">
-                  Filtrar para aplicar seleção
-                </p>
-
-                <button
-                  type="submit"
-                  className="inline-flex h-10 w-full md:w-auto items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold whitespace-nowrap transition-all hover:opacity-90"
-                  style={{ background: "#3f6f27", color: "#ffffff" }}
-                >
-                  <Filter className="w-4 h-4" />
-                  Filtrar
-                </button>
-              </div>
             </div>
 
+            <div className="grid grid-cols-1 items-center gap-2 pt-1 md:grid-cols-[1fr_auto_1fr]">
+              <span aria-hidden="true" className="hidden md:block" />
+
+              <button
+                type="submit"
+                className="inline-flex h-10 w-full items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold whitespace-nowrap text-center text-white shadow-sm transition-all hover:opacity-90 md:w-[360px]"
+                style={{ background: "#39752a" }}
+              >
+                <Filter className="w-4 h-4" />
+                Aplicar filtros selecionados
+              </button>
+
+              <div className="flex justify-center md:justify-start">
+                {hasFilters && (
+                  <Link
+                    href="/oportunidades"
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-500 transition-all hover:bg-gray-50"
+                  >
+                    Limpar
+                  </Link>
+                )}
+              </div>
             </div>
           </form>
 
           <OportunidadesResults
             opportunities={opportunities}
+            cpvDescriptions={cpvDescriptions}
             page={page}
             totalPages={totalPages}
             hasFilters={hasFilters}

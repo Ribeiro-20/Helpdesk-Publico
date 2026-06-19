@@ -79,13 +79,13 @@ export default function Header() {
               className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-60 rounded-xl border border-white/10 bg-[#202329] p-1.5 shadow-xl"
             >
               <a
-                href="mailto:supcom@helpdeskpublico.pt"
+                href="https://www.helpdeskpublico.pt/contactos"
                 role="menuitem"
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 hover:text-white transition-colors"
                 onClick={() => setMenuOpen(false)}
               >
                 <Mail className="w-4.5 h-4.5" strokeWidth={1.6} />
-                <span>Contacto por email</span>
+                <span>Contacte-nos</span>
               </a>
 
               <Link
@@ -95,7 +95,7 @@ export default function Header() {
                 onClick={() => setMenuOpen(false)}
               >
                 <UserCircle2 className="w-4.5 h-4.5" strokeWidth={1.6} />
-                <span>Área de utilizador</span>
+                <span>Área Reservada</span>
               </Link>
             </div>
           )}

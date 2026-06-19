@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 
 type MercadoDateDropdownProps = {
   name: string;
@@ -100,47 +101,39 @@ export default function MercadoDateDropdown({
 
   return (
     <div className="grid grid-cols-3 gap-2">
-      <select
+      <MercadoSingleSelect
+        name={`${name}_day_ui`}
+        hideLabel
+        showHiddenInput={false}
+        optionDensity="compact"
+        label="Dia"
         value={day}
-        onChange={(event) => setDay(event.target.value)}
-        className="h-10 w-full border border-gray-200 rounded-lg px-2.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
-        aria-label="Dia"
-      >
-        <option value="">Dia</option>
-        {dayOptions.map((value) => (
-          <option key={value} value={value}>
-            {value}
-          </option>
-        ))}
-      </select>
+        defaultValue={day}
+        onChange={setDay}
+        options={[{ value: "", label: "Dia" }, ...dayOptions.map((value) => ({ value, label: value }))]}
+      />
 
-      <select
+      <MercadoSingleSelect
+        name={`${name}_month_ui`}
+        hideLabel
+        showHiddenInput={false}
+        label="Mês"
         value={month}
-        onChange={(event) => setMonth(event.target.value)}
-        className="h-10 w-full border border-gray-200 rounded-lg px-2.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
-        aria-label="Mes"
-      >
-        <option value="">Mes</option>
-        {monthOptions.map((value) => (
-          <option key={value} value={value}>
-            {value}
-          </option>
-        ))}
-      </select>
+        defaultValue={month}
+        onChange={setMonth}
+        options={[{ value: "", label: "Mês" }, ...monthOptions.map((value) => ({ value, label: value }))]}
+      />
 
-      <select
+      <MercadoSingleSelect
+        name={`${name}_year_ui`}
+        hideLabel
+        showHiddenInput={false}
+        label="Ano"
         value={year}
-        onChange={(event) => setYear(event.target.value)}
-        className="h-10 w-full border border-gray-200 rounded-lg px-2.5 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all bg-white"
-        aria-label="Ano"
-      >
-        <option value="">Ano</option>
-        {yearOptions.map((value) => (
-          <option key={value} value={value}>
-            {value}
-          </option>
-        ))}
-      </select>
+        defaultValue={year}
+        onChange={setYear}
+        options={[{ value: "", label: "Ano" }, ...yearOptions.map((value) => ({ value, label: value }))]}
+      />
 
       <input type="hidden" name={name} value={formattedDate} disabled={!formattedDate} />
     </div>

@@ -145,9 +145,7 @@ export default function AnnouncementModal({
   const announcement = data?.announcement;
   const versions = data?.versions ?? [];
   const cpvMain = data?.cpv?.main ?? null;
-  const cpvListDisplay = data?.cpv?.list ?? [];
   const displayStatus = announcement ? effectiveStatus(announcement) : "active";
-  const cpvList = Array.isArray(announcement?.cpv_list) ? (announcement!.cpv_list as string[]) : [];
   const piecesUrl =
     data?.procedure_pieces_url ??
     (announcement?.raw_payload ? extractProcedurePiecesUrl(announcement.raw_payload) : null);
@@ -295,7 +293,7 @@ export default function AnnouncementModal({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="col-span-1">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
-                      PRAZO
+                      PRAZO DE EXECUÇÃO
                     </p>
                     <p className="text-sm text-gray-800">
                       {announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}
@@ -357,35 +355,6 @@ export default function AnnouncementModal({
                   <InfoCard title="Entidade adjudicante">
                     <Field label="ENTIDADE(S) ADJUDICANTE(S)" value={entityDisplay} />
                   </InfoCard>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Tag className="w-4 h-4" style={{ color: "rgba(74, 222, 128, 1)" }} />
-                  <h3 className="text-xs font-bold uppercase tracking-widest" style={{ color: "rgba(74, 222, 128, 1)" }}>
-                    Lista CPV
-                  </h3>
-                </div>
-                <hr className="border-gray-200 mb-4" />
-                <div className="flex flex-wrap gap-2">
-                  {cpvListDisplay.length > 0 ? (
-                    cpvListDisplay.map((item) => (
-                      <CpvValue key={item.code} item={item} />
-                    ))
-                  ) : cpvList.length > 0 ? (
-                    cpvList.map((code) => (
-                      <span
-                        key={code}
-                        title={code}
-                        className="inline-flex max-w-full items-start rounded-md bg-blue-50 px-2 py-1 text-sm font-semibold text-sky-800"
-                      >
-                        <span className="whitespace-normal break-words">{code}</span>
-                      </span>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-400">Sem lista de CPV identificada no anúncio.</p>
-                  )}
                 </div>
               </div>
 

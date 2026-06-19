@@ -8,6 +8,7 @@
  *   "brevo"     → Brevo HTTP API
  *
  * For production: set EMAIL_PROVIDER=brevo and BREVO_API_KEY.
+ * If EMAIL_PROVIDER is omitted but BREVO_API_KEY exists, Brevo is used.
  */
 
 export interface EmailMessage {
@@ -21,6 +22,9 @@ export interface EmailMessage {
 export interface SendResult {
   success: boolean;
   error?: string;
+  provider?: string;
+  messageId?: string;
+  details?: unknown;
 }
 
 export interface EmailProvider {
@@ -176,12 +180,23 @@ class BrevoEmailProvider implements EmailProvider {
       body: JSON.stringify(payload),
     });
 
-    if (!res.ok) {
-      const error = await res.text();
-      return { success: false, error: `Brevo ${res.status}: ${error}` };
+    const responseText = await res.text();
+    let details: unknown = responseText;
+    try {
+      details = responseText ? JSON.parse(responseText) : null;
+    } catch {
+      details = responseText;
     }
 
-    return { success: true };
+    if (!res.ok) {
+      return { success: false, provider: "brevo", error: `Brevo ${res.status}: ${responseText}`, details };
+    }
+
+    const messageId = details && typeof details === "object" && "messageId" in details
+      ? String((details as { messageId?: unknown }).messageId ?? "")
+      : undefined;
+    console.log(`[Brevo] accepted email to ${msg.to}${messageId ? ` messageId=${messageId}` : ""}`);
+    return { success: true, provider: "brevo", messageId, details };
   }
 }
 
@@ -190,7 +205,9 @@ class BrevoEmailProvider implements EmailProvider {
 // ---------------------------------------------------------------------------
 
 export function createEmailProvider(): EmailProvider {
-  const provider = (Deno.env.get("EMAIL_PROVIDER") ?? "dev").toLowerCase();
+  const explicitProvider = Deno.env.get("EMAIL_PROVIDER");
+  const provider = (explicitProvider ?? (Deno.env.get("BREVO_API_KEY") ? "brevo" : "dev")).toLowerCase();
+  console.log(`[email] provider=${provider}`);
 
   switch (provider) {
     case "brevo": {
@@ -290,10 +307,13 @@ function collectRows(value: unknown, prefix = ""): SectionRow[] {
   return rows;
 }
 
-function safeDate(value: unknown): string {
+function safeDate(value: unknown, dateOnly = false): string {
   if (!value) return "-";
   const date = new Date(String(value));
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("pt-PT");
+  if (Number.isNaN(date.getTime())) return String(value);
+  return dateOnly
+    ? date.toLocaleDateString("pt-PT")
+    : date.toLocaleString("pt-PT");
 }
 
 function buildAnnouncementSections(announcement: Record<string, unknown>): EmailSection[] {
@@ -363,7 +383,109 @@ function buildAnnouncementSections(announcement: Record<string, unknown>): Email
   return sections;
 }
 
-export function buildAnnouncementEmail(params: {
+function escapeEmailHtml(value: unknown): string {
+  return formatValue(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function cleanEmailText(value: unknown): string {
+  return formatValue(value)
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .trim();
+}
+
+function firstEmailText(...values: unknown[]): string {
+  for (const value of values) {
+    const text = cleanEmailText(value);
+    if (text && text !== "-") return text;
+  }
+  return "-";
+}
+
+function pickEmailPayloadValue(payload: Record<string, unknown> | null, keys: string[]): unknown {
+  if (!payload) return null;
+  for (const key of keys) {
+    const value = payload[key];
+    if (value != null && value !== "") return value;
+  }
+  return null;
+}
+
+function formatEmailPrice(value: number | null | undefined, currency = "EUR"): string {
+  if (value == null || !Number.isFinite(Number(value))) return "Nao especificado";
+  return `${Number(value).toLocaleString("pt-PT", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ${currency}`;
+}
+
+function formatEmailDeadlineDays(deadlineAt: unknown): { text: string; daysRemaining: number; color: "green" | "yellow" | "red" } {
+  if (!deadlineAt) return { text: "-", daysRemaining: 0, color: "red" };
+  const deadline = new Date(String(deadlineAt));
+  if (Number.isNaN(deadline.getTime())) return { text: "-", daysRemaining: 0, color: "red" };
+  const today = new Date();
+  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const end = Date.UTC(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
+  const days = Math.ceil((end - start) / 86400000);
+  
+  let text = "";
+  if (days < 0) text = "Prazo terminado";
+  else if (days === 0) text = "Termina hoje";
+  else if (days === 1) text = "1 dia restante";
+  else text = `${days} dias restantes`;
+  
+  let color: "green" | "yellow" | "red" = "red";
+  if (days >= 15) color = "green";
+  else if (days >= 7) color = "yellow";
+  
+  return { text, daysRemaining: days, color };
+}
+
+function formatEmailCpv(
+  announcement: Record<string, unknown> | undefined,
+  cpvMain?: string | null,
+  payload: Record<string, unknown> | null = null,
+): string {
+  const code = firstEmailText(cpvMain, announcement?.cpv_main);
+  const cpvList = announcement?.cpv_list;
+  const cpvFromPayload = pickEmailPayloadValue(payload, [
+    "descricaoCpv",
+    "descricaoCPV",
+    "cpvDescricao",
+    "cpvDescription",
+    "descricaoCpvPrincipal",
+    "descricaoCodigoCpv",
+  ]);
+  const topLevelDescription = firstEmailText(
+    announcement?.cpv_description,
+    announcement?.cpv_main_description,
+    announcement?.cpv_desc,
+    cpvFromPayload,
+  );
+
+  if (topLevelDescription !== "-") {
+    return code !== "-" ? `${code} - ${topLevelDescription}` : topLevelDescription;
+  }
+
+  if (Array.isArray(cpvList)) {
+    const match = cpvList.find((item) => {
+      if (isPlainObject(item)) return String(item.code ?? item.id ?? "") === code;
+      return String(item) === code;
+    });
+    if (isPlainObject(match)) {
+      const description = firstEmailText(match.description, match.descricao);
+      return description !== "-" ? `${code} - ${description}` : code;
+    }
+  }
+  return code;
+}
+
+function buildAnnouncementEmailLegacy(params: {
   clientName: string;
   title: string;
   entityName?: string | null;
@@ -497,6 +619,262 @@ Data: ${publicationDate}
 ${cpvMain ? `CPV: ${cpvMain}` : ""}
 Preço base: ${priceStr}
 ${detailUrl ? `Link: ${detailUrl}` : `Ver em: ${appBaseUrl}/announcements`}`;
+
+  return { subject, html, text };
+}
+
+export function buildAnnouncementEmail(params: {
+  clientName: string;
+  title: string;
+  entityName?: string | null;
+  publicationDate?: string | null;
+  cpvMain?: string | null;
+  basePrice?: number | null;
+  currency?: string;
+  detailUrl?: string | null;
+  appBaseUrl: string;
+  announcement?: Record<string, unknown>;
+}): { subject: string; html: string; text: string } {
+  const {
+    clientName,
+    title,
+    entityName,
+    publicationDate,
+    cpvMain,
+    basePrice,
+    currency,
+    detailUrl,
+    appBaseUrl,
+    announcement,
+  } = params;
+
+  const rawPayload = isPlainObject(announcement?.raw_payload) ? announcement.raw_payload : null;
+  const payload = rawPayload && isPlainObject(rawPayload.payload)
+    ? rawPayload.payload
+    : rawPayload;
+
+  const priceStr = formatEmailPrice(basePrice, currency ?? "EUR");
+  const publishedStr = publicationDate ? safeDate(publicationDate) : "-";
+  const deadlineAt = announcement?.proposal_deadline_at;
+  const deadlineStr = deadlineAt
+    ? safeDate(deadlineAt, true)
+    : firstEmailText(
+      announcement?.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : null,
+      pickEmailPayloadValue(payload, ["prazoApresentacaoPropostas", "Prazo para apresentacao das propostas"]),
+    );
+  const remainingInfo = formatEmailDeadlineDays(deadlineAt);
+  const entityStr = firstEmailText(
+    entityName,
+    announcement?.entity_name,
+    pickEmailPayloadValue(payload, ["designacaoEntidade", "Designacao da entidade adjudicante"]),
+  );
+  const cpvStr = formatEmailCpv(announcement, cpvMain, payload);
+  const procedureStr = firstEmailText(
+    announcement?.procedure_type,
+    announcement?.act_type,
+    pickEmailPayloadValue(payload, ["modeloAnuncio", "tipoProcedimento", "Tipo de Procedimento"]),
+  );
+  const objectStr = firstEmailText(
+    title,
+    announcement?.description,
+    pickEmailPayloadValue(payload, ["descricaoAnuncio", "descricaoContrato", "Descricao", "Sumario"]),
+  ).replace(/\.{3}$/, "");  // Remove trailing ellipsis
+  const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
+  const originalUrl = detailUrl ?? `${appBaseUrl}/announcements`;
+  const subject = `Nova oportunidade: ${objectStr.slice(0, 70)}`;
+
+  const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" };
+  const deadlineColor = deadlineColorMap[remainingInfo.color];
+
+  const html = `<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f3;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+  <div style="width:100%;background:#f5f5f3;padding:20px 0;">
+    <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:4px;overflow:hidden;border:1px solid #e0e0dc;">
+
+      <!-- HEADER -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#2d4a1e;">
+        <tr>
+          <td style="padding:18px 24px 14px 24px;">
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="padding-right:10px;vertical-align:middle;font-size:20px;line-height:1;">🏛️</td>
+                <td style="vertical-align:middle;">
+                  <div style="font-size:15px;font-weight:700;color:#ffffff;letter-spacing:0.01em;">Helpdesk público</div>
+                  <div style="font-size:11px;color:#a8c97a;margin-top:2px;font-weight:400;">Contratação pública eficiente</div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <!-- ALERT BADGE -->
+        <tr>
+          <td style="padding:0 24px 16px 24px;">
+            <table cellpadding="0" cellspacing="0" border="0" style="background:#3a5c22;border-radius:20px;padding:0;">
+              <tr>
+                <td style="padding:7px 14px 7px 10px;">
+                  <table cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td style="padding-right:7px;vertical-align:middle;">
+                        <div style="width:8px;height:8px;background:#7ec94a;border-radius:50%;"></div>
+                      </td>
+                      <td style="font-size:12px;color:#d4edaa;font-weight:600;white-space:nowrap;">Nova oportunidade compatível com os seus critérios de alerta</td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- CARDS -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:20px 20px 0 20px;background:#ffffff;">
+        <tr>
+          <td width="33%" style="padding:6px 4px 6px 0;">
+            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Prazo restante</div>
+              <div style="font-size:22px;font-weight:800;color:${deadlineColor};line-height:1;">${remainingInfo.daysRemaining} dias</div>
+            </div>
+          </td>
+          <td width="33%" style="padding:6px 4px;">
+            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Data limite</div>
+              <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">${escapeEmailHtml(deadlineStr)}</div>
+            </div>
+          </td>
+          <td width="33%" style="padding:6px 0 6px 4px;">
+            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Preço base</div>
+              <div style="font-size:15px;font-weight:800;color:#111827;line-height:1.3;">${escapeEmailHtml(priceStr)}</div>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      <!-- BODY -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:16px 20px 0 20px;background:#ffffff;">
+
+        <!-- Entidade -->
+        <tr>
+          <td style="padding-bottom:12px;">
+            <div style="border:1px solid #e5e5e0;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">Entidade adjudicante</div>
+              <div style="font-size:14px;color:#111827;font-weight:600;line-height:1.4;">${escapeEmailHtml(entityStr)}</div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- CPV -->
+        <tr>
+          <td style="padding-bottom:12px;">
+            <div style="border:1px solid #e5e5e0;border-radius:6px;padding:12px 14px;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">CPV compatível com o seu alerta</div>
+              <div style="font-size:14px;color:#111827;font-weight:600;line-height:1.4;">${escapeEmailHtml(cpvStr)}</div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Título do procedimento -->
+        <tr>
+          <td style="padding-bottom:12px;">
+            <div style="font-size:16px;font-weight:700;color:#111827;line-height:1.4;">${escapeEmailHtml(procedureStr)}</div>
+          </td>
+        </tr>
+
+        <!-- Objeto do contrato -->
+        <tr>
+          <td style="padding-bottom:20px;">
+            <div style="background:#f7f7f5;border-radius:6px;padding:14px;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Objeto do contrato</div>
+              <div style="font-size:14px;color:#111827;font-weight:500;line-height:1.55;">${escapeEmailHtml(objectStr)}</div>
+            </div>
+          </td>
+        </tr>
+
+        <!-- CTA -->
+        <tr>
+          <td style="padding-bottom:14px;">
+            <a href="${escapeEmailHtml(originalUrl)}" style="display:block;background:#2d4a1e;color:#ffffff;text-align:center;text-decoration:none;font-size:15px;font-weight:700;padding:15px;border-radius:6px;">Ver original</a>
+          </td>
+        </tr>
+
+        <!-- Checklist -->
+        <tr>
+          <td style="padding-bottom:24px;">
+            <div style="font-size:13px;color:#4b5563;line-height:2;">
+              <div>✓ Consultar os detalhes completos do procedimento</div>
+              <div>✓ Aceder diretamente às peças do procedimento</div>
+              <div>✓ Verificar requisitos e prazos de participação</div>
+            </div>
+          </td>
+        </tr>
+
+      </table>
+
+      <!-- UPSELL -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7f7f5;border-top:1px solid #e5e5e0;">
+        <tr>
+          <td style="padding:20px 20px 8px 20px;">
+            <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:14px;">Precisa de apoio especializado?</div>
+            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="50%" style="padding:0 6px 10px 0;">
+                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Plataforma de suporte</a>
+                </td>
+                <td width="50%" style="padding:0 0 10px 6px;">
+                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Go / no-go</a>
+                </td>
+              </tr>
+              <tr>
+                <td width="50%" style="padding:0 6px 0 0;">
+                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Contratação pública</a>
+                </td>
+                <td width="50%" style="padding:0 0 0 6px;">
+                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Concursos públicos</a>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- FOOTER -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-top:1px solid #e5e5e0;">
+        <tr>
+          <td style="padding:16px 20px;text-align:center;">
+            <div style="margin-bottom:10px;">
+              <a href="#" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">in</a>
+              <a href="#" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">f</a>
+              <a href="#" style="color:#9ca3af;text-decoration:none;margin:0 8px;display:inline-block;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
+            </div>
+            <div style="font-size:11px;color:#9ca3af;">
+              Helpdesk público &middot; <a href="#" style="color:#6b7280;text-decoration:none;">aviso legal</a> &middot; <a href="#" style="color:#6b7280;text-decoration:none;">cancelar subscrição</a>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const text = `Nova oportunidade
+=================
+Objeto: ${objectStr}
+Entidade adjudicante: ${entityStr}
+CPV: ${cpvStr}
+Procedimento: ${procedureStr}
+Valor: ${priceStr}
+Prazo: ${deadlineStr}
+Dias restantes: ${remainingInfo.text}
+Referência: ${announcementNoStr}
+Link: ${originalUrl}`;
 
   return { subject, html, text };
 }
