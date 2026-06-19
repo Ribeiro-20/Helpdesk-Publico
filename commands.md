@@ -53,3 +53,26 @@ Executes MultibancoService.create_payment method and returns MultibancoResponse
 --email (str) → customer email\
 --contacto (str) → customer phone\
 --userID (str) → internal user identifier
+
+- create_creditcard_payment
+Executes CreditCardService.create_payment method and returns CreditCardResponse.
+
+--identifier (str) → unique identifier for the payment
+
+--amount (float) → amount in euros (e.g. 25.50)
+
+--currency (str) → currency code (default: EUR)
+
+--success-url (str) → URL to redirect after successful payment
+
+--fail-url (str) → URL to redirect after failed payment
+
+--back-url (str) → URL to redirect after payment cancellation
+
+--lang (str) → language code (default: PT)
+
+--minutes-form-up (int) → minutes until the payment form expires (default: 60, max: 1440)
+
+--notify (flag, optional) → whether to notify the customer by email
+
+--customer-email (str) → customer email address for notifications

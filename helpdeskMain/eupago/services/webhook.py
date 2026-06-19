@@ -53,8 +53,7 @@ class EupagoWebhookService:
 
     def _process_webhook_canceled(self,transaction):
 
-        # Payment canceled?
-        # Force recheck if needed to send again.
+        # Payment canceled. (by user or by system)
         pass
 
     def _process_webhook_expired(self, transaction):

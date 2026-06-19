@@ -10,5 +10,5 @@ class CreditCardService:
         self._client = client
         self._mapper = mapper
 
-    def create_payment(self, dto: CreditCardRequest) -> None: #TODO: Change return type to CreditCardResponse and create the mappers for it.
-        pass
+    def create_payment(self, dto: CreditCardRequest) -> CreditCardResponse: #TODO: Change return type to CreditCardResponse and create the mappers for it.
+        return self._mapper.to_creditcard_response(self._client.create_credit_card(self._mapper.to_payload(dto)))
