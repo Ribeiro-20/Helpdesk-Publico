@@ -1,3 +1,5 @@
+"use client";
+
 type MonthlyPoint = {
   month: string; // "YYYY-MM"
   contracts: number;

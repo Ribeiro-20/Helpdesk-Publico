@@ -3,8 +3,9 @@ import { TrendingUp } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader";
 import MarketInsightPanel from "../../../components/market/MarketInsightPanel";
 import CpvCarouselHints from "../../../components/market/CpvCarouselHints";
+import MarketChartsLoader from "../../../components/market/MarketChartsLoader";
 import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel";
-import MarketChartsPanel from "../../../components/market/MarketChartsPanel";
+import MercadoCpvInput from "../../../components/MercadoCpvInput";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,6 @@ type ContractForOverview = {
   base_price: number | null;
 };
 
-type ContractForCharts = {
-  signing_date: string | null;
-  contract_price: number | null;
-  execution_locations: unknown;
-  procedure_type: string | null;
-};
-
 type CpvStatsForOverview = {
   cpv_code: string;
   cpv_description: string | null;
@@ -46,6 +40,13 @@ type CpvStatsForOverview = {
   total_value: number;
   avg_contract_value: number | null;
   avg_discount_pct: number | null;
+};
+
+type CpvCarouselItem = {
+  code: string;
+  description: string | null;
+  contracts: number;
+  totalValue: number;
 };
 
 async function fetchAllContractsForTenant<T>(
@@ -333,10 +334,7 @@ export default async function MarketPage({
   const tenantId = appUser?.tenant_id;
 
   let totalCpvStats = 0;
-  let cpvCarouselItems: Array<{ code: string; description: string | null; contracts: number; totalValue: number }> = [];
-  let monthlyData: Array<{ month: string; contracts: number; value: number }> = [];
-  let procedureData: Array<{ type: string; contracts: number; value: number }> = [];
-  let districtData: Array<{ district: string; contracts: number }> = [];
+  let cpvCarouselItems: CpvCarouselItem[] = [];
   let marketOverview: {
     totalContracts: number;
     totalValue: number;
@@ -372,17 +370,23 @@ export default async function MarketPage({
   } | null = null;
 
   if (tenantId) {
-    const { count } = await supabase
+    const totalCpvStatsPromise = supabase
       .from("cpv_stats")
       .select("*", { count: "exact", head: true })
       .eq("tenant_id", tenantId);
-    totalCpvStats = count ?? 0;
 
-    const cpvStatsOverviewRows = await fetchAllCpvStatsForTenant<CpvStatsForOverview>(
+    const cpvStatsOverviewPromise = fetchAllCpvStatsForTenant<CpvStatsForOverview>(
       supabase,
       tenantId,
       "cpv_code, cpv_description, total_contracts, total_value, avg_contract_value, avg_discount_pct",
     );
+
+    const [totalCpvStatsResult, cpvStatsOverviewRows] = await Promise.all([
+      totalCpvStatsPromise,
+      cpvStatsOverviewPromise,
+    ]);
+
+    totalCpvStats = totalCpvStatsResult.count ?? 0;
 
     if (cpvStatsOverviewRows.length > 0) {
       const totalContractsOverview = cpvStatsOverviewRows.reduce((sum, row) => sum + Number(row.total_contracts ?? 0), 0);
@@ -491,64 +495,6 @@ export default async function MarketPage({
       }
     }
 
-    // ----- Charts aggregation (monthly, procedure, district) -----
-    {
-      const chartRows = await fetchAllContractsForTenant<ContractForCharts>(
-        supabase,
-        tenantId,
-        "signing_date, contract_price, execution_locations, procedure_type",
-      );
-
-      const monthlyMap = new Map<string, { contracts: number; value: number }>();
-      const procedureMap = new Map<string, { contracts: number; value: number }>();
-      const districtMap = new Map<string, number>();
-
-      for (const row of chartRows) {
-        const value = row.contract_price != null && Number.isFinite(Number(row.contract_price)) ? Number(row.contract_price) : 0;
-
-        // Monthly
-        if (row.signing_date) {
-          const month = row.signing_date.slice(0, 7);
-          const current = monthlyMap.get(month) ?? { contracts: 0, value: 0 };
-          current.contracts += 1;
-          current.value += value;
-          monthlyMap.set(month, current);
-        }
-
-        // Procedure type
-        const proc = row.procedure_type?.trim() || "Desconhecido";
-        const currentProc = procedureMap.get(proc) ?? { contracts: 0, value: 0 };
-        currentProc.contracts += 1;
-        currentProc.value += value;
-        procedureMap.set(proc, currentProc);
-
-        // District — execution_locations is string[]
-        const locs = Array.isArray(row.execution_locations) ? (row.execution_locations as string[]) : [];
-        const seenDistricts = new Set<string>();
-        for (const loc of locs) {
-          if (typeof loc !== "string") continue;
-          const parts = loc.split(", ");
-          if (parts.length < 2) continue;
-          const district = parts[1].trim();
-          if (!district || seenDistricts.has(district)) continue;
-          seenDistricts.add(district);
-          districtMap.set(district, (districtMap.get(district) ?? 0) + 1);
-        }
-      }
-
-      monthlyData = Array.from(monthlyMap.entries())
-        .map(([month, agg]) => ({ month, ...agg }))
-        .sort((a, b) => a.month.localeCompare(b.month));
-
-      procedureData = Array.from(procedureMap.entries())
-        .map(([type, agg]) => ({ type, ...agg }))
-        .sort((a, b) => b.contracts - a.contracts);
-
-      districtData = Array.from(districtMap.entries())
-        .map(([district, contracts]) => ({ district, contracts }))
-        .sort((a, b) => b.contracts - a.contracts);
-    }
-
     if (cpvFilter) {
       const { data } = await supabase
         .from("cpv_stats")
@@ -563,29 +509,18 @@ export default async function MarketPage({
     }
 
     if (!cpvFilter) {
-      const contractRows = (await fetchAllContractsForTenant<{ cpv_main: string | null; contract_price: number | null }>(
-        supabase,
-        tenantId,
-        "cpv_main, contract_price",
-      )).filter((row) => row.cpv_main != null);
-
-      const cpvAgg = new Map<string, { contracts: number; totalValue: number }>();
-      for (const typedRow of contractRows) {
-        const code = normalizeCpvCode(typedRow.cpv_main);
-        if (!code) continue;
-        const current = cpvAgg.get(code) ?? { contracts: 0, totalValue: 0 };
-        current.contracts += 1;
-        const value = typedRow.contract_price == null ? 0 : Number(typedRow.contract_price);
-        current.totalValue += Number.isFinite(value) ? value : 0;
-        cpvAgg.set(code, current);
-      }
-
-      const topCodes = Array.from(cpvAgg.entries())
-        .sort((a, b) => (b[1].contracts - a[1].contracts) || (b[1].totalValue - a[1].totalValue))
+      const topCodes = cpvStatsOverviewRows
+        .map((row) => ({
+          code: row.cpv_code,
+          description: row.cpv_description,
+          contracts: Number(row.total_contracts ?? 0),
+          totalValue: Number(row.total_value ?? 0),
+        }))
+        .sort((a, b) => (b.contracts - a.contracts) || (b.totalValue - a.totalValue))
         .slice(0, 12);
 
       if (topCodes.length > 0) {
-        const codes = topCodes.map(([code]) => code);
+        const codes = topCodes.map((item) => item.code);
         const { data: cpvCatalogRows } = await supabase
           .from("cpv_codes")
           .select("id, descricao")
@@ -597,11 +532,11 @@ export default async function MarketPage({
           descMap.set(item.id, item.descricao);
         }
 
-        cpvCarouselItems = topCodes.map(([code, agg]) => ({
-          code,
-          contracts: agg.contracts,
-          totalValue: agg.totalValue,
-          description: descMap.get(code) ?? null,
+        cpvCarouselItems = topCodes.map((item) => ({
+          code: item.code,
+          contracts: item.contracts,
+          totalValue: item.totalValue,
+          description: descMap.get(item.code) ?? item.description,
         }));
       } else {
         const { data: cpvCatalogRows } = await supabase
@@ -704,51 +639,18 @@ export default async function MarketPage({
         }
       />
 
-      {/* Visão geral */}
-      <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-        <h2 className="font-semibold text-gray-900 mb-4">Visão geral de mercado</h2>
-        {marketOverview ? (
-          <MarketOverviewPanel
-            totalContracts={marketOverview.totalContracts}
-            totalValue={marketOverview.totalValue}
-            activeCpvs={marketOverview.activeCpvs}
-            avgDiscountPct={marketOverview.avgDiscountPct}
-            items={marketOverview.items}
-          />
-        ) : (
-          <div className="rounded-xl border border-surface-200 bg-surface-50 p-5 text-sm text-gray-500">
-            Ainda não existem contratos suficientes para comparar CPVs no mercado.
-          </div>
-        )}
-      </div>
-
-      {/* Tendências: evolução mensal, procedimentos, distritos */}
-      {(monthlyData.length > 0 || procedureData.length > 0 || districtData.length > 0) && (
-        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-          <h2 className="font-semibold text-gray-900 mb-4">Tendências e distribuição</h2>
-          <MarketChartsPanel
-            monthlyData={monthlyData}
-            procedureData={procedureData}
-            districtData={districtData}
-          />
-        </div>
-      )}
-
       {/* Visão de mercado por CPV */}
       <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
         <h2 className="font-semibold text-gray-900 mb-4">Visão de mercado por CPV</h2>
 
         <form className="mb-4 flex flex-wrap items-end gap-3">
           <div className="min-w-[260px] flex-1">
-            <label htmlFor="cpv" className="mb-1 block text-xs font-medium text-gray-500">
-              Código CPV
-            </label>
-            <input
-              id="cpv"
-              name="cpv"
+            <MercadoCpvInput
               defaultValue={cpvFilter}
+              label="Código CPV"
               placeholder="Ex: 71240000-2"
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+              infoText="Digite números para ver CPVs correspondentes e escolher um deles."
+              inputClassName="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
           </div>
           <button
@@ -798,6 +700,30 @@ export default async function MarketPage({
             computedAt={cpvInsight.computed_at}
           />
         )}
+      </div>
+
+      {/* Visão geral */}
+      <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+        <h2 className="font-semibold text-gray-900 mb-4">Visão geral de mercado</h2>
+        {marketOverview ? (
+          <MarketOverviewPanel
+            totalContracts={marketOverview.totalContracts}
+            totalValue={marketOverview.totalValue}
+            activeCpvs={marketOverview.activeCpvs}
+            avgDiscountPct={marketOverview.avgDiscountPct}
+            items={marketOverview.items}
+          />
+        ) : (
+          <div className="rounded-xl border border-surface-200 bg-surface-50 p-5 text-sm text-gray-500">
+            Ainda não existem contratos suficientes para comparar CPVs no mercado.
+          </div>
+        )}
+      </div>
+
+      {/* Tendências: evolução mensal, procedimentos, distritos */}
+      <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+        <h2 className="font-semibold text-gray-900 mb-4">Tendências e distribuição</h2>
+        <MarketChartsLoader />
       </div>
     </div>
   );
