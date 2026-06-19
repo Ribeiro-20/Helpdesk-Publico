@@ -76,7 +76,7 @@ export default function MercadoCpvInput({
 
     form.addEventListener("submit", submitHandler);
     return () => form.removeEventListener("submit", submitHandler);
-  }, [pathname, router]);
+  }, [pathname, router, submitForm]);
 
   function handleChange(nextValue: string) {
     setValue(nextValue);
