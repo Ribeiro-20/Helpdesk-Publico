@@ -13,6 +13,7 @@
  *
  * Schedule:
  *   - ingest-base                                       : weekdays at 13:30 and 23:30
+ *   - send-emails                                       : daily at 10:00 (Europe/Lisbon)
  */
 
 import { config as loadDotenv } from "dotenv";
@@ -332,6 +333,50 @@ async function runIngestPipeline(): Promise<void> {
   }
 }
 
+async function runSendEmailsJob(): Promise<void> {
+  const batchSizeRaw = Number(process.env.SEND_EMAILS_BATCH_SIZE ?? "50");
+  const batchSize = Number.isFinite(batchSizeRaw) && batchSizeRaw > 0
+    ? Math.floor(batchSizeRaw)
+    : 50;
+
+  console.log(`[cron] Starting send-emails job with batch_size=${batchSize}`);
+
+  let totalProcessed = 0;
+  let totalSent = 0;
+  let totalFailed = 0;
+  let totalSkipped = 0;
+  let totalRateLimited = 0;
+
+  while (true) {
+    const res = await callFunction("send-emails", { batch_size: batchSize });
+    if (!res.ok) {
+      console.error("[cron] send-emails job failed:", res.data);
+      break;
+    }
+
+    const payload = (res.data ?? {}) as Record<string, unknown>;
+    const processed = Number(payload.processed ?? 0);
+    const sent = Number(payload.sent ?? 0);
+    const failed = Number(payload.failed ?? 0);
+    const skipped = Number(payload.skipped ?? 0);
+    const rateLimited = Number(payload.rate_limited ?? 0);
+
+    totalProcessed += Number.isFinite(processed) ? processed : 0;
+    totalSent += Number.isFinite(sent) ? sent : 0;
+    totalFailed += Number.isFinite(failed) ? failed : 0;
+    totalSkipped += Number.isFinite(skipped) ? skipped : 0;
+    totalRateLimited += Number.isFinite(rateLimited) ? rateLimited : 0;
+
+    if (!Number.isFinite(processed) || processed < batchSize || processed === 0) {
+      break;
+    }
+  }
+
+  console.log(
+    `[cron] send-emails job done: processed=${totalProcessed} sent=${totalSent} failed=${totalFailed} skipped=${totalSkipped} rate_limited=${totalRateLimited}`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
@@ -345,9 +390,8 @@ if (isOnce) {
     console.log("[cron] Done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
-    process.exit(1);
+    process.exitCode = 1;
   }
-  process.exit(0);
 } else {
   console.log("[cron] Starting daemon …");
 
@@ -356,9 +400,15 @@ if (isOnce) {
   cron.schedule("30 13,23 * * 1-5", () => {
     console.log(`\n[cron] ${new Date().toISOString()} – ingest announcements`);
     runIngestPipeline().catch(console.error);
-  });
+  }, { timezone: "Europe/Lisbon" });
+
+  cron.schedule("0 10 * * *", () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – send scheduled emails`);
+    runSendEmailsJob().catch(console.error);
+  }, { timezone: "Europe/Lisbon" });
 
   console.log("[cron] Scheduled:");
   console.log("  ingest-base                                       → weekdays at 13:30 and 23:30");
+  console.log("  send-emails                                       → daily at 10:00 Europe/Lisbon");
   console.log("[cron] Press Ctrl+C to stop.\n");
 }
