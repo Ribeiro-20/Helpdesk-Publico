@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "import-cpvs": "tsx import-cpvs.ts",
+    "hubspot:preview": "tsx preview-hubspot-subscribers.ts",
+    "hubspot:sync": "tsx preview-hubspot-subscribers.ts --apply",
     "scrape-dr": "tsx scrape-dr-contracts.ts",
     "scrape-dr:upsert": "tsx scrape-dr-contracts.ts --upsert",
     "ingest-contracts:direct": "node ingest-direct.js"

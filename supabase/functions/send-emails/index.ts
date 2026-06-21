@@ -49,6 +49,28 @@ Deno.serve(async (req: Request) => {
     const body =
       req.method === "POST" ? await req.json().catch(() => ({})) : {};
 
+    const sendEnabled = (Deno.env.get("EMAIL_SEND_ENABLED") ?? "false")
+      .trim()
+      .toLowerCase() === "true";
+
+    if (!sendEnabled) {
+      return new Response(
+        JSON.stringify({
+          disabled: true,
+          claimed: 0,
+          processed: 0,
+          sent: 0,
+          failed: 0,
+          skipped: 0,
+          rate_limited: 0,
+          errors: 0,
+          message:
+            "Email sending is disabled. Set EMAIL_SEND_ENABLED=true to enable it.",
+        }),
+        { status: 200, headers: CORS },
+      );
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -72,7 +94,10 @@ Deno.serve(async (req: Request) => {
       tenantId = tenant.id;
     }
 
-    const batchSize = Number(body.batch_size ?? 50);
+    const requestedBatchSize = Number(body.batch_size ?? 50);
+    const batchSize = Number.isFinite(requestedBatchSize)
+      ? Math.min(Math.max(Math.floor(requestedBatchSize), 1), 50)
+      : 50;
     const appBaseUrl =
       Deno.env.get("APP_BASE_URL") ?? "http://localhost:3001";
 
