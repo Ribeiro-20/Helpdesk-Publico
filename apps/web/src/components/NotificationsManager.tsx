@@ -13,6 +13,7 @@ import {
   Send,
   TriangleAlert,
   Mail,
+  Trash2,
 } from "lucide-react";
 
 type Notification = {
@@ -73,15 +74,19 @@ export default function NotificationsManager({
   statusFilter,
   page,
   totalPages,
+  canManage,
 }: {
   notifications: Notification[];
   statusFilter: string;
   page: number;
   totalPages: number;
+  canManage: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
   const [resending, setResending] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(initial);
 
   const visibleNotifications = useMemo(() => {
@@ -97,16 +102,52 @@ export default function NotificationsManager({
 
   async function resend(id: string) {
     setResending(id);
-    await supabase
+    setError(null);
+    const { data, error: updateError } = await supabase
       .from("notifications")
-      .update({ status: "PENDING", error: null, sent_at: null })
-      .eq("id", id);
+      .update({
+        status: "PENDING",
+        error: null,
+        sent_at: null,
+        scheduled_for: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
     setResending(null);
+
+    if (updateError || !data) {
+      setError(updateError?.message ?? "Nao foi possivel reenviar a notificacao.");
+      return;
+    }
+
     setNotifications((prev) =>
       prev.map((n) =>
         n.id === id ? { ...n, status: "PENDING", error: null, sent_at: null } : n,
       ),
     );
+    router.refresh();
+  }
+
+  async function deleteNotification(id: string) {
+    if (!confirm("Apagar esta notificacao? O historico de emails sera preservado.")) return;
+
+    setDeleting(id);
+    setError(null);
+    const { data, error: deleteError } = await supabase
+      .from("notifications")
+      .delete()
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+    setDeleting(null);
+
+    if (deleteError || !data) {
+      setError(deleteError?.message ?? "Nao foi possivel apagar a notificacao.");
+      return;
+    }
+
+    setNotifications((prev) => prev.filter((notification) => notification.id !== id));
     router.refresh();
   }
 
@@ -147,6 +188,12 @@ export default function NotificationsManager({
           </Link>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {/* Table */}
       <div className="bg-white border border-surface-200 rounded-xl overflow-hidden shadow-card">
@@ -222,15 +269,27 @@ export default function NotificationsManager({
                       {n.error ?? ""}
                     </td>
                     <td className="px-4 py-3">
-                      {(n.status === "FAILED" || n.status === "PENDING") && (
-                        <button
-                          onClick={() => resend(n.id)}
-                          disabled={resending === n.id}
-                          className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50"
-                        >
-                          <Send className="h-3.5 w-3.5" />
-                          {resending === n.id ? "A enviar" : "Reenviar"}
-                        </button>
+                      {canManage && (
+                        <div className="flex items-center justify-end gap-2">
+                          {(n.status === "FAILED" || n.status === "PENDING") && (
+                            <button
+                              onClick={() => resend(n.id)}
+                              disabled={resending === n.id || deleting === n.id}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 border border-brand-200 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                              {resending === n.id ? "A enviar" : "Reenviar"}
+                            </button>
+                          )}
+                          <button
+                            onClick={() => deleteNotification(n.id)}
+                            disabled={deleting === n.id || resending === n.id}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600 hover:text-red-700 bg-red-50 border border-red-200 px-2.5 py-1 rounded-lg transition-all disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            {deleting === n.id ? "A apagar" : "Apagar"}
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
