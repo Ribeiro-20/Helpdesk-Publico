@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { X, ExternalLink, Loader2, Calendar, Tag } from "lucide-react";
 
 interface Modification {
@@ -221,6 +222,8 @@ export default function ContractModal({
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [cpvDescriptions, setCpvDescriptions] = useState<Record<string, string>>({});
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     setLoading(true);
@@ -239,6 +242,24 @@ export default function ContractModal({
         setLoading(false);
       });
   }, [contractId]);
+
+  useEffect(() => {
+    if (!data?.contract) return;
+    const codes = [
+      ...(data.contract.cpv_main ? [data.contract.cpv_main] : []),
+      ...(Array.isArray(data.contract.cpv_list) ? data.contract.cpv_list : []),
+    ].filter(Boolean);
+    const missing = codes.filter((c) => !cpvDescriptions[c]);
+    if (missing.length === 0) return;
+    supabase.from("cpv_codes").select("id, descricao").in("id", missing).then(({ data: rows }) => {
+      if (!rows) return;
+      const mapped: Record<string, string> = {};
+      for (const row of rows as Array<{ id: string; descricao: string }>) {
+        if (row.id) mapped[row.id] = row.descricao ?? "";
+      }
+      setCpvDescriptions((prev) => ({ ...prev, ...mapped }));
+    });
+  }, [data, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -395,14 +416,18 @@ export default function ContractModal({
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Códigos CPV
                       </p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-col gap-1.5">
                         {cpvList.map((c, i) => (
-                          <span
-                            key={i}
-                            className="inline-block text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700"
-                          >
-                            {c}
-                          </span>
+                          <div key={i} className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-block text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700 font-mono whitespace-nowrap">
+                              {c}
+                            </span>
+                            {cpvDescriptions[c] && (
+                              <span className="text-sm text-gray-600">
+                                {cpvDescriptions[c]}
+                              </span>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>

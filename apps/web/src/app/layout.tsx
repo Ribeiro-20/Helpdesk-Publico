@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -24,10 +25,10 @@ export default function RootLayout({
     <html lang="pt">
       <body>
         {/* Google Tag (gtag.js) */}
-        <script
-          async
+        <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-TXXYEHSNSB"
-        ></script>
+          strategy="afterInteractive"
+        />
         {children}
       </body>
     </html>

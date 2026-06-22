@@ -192,6 +192,15 @@ function isMissingNotificationRegionsError(error: unknown): boolean {
   return combined.includes("notification_regions") && combined.includes("clients");
 }
 
+function isAnnouncementExpired(deadlineAt: string | null | undefined): boolean {
+  if (!deadlineAt) return false;
+
+  const deadlineMs = Date.parse(deadlineAt);
+  if (!Number.isFinite(deadlineMs)) return false;
+
+  return deadlineMs < Date.now();
+}
+
 function serializeError(error: unknown) {
   if (error instanceof Error) {
     return {
@@ -354,7 +363,7 @@ Deno.serve(async (req: Request) => {
     // Build announcement query
     let annQuery = supabase
       .from("announcements")
-      .select("id, cpv_main, cpv_list, raw_payload")
+      .select("id, cpv_main, cpv_list, raw_payload, proposal_deadline_at")
       .eq("tenant_id", tenantId)
       .eq("status", "active");
 
@@ -397,6 +406,17 @@ Deno.serve(async (req: Request) => {
 
     for (const ann of announcements ?? []) {
       try {
+        const deadlineAt = typeof ann.proposal_deadline_at === "string"
+          ? ann.proposal_deadline_at
+          : null;
+
+        if (isAnnouncementExpired(deadlineAt)) {
+          console.log(
+            `[match-and-queue] skipping expired announcement ${ann.id} (deadline ${deadlineAt})`,
+          );
+          continue;
+        }
+
         const cpvList: string[] = Array.isArray(ann.cpv_list)
           ? ann.cpv_list
           : [];
