@@ -12,6 +12,7 @@
  *   SUPABASE_SERVICE_ROLE_KEY
  *
  * Schedule:
+ *   - HubSpot client sync                               : daily at 07:00 and 21:00
  *   - ingest-base                                       : weekdays at 13:30 and 23:30
  *   - send-emails                                       : daily at 10:00 (Europe/Lisbon)
  */
@@ -24,7 +25,7 @@ import { createClient } from "@supabase/supabase-js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const execFileAsync = promisify(execFile);
 
@@ -52,6 +53,10 @@ const SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const FUNCTIONS_BASE = `${SUPABASE_URL}/functions/v1`;
+const HUBSPOT_SYNC_ENABLED = (process.env.HUBSPOT_SYNC_ENABLED ?? "true")
+  .trim()
+  .toLowerCase() === "true";
+const HUBSPOT_SYNC_SCHEDULE = process.env.HUBSPOT_SYNC_SCHEDULE?.trim() || "0 7,21 * * *";
 
 if (!SERVICE_ROLE_KEY) {
   console.error(
@@ -233,6 +238,112 @@ async function runDirectDrScrape(requestBody: Record<string, unknown>) {
   }
 }
 
+let hubspotSyncRunning = false;
+
+async function recordHubspotSyncHistory(
+  status: "success" | "error",
+  startedAt: string,
+  summary: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { data: tenantRow, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (tenantError) throw tenantError;
+
+    const { error } = await supabaseAdmin.from("ingestion_history").insert({
+      tenant_id: tenantRow?.id ?? null,
+      user_id: null,
+      title: "Sincronizacao HubSpot",
+      category: "other",
+      status,
+      range: { started_at: startedAt, finished_at: new Date().toISOString() },
+      steps: [{
+        fn: "hubspot-client-sync",
+        label: "Clientes HubSpot",
+        category: "other",
+        status,
+        summary,
+        payload: summary,
+      }],
+      note: status === "error" ? String(summary.error ?? "HubSpot sync failed") : null,
+    });
+
+    if (error) throw error;
+    console.log("[cron] HubSpot sync history recorded");
+  } catch (error) {
+    console.error("[cron] HubSpot sync history insert failed:", error);
+  }
+}
+
+async function runHubspotSyncJob(): Promise<void> {
+  if (hubspotSyncRunning) {
+    console.warn("[cron] HubSpot sync skipped because a previous run is still active");
+    return;
+  }
+
+  hubspotSyncRunning = true;
+  const startedAt = new Date().toISOString();
+  let status: "success" | "error" = "error";
+  let summary: Record<string, unknown> = {};
+
+  try {
+    const scriptsDir = findScriptsDir();
+    if (!scriptsDir) throw new Error("Could not locate the scripts directory for HubSpot sync");
+
+    const tsxCli = findTsxCli(scriptsDir);
+    if (!tsxCli) {
+      throw new Error(
+        `Could not locate tsx in ${scriptsDir}. Run 'npm install --prefix scripts' first.`,
+      );
+    }
+
+    console.log(`[cron] -> hubspot-client-sync (${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon) ...`);
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      [tsxCli, "preview-hubspot-subscribers.ts", "--apply"],
+      {
+        cwd: scriptsDir,
+        timeout: 15 * 60 * 1000,
+        shell: false,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024 * 10,
+        env: {
+          ...process.env,
+          EMAIL_SEND_ENABLED: "false",
+        },
+      },
+    );
+
+    const output = `${stdout ?? ""}\n${stderr ?? ""}`;
+    const reportPath = path.join(scriptsDir, "output", "hubspot-subscribers-preview.json");
+    if (!existsSync(reportPath)) throw new Error("HubSpot sync report was not created");
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8")) as Record<string, unknown>;
+    if (report.mode !== "apply") throw new Error("HubSpot sync did not run in apply mode");
+
+    summary = (report.stats ?? {}) as Record<string, unknown>;
+    status = "success";
+    console.log("[cron] HubSpot sync completed", JSON.stringify(summary));
+
+    const outputTail = output.trim().slice(-4000);
+    if (outputTail) console.log(`[cron] HubSpot sync output:\n${outputTail}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    summary = { error: message };
+    console.error("[cron] HubSpot sync failed:", message);
+    throw error;
+  } finally {
+    await recordHubspotSyncHistory(status, startedAt, summary);
+    hubspotSyncRunning = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pipeline helpers
 // ---------------------------------------------------------------------------
@@ -382,8 +493,18 @@ async function runSendEmailsJob(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const isOnce = process.argv.includes("--once");
+const isHubspotOnce = process.argv.includes("--hubspot-once");
 
-if (isOnce) {
+if (isHubspotOnce) {
+  console.log("[cron] Running HubSpot client sync once ...");
+  try {
+    await runHubspotSyncJob();
+    console.log("[cron] HubSpot sync done.");
+  } catch (err) {
+    console.error("[cron] Fatal:", err);
+    process.exitCode = 1;
+  }
+} else if (isOnce) {
   console.log("[cron] Running pipeline once …");
   try {
     await runIngestPipeline();
@@ -397,6 +518,17 @@ if (isOnce) {
 
 
   
+  if (HUBSPOT_SYNC_ENABLED) {
+    if (!cron.validate(HUBSPOT_SYNC_SCHEDULE)) {
+      throw new Error(`Invalid HUBSPOT_SYNC_SCHEDULE: ${HUBSPOT_SYNC_SCHEDULE}`);
+    }
+
+    cron.schedule(HUBSPOT_SYNC_SCHEDULE, () => {
+      console.log(`\n[cron] ${new Date().toISOString()} - sync HubSpot clients`);
+      runHubspotSyncJob().catch(console.error);
+    }, { timezone: "Europe/Lisbon" });
+  }
+
   cron.schedule("30 13,23 * * 1-5", () => {
     console.log(`\n[cron] ${new Date().toISOString()} – ingest announcements`);
     runIngestPipeline().catch(console.error);
@@ -408,6 +540,11 @@ if (isOnce) {
   }, { timezone: "Europe/Lisbon" });
 
   console.log("[cron] Scheduled:");
+  console.log(
+    HUBSPOT_SYNC_ENABLED
+      ? `  hubspot-client-sync                                -> ${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon`
+      : "  hubspot-client-sync                                -> disabled",
+  );
   console.log("  ingest-base                                       → weekdays at 13:30 and 23:30");
   console.log("  send-emails                                       → daily at 10:00 Europe/Lisbon");
   console.log("[cron] Press Ctrl+C to stop.\n");

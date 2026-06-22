@@ -20,7 +20,7 @@ type HubSpotContact = {
   archived?: boolean;
 };
 
-type PreviewContact = {
+export type PreviewContact = {
   hubspot_contact_id: string;
   hubspot_company_id: string | null;
   first_name: string | null;
@@ -53,6 +53,7 @@ type PreviewContact = {
     hubspot_created_at: string | null;
     hubspot_updated_at: string | null;
     hubspot_synced_at: string;
+    hubspot_removed_at: null;
     is_active: false;
   };
   proposed_cpv_rules: Array<{
@@ -62,7 +63,7 @@ type PreviewContact = {
   }>;
 };
 
-type ExistingClient = {
+export type ExistingClient = {
   id: string;
   name: string;
   contact_name: string | null;
@@ -80,7 +81,14 @@ type ExistingClient = {
   hubspot_created_at: string | null;
   hubspot_updated_at: string | null;
   hubspot_synced_at: string | null;
+  hubspot_removed_at: string | null;
   is_active: boolean;
+  client_cpv_rules: Array<{
+    pattern: string;
+    match_type: string;
+    is_exclusion: boolean;
+    source: string;
+  }>;
 };
 
 type ProposedClientRecord = Omit<PreviewContact["proposed_client"], "is_active">;
@@ -90,8 +98,8 @@ type ClientPatch = Partial<ProposedClientRecord> &
     "name" | "contact_name" | "email" | "hubspot_contact_id" | "hubspot_list_id" | "hubspot_synced_at"
   >;
 
-type SyncAction = {
-  action: "create" | "update" | "unchanged" | "skip";
+export type SyncAction = {
+  action: "create" | "update" | "unchanged" | "remove" | "skip";
   hubspot_contact_id: string;
   email: string | null;
   contact_name: string;
@@ -317,6 +325,7 @@ function normalizeContact(
       hubspot_created_at: hubspotCreatedAt,
       hubspot_updated_at: hubspotUpdatedAt,
       hubspot_synced_at: syncedAt,
+      hubspot_removed_at: null,
       is_active: false,
     },
     proposed_cpv_rules: cpvs.map((pattern) => ({
@@ -346,6 +355,21 @@ function valuesEqual(key: string, left: unknown, right: unknown): boolean {
   return left === right;
 }
 
+function cpvRuleKey(rule: { pattern: string; match_type: string; is_exclusion: boolean }): string {
+  return `${rule.pattern}|${rule.match_type}|${rule.is_exclusion}`;
+}
+
+function hubspotCpvRulesEqual(client: ExistingClient, contact: PreviewContact): boolean {
+  const existingKeys = client.client_cpv_rules
+    .filter((rule) => rule.source === "hubspot")
+    .map(cpvRuleKey)
+    .sort();
+  const proposedKeys = contact.proposed_cpv_rules.map(cpvRuleKey).sort();
+
+  return existingKeys.length === proposedKeys.length &&
+    existingKeys.every((key, index) => key === proposedKeys[index]);
+}
+
 function buildClientPatch(contact: PreviewContact): ClientPatch {
   const proposed = contact.proposed_client;
   const patch: ClientPatch = {
@@ -365,6 +389,7 @@ function buildClientPatch(contact: PreviewContact): ClientPatch {
     hubspot_created_at: proposed.hubspot_created_at,
     hubspot_updated_at: proposed.hubspot_updated_at,
     hubspot_synced_at: proposed.hubspot_synced_at,
+    hubspot_removed_at: proposed.hubspot_removed_at,
   };
 
   // Empty HubSpot values must not erase data maintained manually in the app.
@@ -402,7 +427,8 @@ async function fetchExistingClients(
       "id, name, contact_name, first_name, last_name, email, phone, company_name, " +
         "cpv_s_alerta_concursos_publicos, hubspot_contact_id, hubspot_company_id, " +
         "hubspot_service_value, hubspot_list_id, hubspot_added_to_list_at, " +
-        "hubspot_created_at, hubspot_updated_at, hubspot_synced_at, is_active",
+        "hubspot_created_at, hubspot_updated_at, hubspot_synced_at, hubspot_removed_at, is_active, " +
+        "client_cpv_rules(pattern, match_type, is_exclusion, source)",
     )
     .eq("tenant_id", tenantId);
 
@@ -410,9 +436,11 @@ async function fetchExistingClients(
   return (data ?? []) as ExistingClient[];
 }
 
-function planSync(
+export function planSync(
   contacts: PreviewContact[],
   existingClients: ExistingClient[],
+  currentMembershipIds: Set<string>,
+  currentListId: string,
 ): { actions: SyncAction[]; existingByHubspotId: Map<string, ExistingClient> } {
   const existingByHubspotId = new Map<string, ExistingClient>();
   const existingByEmail = new Map<string, ExistingClient[]>();
@@ -428,7 +456,7 @@ function planSync(
     }
   }
 
-  const actions = contacts.map<SyncAction>((contact) => {
+  const contactActions = contacts.map<SyncAction>((contact) => {
     if (!contact.email) {
       return {
         action: "skip",
@@ -479,6 +507,10 @@ function planSync(
       .filter(([key, value]) => !valuesEqual(key, existing?.[key as keyof ExistingClient], value))
       .map(([key]) => key);
 
+    if (!hubspotCpvRulesEqual(existing, contact)) {
+      changes.push("hubspot_cpv_rules");
+    }
+
     return {
       action: changes.length > 0 ? "update" : "unchanged",
       hubspot_contact_id: contact.hubspot_contact_id,
@@ -491,22 +523,70 @@ function planSync(
     };
   });
 
+  const removalActions = existingClients
+    .filter((client) =>
+      Boolean(client.hubspot_contact_id) &&
+      client.hubspot_list_id === currentListId &&
+      !client.hubspot_removed_at &&
+      !currentMembershipIds.has(String(client.hubspot_contact_id)))
+    .map<SyncAction>((client) => ({
+      action: "remove",
+      hubspot_contact_id: String(client.hubspot_contact_id),
+      email: client.email,
+      contact_name: client.contact_name || client.name,
+      existing_client_id: client.id,
+      changes: ["is_active", "hubspot_removed_at"],
+      reason: "removed_from_hubspot_list",
+      cpv_rules: 0,
+    }));
+
+  const actions = [...contactActions, ...removalActions];
   return { actions, existingByHubspotId };
 }
+
+type ApplyResult = {
+  clients_written: number;
+  clients_seen: number;
+  clients_created: number;
+  clients_updated: number;
+  clients_removed: number;
+  cpv_rules_written: number;
+  cpv_rules_deleted: number;
+};
 
 async function applySync(
   supabase: any,
   tenantId: string,
   contacts: PreviewContact[],
   actions: SyncAction[],
-): Promise<{ clients_written: number; cpv_rules_written: number }> {
-  let clientsWritten = 0;
+  syncedAt: string,
+): Promise<ApplyResult> {
+  let clientsSeen = 0;
+  let clientsCreated = 0;
+  let clientsUpdated = 0;
+  let clientsRemoved = 0;
   let cpvRulesWritten = 0;
+  let cpvRulesDeleted = 0;
   const actionByHubspotId = new Map(actions.map((action) => [action.hubspot_contact_id, action]));
+
+  async function deleteHubspotRules(clientId: string, label: string): Promise<void> {
+    const { data, error } = await supabase
+      .from("client_cpv_rules")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("client_id", clientId)
+      .eq("source", "hubspot")
+      .select("id");
+
+    if (error) throw new Error(`Failed to remove HubSpot CPV rules for ${label}: ${error.message}`);
+    cpvRulesDeleted += data?.length ?? 0;
+  }
 
   for (const contact of contacts) {
     const action = actionByHubspotId.get(contact.hubspot_contact_id);
     if (!action || action.action === "skip") continue;
+
+    clientsSeen++;
 
     const patch = buildClientPatch(contact);
     let clientId = action.existing_client_id;
@@ -525,23 +605,25 @@ async function applySync(
 
       if (error) throw new Error(`Failed to create ${contact.email}: ${error.message}`);
       clientId = String(data.id);
-      clientsWritten++;
-    } else if (clientId) {
+      clientsCreated++;
+    } else if (action.action === "update" && clientId) {
       const { error } = await supabase.from("clients").update(patch).eq("id", clientId).eq("tenant_id", tenantId);
       if (error) throw new Error(`Failed to update ${contact.email}: ${error.message}`);
-      clientsWritten++;
+      clientsUpdated++;
+    } else if (action.action === "unchanged" && clientId) {
+      const { error } = await supabase
+        .from("clients")
+        .update({ hubspot_synced_at: syncedAt })
+        .eq("id", clientId)
+        .eq("tenant_id", tenantId);
+      if (error) throw new Error(`Failed to mark ${contact.email} as seen: ${error.message}`);
     }
 
     if (!clientId) throw new Error(`No client id resolved for ${contact.email}`);
 
-    const { error: deleteError } = await supabase
-      .from("client_cpv_rules")
-      .delete()
-      .eq("tenant_id", tenantId)
-      .eq("client_id", clientId)
-      .eq("source", "hubspot");
+    if (action.action === "unchanged") continue;
 
-    if (deleteError) throw new Error(`Failed to replace CPV rules for ${contact.email}: ${deleteError.message}`);
+    await deleteHubspotRules(clientId, contact.email ?? contact.hubspot_contact_id);
 
     if (contact.proposed_cpv_rules.length > 0) {
       const { error: insertError } = await supabase.from("client_cpv_rules").insert(
@@ -558,7 +640,34 @@ async function applySync(
     }
   }
 
-  return { clients_written: clientsWritten, cpv_rules_written: cpvRulesWritten };
+  for (const action of actions.filter((item) => item.action === "remove")) {
+    const clientId = action.existing_client_id;
+    if (!clientId) throw new Error(`No client id resolved for removed HubSpot contact ${action.hubspot_contact_id}`);
+
+    const { error } = await supabase
+      .from("clients")
+      .update({
+        is_active: false,
+        hubspot_removed_at: syncedAt,
+        hubspot_synced_at: syncedAt,
+      })
+      .eq("id", clientId)
+      .eq("tenant_id", tenantId);
+
+    if (error) throw new Error(`Failed to deactivate removed contact ${action.email}: ${error.message}`);
+    await deleteHubspotRules(clientId, action.email ?? action.hubspot_contact_id);
+    clientsRemoved++;
+  }
+
+  return {
+    clients_written: clientsCreated + clientsUpdated + clientsRemoved,
+    clients_seen: clientsSeen,
+    clients_created: clientsCreated,
+    clients_updated: clientsUpdated,
+    clients_removed: clientsRemoved,
+    cpv_rules_written: cpvRulesWritten,
+    cpv_rules_deleted: cpvRulesDeleted,
+  };
 }
 
 async function main() {
@@ -592,22 +701,29 @@ async function main() {
     })
     .filter((id): id is string => Boolean(id));
 
-  const contacts = await fetchContacts([...new Set(ids)]);
+  const currentMembershipIds = new Set(ids);
+  const contacts = await fetchContacts([...currentMembershipIds]);
   const generatedAt = new Date().toISOString();
   const previewContacts = contacts
     .map((contact) => normalizeContact(contact, membershipById, generatedAt))
     .sort((a, b) => a.contact_name.localeCompare(b.contact_name, "pt"));
   const existingClients = await fetchExistingClients(supabase, tenantId);
-  const { actions } = planSync(previewContacts, existingClients);
+  const { actions } = planSync(
+    previewContacts,
+    existingClients,
+    currentMembershipIds,
+    requireEnv("HUBSPOT_SEGMENT_ID", listId),
+  );
   const actionStats = {
     create: actions.filter((action) => action.action === "create").length,
     update: actions.filter((action) => action.action === "update").length,
     unchanged: actions.filter((action) => action.action === "unchanged").length,
+    remove: actions.filter((action) => action.action === "remove").length,
     skip: actions.filter((action) => action.action === "skip").length,
   };
 
   const applyResult = applyMode
-    ? await applySync(supabase, tenantId, previewContacts, actions)
+    ? await applySync(supabase, tenantId, previewContacts, actions, generatedAt)
     : null;
 
   const stats = {
@@ -667,7 +783,12 @@ async function main() {
   console.log(`[hubspot-preview] wrote ${outputPath}`);
 }
 
-main().catch((error) => {
-  console.error("[hubspot-preview] fatal:", error instanceof Error ? error.message : error);
-  process.exit(1);
-});
+const isDirectRun = process.argv[1] &&
+  resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url));
+
+if (isDirectRun) {
+  main().catch((error) => {
+    console.error("[hubspot-preview] fatal:", error instanceof Error ? error.message : error);
+    process.exit(1);
+  });
+}

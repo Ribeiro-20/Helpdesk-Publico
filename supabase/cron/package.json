@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "start": "tsx run.ts",
-    "once": "tsx run.ts --once"
+    "once": "tsx run.ts --once",
+    "hubspot:once": "tsx run.ts --hubspot-once"
   },
   "dependencies": {
-    "node-cron": "^3.0.3",
+    "node-cron": "^4.5.0",
     "dotenv": "^16.4.5",
     "@supabase/supabase-js": "^2.44.2"
   },

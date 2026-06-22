@@ -9,8 +9,9 @@
     "dev": "cd apps/web && npm install && npm run dev",
     "functions": "npx supabase functions serve --env-file supabase/functions/.env",
     "import-cpvs": "cd scripts && npm install && npx tsx import-cpvs.ts",
-    "cron": "cd supabase/cron && npm install && npx tsx run.ts",
-    "cron:once": "cd supabase/cron && npm install && npx tsx run.ts --once",
+    "cron": "npm --prefix scripts install && npm --prefix supabase/cron install && npm --prefix supabase/cron run start",
+    "cron:once": "npm --prefix scripts install && npm --prefix supabase/cron install && npm --prefix supabase/cron run once",
+    "cron:hubspot:once": "npm --prefix scripts install && npm --prefix supabase/cron install && npm --prefix supabase/cron run hubspot:once",
     "market:refresh": "node scripts/market-refresh.js",
     "scrape-dr": "npm --prefix scripts run scrape-dr --",
     "scrape-dr:upsert": "npm --prefix scripts run scrape-dr:upsert --"
