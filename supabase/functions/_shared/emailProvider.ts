@@ -31,6 +31,32 @@ export interface EmailProvider {
   send(message: EmailMessage): Promise<SendResult>;
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+async function loadHeaderLogoDataUrl(): Promise<string> {
+  try {
+    const fileUrl = new URL("../../../bandeira Fundo Escuro-01.png", import.meta.url);
+    const denoWithFs = Deno as typeof Deno & {
+      readFile(path: string | URL): Promise<Uint8Array>;
+    };
+    const bytes = await denoWithFs.readFile(fileUrl);
+    return `data:image/png;base64,${bytesToBase64(bytes)}`;
+  } catch (error) {
+    console.warn("[email] could not load local header logo:", error);
+    return "";
+  }
+}
+
+const HEADER_LOGO_DATA_URL = await loadHeaderLogoDataUrl();
+
 // ---------------------------------------------------------------------------
 // Dev / console provider
 // ---------------------------------------------------------------------------
@@ -599,8 +625,8 @@ function buildAnnouncementEmailLegacy(params: {
       <div class="muted" style="margin-top:14px">${announcement?.detail_url ? `ID: ${String(announcement.id ?? "-")}` : ""}</div>
       ${
         detailUrl
-          ? `<a href="${detailUrl}" class="btn">Ver original</a>`
-          : `<a href="${appBaseUrl}/announcements" class="btn">Ver original</a>`
+          ? `<a href="${detailUrl}" class="btn">Ver mais detalhes</a>`
+          : `<a href="${appBaseUrl}/announcements" class="btn">Ver mais detalhes</a>`
       }
     </div>
 
@@ -669,11 +695,15 @@ export function buildAnnouncementEmail(params: {
     pickEmailPayloadValue(payload, ["designacaoEntidade", "Designacao da entidade adjudicante"]),
   );
   const cpvStr = formatEmailCpv(announcement, cpvMain, payload);
-  const procedureStr = firstEmailText(
-    announcement?.procedure_type,
+  const actTypeStr = firstEmailText(
     announcement?.act_type,
-    pickEmailPayloadValue(payload, ["modeloAnuncio", "tipoProcedimento", "Tipo de Procedimento"]),
+    pickEmailPayloadValue(payload, ["tipoAto", "Tipo de Ato"]),
   );
+  const procedureTypeStr = firstEmailText(
+    announcement?.procedure_type,
+    pickEmailPayloadValue(payload, ["tipoProcedimento", "modeloAnuncio", "Tipo de Procedimento"]),
+  );
+ 
   const objectStr = firstEmailText(
     title,
     announcement?.description,
@@ -682,6 +712,9 @@ export function buildAnnouncementEmail(params: {
   const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
   const originalUrl = detailUrl ?? `${appBaseUrl}/announcements`;
   const subject = `Nova oportunidade: ${objectStr.slice(0, 70)}`;
+  const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
+
+  
 
   const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" };
   const deadlineColor = deadlineColorMap[remainingInfo.color];
@@ -702,18 +735,23 @@ export function buildAnnouncementEmail(params: {
           <td style="padding:18px 24px 14px 24px;">
             <table cellpadding="0" cellspacing="0" border="0">
               <tr>
-                <td style="padding-right:10px;vertical-align:middle;font-size:20px;line-height:1;">🏛️</td>
+                <td style="padding-right:10px;vertical-align:middle;">
+                  <img src="${headerLogoUrl}" alt="Helpdesk Público" style="display:block;height:52px;width:auto;" />
+                </td>
                 <td style="vertical-align:middle;">
-                  <div style="font-size:15px;font-weight:700;color:#ffffff;letter-spacing:0.01em;">Helpdesk público</div>
-                  <div style="font-size:11px;color:#a8c97a;margin-top:2px;font-weight:400;">Contratação pública eficiente</div>
+                  <div style="font-size:19px;font-weight:800;color:#ffffff;letter-spacing:0.01em;line-height:1.1;">Helpdesk Público</div>
+                  <div style="font-size:13px;color:#d3e9a0;margin-top:4px;font-weight:400;line-height:1.15;">Contratação Pública Eficiente</div>
                 </td>
               </tr>
             </table>
           </td>
         </tr>
-        <!-- ALERT BADGE -->
+      </table>
+
+      <!-- ALERT BADGE -->
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
         <tr>
-          <td style="padding:0 24px 16px 24px;">
+          <td style="padding:14px 20px 2px 20px;">
             <table cellpadding="0" cellspacing="0" border="0" style="background:#3a5c22;border-radius:20px;padding:0;">
               <tr>
                 <td style="padding:7px 14px 7px 10px;">
@@ -722,7 +760,7 @@ export function buildAnnouncementEmail(params: {
                       <td style="padding-right:7px;vertical-align:middle;">
                         <div style="width:8px;height:8px;background:#7ec94a;border-radius:50%;"></div>
                       </td>
-                      <td style="font-size:12px;color:#d4edaa;font-weight:600;white-space:nowrap;">Nova oportunidade compatível com os seus critérios de alerta</td>
+                      <td style="font-size:12px;color:#d4edaa;font-weight:600;white-space:nowrap;">Uma nova oportunidade segundo a sua seleção de Alerta</td>
                     </tr>
                   </table>
                 </td>
@@ -756,6 +794,23 @@ export function buildAnnouncementEmail(params: {
         </tr>
       </table>
 
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:0 20px 0 20px;background:#ffffff;">
+        <tr>
+          <td width="50%" style="padding:6px 4px 0 0;">
+            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Tipo de ato</div>
+              <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">${escapeEmailHtml(actTypeStr)}</div>
+            </div>
+          </td>
+          <td width="50%" style="padding:6px 0 0 4px;">
+            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Tipo de procedimento</div>
+              <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">${escapeEmailHtml(procedureTypeStr)}</div>
+            </div>
+          </td>
+        </tr>
+      </table>
+
       <!-- BODY -->
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:16px 20px 0 20px;background:#ffffff;">
 
@@ -763,7 +818,7 @@ export function buildAnnouncementEmail(params: {
         <tr>
           <td style="padding-bottom:12px;">
             <div style="border:1px solid #e5e5e0;border-radius:6px;padding:12px 14px;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">Entidade adjudicante</div>
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">Entidade(s) Adjudicante(s)</div>
               <div style="font-size:14px;color:#111827;font-weight:600;line-height:1.4;">${escapeEmailHtml(entityStr)}</div>
             </div>
           </td>
@@ -773,24 +828,20 @@ export function buildAnnouncementEmail(params: {
         <tr>
           <td style="padding-bottom:12px;">
             <div style="border:1px solid #e5e5e0;border-radius:6px;padding:12px 14px;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">CPV compatível com o seu alerta</div>
+              <div style="font-size:11px;color:#6b7280;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">CPV(s)</div>
               <div style="font-size:14px;color:#111827;font-weight:600;line-height:1.4;">${escapeEmailHtml(cpvStr)}</div>
             </div>
           </td>
         </tr>
 
-        <!-- Título do procedimento -->
-        <tr>
-          <td style="padding-bottom:12px;">
-            <div style="font-size:16px;font-weight:700;color:#111827;line-height:1.4;">${escapeEmailHtml(procedureStr)}</div>
-          </td>
-        </tr>
+        
+       
 
-        <!-- Objeto do contrato -->
+        <!-- Objeto do Contrato -->
         <tr>
           <td style="padding-bottom:20px;">
             <div style="background:#f7f7f5;border-radius:6px;padding:14px;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Objeto do contrato</div>
+              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Objeto do Contrato</div>
               <div style="font-size:14px;color:#111827;font-weight:500;line-height:1.55;">${escapeEmailHtml(objectStr)}</div>
             </div>
           </td>
@@ -799,7 +850,7 @@ export function buildAnnouncementEmail(params: {
         <!-- CTA -->
         <tr>
           <td style="padding-bottom:14px;">
-            <a href="${escapeEmailHtml(originalUrl)}" style="display:block;background:#2d4a1e;color:#ffffff;text-align:center;text-decoration:none;font-size:15px;font-weight:700;padding:15px;border-radius:6px;">Ver original</a>
+            <a href="${escapeEmailHtml(originalUrl)}" style="display:block;background:#2d4a1e;color:#ffffff;text-align:center;text-decoration:none;font-size:15px;font-weight:700;padding:15px;border-radius:6px;">Ver todos os detalhes</a>
           </td>
         </tr>
 
@@ -807,9 +858,9 @@ export function buildAnnouncementEmail(params: {
         <tr>
           <td style="padding-bottom:24px;">
             <div style="font-size:13px;color:#4b5563;line-height:2;">
-              <div>✓ Consultar os detalhes completos do procedimento</div>
-              <div>✓ Aceder diretamente às peças do procedimento</div>
-              <div>✓ Verificar requisitos e prazos de participação</div>
+              <div>✓ Consulte todos os detalhes do procedimento</div>
+              <div>✓ Aceda diretamente às peças do procedimento</div>
+              <div>✓ Verifique requisitos e prazo de participação</div>
             </div>
           </td>
         </tr>
@@ -820,22 +871,20 @@ export function buildAnnouncementEmail(params: {
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7f7f5;border-top:1px solid #e5e5e0;">
         <tr>
           <td style="padding:20px 20px 8px 20px;">
-            <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:14px;">Precisa de apoio especializado?</div>
+            <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:14px;">Precisa de suporte especializado?</div>
             <table width="100%" cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td width="50%" style="padding:0 6px 10px 0;">
-                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Plataforma de suporte</a>
+                  <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;">
+                    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">Go / No-Go</div>
+                    <div style="font-size:11px;color:#9ca3af;border-top:1px solid #e5e5e0;padding-top:10px;">Concursos Públicos</div>
+                  </a>
                 </td>
                 <td width="50%" style="padding:0 0 10px 6px;">
-                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Go / no-go</a>
-                </td>
-              </tr>
-              <tr>
-                <td width="50%" style="padding:0 6px 0 0;">
-                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Contratação pública</a>
-                </td>
-                <td width="50%" style="padding:0 0 0 6px;">
-                  <a href="#" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;font-size:13px;font-weight:600;color:#374151;">Concursos públicos</a>
+                  <a href="https://www.helpdeskpublico.pt/" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;">
+                    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">Plataforma de Suporte</div>
+                    <div style="font-size:11px;color:#9ca3af;border-top:1px solid #e5e5e0;padding-top:10px;">Contratação Pública</div>
+                  </a>
                 </td>
               </tr>
             </table>
@@ -853,7 +902,7 @@ export function buildAnnouncementEmail(params: {
               <a href="#" style="color:#9ca3af;text-decoration:none;margin:0 8px;display:inline-block;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
             </div>
             <div style="font-size:11px;color:#9ca3af;">
-              Helpdesk público &middot; <a href="#" style="color:#6b7280;text-decoration:none;">aviso legal</a> &middot; <a href="#" style="color:#6b7280;text-decoration:none;">cancelar subscrição</a>
+              Helpdesk Público &middot; <a href="#" style="color:#6b7280;text-decoration:none;">aviso legal</a> &middot; <a href="#" style="color:#6b7280;text-decoration:none;">cancelar subscrição</a>
             </div>
           </td>
         </tr>
@@ -867,9 +916,8 @@ export function buildAnnouncementEmail(params: {
   const text = `Nova oportunidade
 =================
 Objeto: ${objectStr}
-Entidade adjudicante: ${entityStr}
+Entidade (s) Adjudicante (s): ${entityStr}
 CPV: ${cpvStr}
-Procedimento: ${procedureStr}
 Valor: ${priceStr}
 Prazo: ${deadlineStr}
 Dias restantes: ${remainingInfo.text}
