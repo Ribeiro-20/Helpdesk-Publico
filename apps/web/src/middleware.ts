@@ -4,9 +4,9 @@ import { getSupabaseAdminEnv, getSupabasePublicEnv } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = [
   "/",
-  "/mercado-publico",
-  "/estatisticas-publico",
-  "/estatisticas-privado",
+  "/contratos-publicos",
+  "/entidades-adjudicantes",
+  "/entidades-adjudicatarios",
   "/oportunidades",
   "/login-mi",
   "/outros",
