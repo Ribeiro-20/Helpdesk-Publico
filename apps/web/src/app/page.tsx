@@ -13,8 +13,8 @@ import type { ElementType } from "react";
 
 export const dynamic = "force-dynamic";
 
-const BODY_BG = "#ffffff";
-const GREEN = "rgba(34, 197, 94, 1)";
+const BODY_BG = "rgba(247, 250, 253, 1)";
+const GREEN = "#3f6f27";
 
 type HomeStats = {
   contracts: number;
@@ -104,107 +104,75 @@ export default async function HomePage() {
       title: "Market Intelligence",
       description:
         "Consulte todos os contratos públicos a terminar ou em fase de renovação (área reservada a subscritores do serviço).",
-      href: "/login-mi",
+      href: "/login-mi/mi",
     },
   ];
 
   const HERO_CSS = `
-        #hp-global-hero {
-          --hp-green-dark: #26461a;
-          width: 100vw;
-          max-width: 100vw;
-          margin-left: calc(-50vw + 50%);
-          margin-right: calc(-50vw + 50%);
-          padding: 30px 30px 0px;
-          background: linear-gradient(to bottom, #3f6f27 75%, transparent 85%);
-          color: #ffffff;
-          position: relative;
-          text-align: center;
-          box-sizing: border-box;
-          isolation: isolate;
-          overflow: visible;
-        }
-        #hp-global-hero, #hp-global-hero * { box-sizing: border-box; font-family: inherit; }
-        #hp-global-hero .hp-global-hero-inner { max-width: 1120px; margin: 0 auto; position: relative; z-index: 3; text-align: center; }
-        #hp-global-hero .hp-global-eyebrow { margin: 0 0 10px; color: #a8e890; font-size: clamp(0.85rem, 1.2vw, 1rem); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-        #hp-global-hero .hp-global-title { margin: 0 0 18px; color: #ffffff; font-size: clamp(1.8rem, 3.45vw, 3.15rem); font-weight: 800; line-height: 1.05; letter-spacing: -0.05em; text-wrap: balance; }
-        #hp-global-hero .hp-global-hero-main { max-width: 700px; margin: 0 auto 14px; color: #e0f0d8; font-size: clamp(0.95rem, 1.6vw, 1.25rem); font-weight: 500; line-height: 1.4; letter-spacing: -0.01em; text-wrap: balance; }
-        #hp-global-hero .hp-global-hero-sub { max-width: 680px; margin: 0 auto 0; color: #c8e0be; font-size: clamp(0.78rem, 1vw, 0.92rem); font-weight: 400; line-height: 1.6; letter-spacing: 0; text-wrap: balance; }
+        #hp-global-hero { --hp-gap-fix: 0px; width: 100vw; max-width: 100vw; margin-left: calc(-50vw + 50%); margin-right: calc(-50vw + 50%); margin-top: var(--hp-gap-fix); margin-bottom: 0; padding: 42px 20px 60px 20px; background: linear-gradient(135deg, #244315 0%, #2f5218 58%, #3f6f27 100%); color: #ffffff; position: relative; overflow: hidden; text-align: center; box-sizing: border-box; z-index: 0; font-family: Arial, Helvetica, sans-serif; }
+        #hp-global-hero, #hp-global-hero * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
+        #hp-global-hero .hp-global-hero-inner { max-width: 1120px; margin: 0 auto; position: relative; z-index: 3; }
+        #hp-global-hero .hp-global-brand { margin: 0 0 14px 0; color: #ffffff; font-size: 28px; font-weight: 700; line-height: 1.15; letter-spacing: 0; }
+        #hp-global-hero .hp-global-title { margin: 0; color: #ffffff; font-size: 44px; font-weight: 700; line-height: 1.12; letter-spacing: 0; }
+        #hp-global-hero .hp-title-line { display: inline; }
+        #hp-global-hero .hp-global-hero-main { max-width: 920px; margin: 20px auto 0 auto; color: #ffffff; font-size: 19px; font-weight: 700; line-height: 1.45; letter-spacing: 0; }
         #hp-global-hero .hp-main-line, #hp-global-hero .hp-sub-line { display: block; }
-        #hp-global-hero .hp-global-hero-bottom-title { margin-top: 30px; color: #000000; font-size: clamp(1.7rem, 2.45vw, 2.7rem); font-weight: 400; line-height: 1.08; letter-spacing: -0.04em; text-wrap: balance; }
-        @media (max-width: 900px) {
-          #hp-global-hero { padding: 40px 18px 24px; }
-          #hp-global-hero .hp-global-hero-wave { height: 256px; margin-top: 14px; }
-          #hp-global-hero .hp-global-title { margin-bottom: 14px; }
-          #hp-global-hero .hp-global-hero-main { margin-bottom: 10px; }gr
-          #hp-global-hero .hp-global-hero-bottom-title { margin-top: 20px; }
-        }
-        @media (max-width: 560px) {
-          #hp-global-hero { padding: 28px 14px 20px; }
-          #hp-global-hero .hp-global-eyebrow { font-size: 0.78rem; }
-          #hp-global-hero .hp-global-title { font-size: clamp(1.7rem, 9vw, 2.35rem); line-height: 1.05; margin-bottom: 12px; }
-          #hp-global-hero .hp-global-hero-main { font-size: 0.9rem; line-height: 1.4; margin-bottom: 8px; }
-          #hp-global-hero .hp-global-hero-sub { font-size: 0.78rem; line-height: 1.55; }
-          #hp-global-hero .hp-global-hero-wave { height: 220px; margin-top: 12px; }
-          #hp-global-hero .hp-global-hero-bottom-title { font-size: 1.35rem; margin-top: 36px; }
-        }
+        #hp-global-hero .hp-global-hero-sub { max-width: 850px; margin: 16px auto 0 auto; color: rgba(255, 255, 255, 0.92); font-size: 16px; font-weight: 400; line-height: 1.55; letter-spacing: 0; }
+        #hp-global-hero::before { content: ""; position: absolute; right: -120px; bottom: -120px; width: 300px; height: 300px; border-radius: 50%; background: rgba(255, 255, 255, 0.1); z-index: 1; pointer-events: none; }
+        #hp-global-hero::after { content: ""; position: absolute; right: 70px; top: 34px; width: 92px; height: 92px; border-radius: 50%; background: rgba(255, 255, 255, 0.06); z-index: 1; pointer-events: none; }
+        #hp-global-hero .hp-global-hero-wave { position: absolute; left: 0; bottom: -1px; width: 100%; height: 42px; z-index: 2; pointer-events: none; }
+        #hp-global-hero .hp-global-hero-wave svg { width: 100%; height: 100%; display: block; }
+        @media (max-width: 900px) { #hp-global-hero { --hp-gap-fix: 0px; padding: 40px 18px 56px 18px; } #hp-global-hero .hp-global-brand { font-size: 24px; } #hp-global-hero .hp-global-title { font-size: 36px; } #hp-global-hero .hp-global-hero-main { font-size: 17px; } #hp-global-hero .hp-global-hero-sub { font-size: 15px; } #hp-global-hero::before { width: 240px; height: 240px; right: -120px; bottom: -110px; } #hp-global-hero::after { width: 72px; height: 72px; right: 45px; top: 38px; } }
+        @media (max-width: 560px) { #hp-global-hero { --hp-gap-fix: 0px; padding: 34px 14px 50px 14px; } #hp-global-hero .hp-global-brand { font-size: 20px; margin-bottom: 12px; } #hp-global-hero .hp-global-title { font-size: 30px; line-height: 1.15; } #hp-global-hero .hp-title-line { display: block; } #hp-global-hero .hp-global-hero-main { margin-top: 16px; font-size: 15px; line-height: 1.45; } #hp-global-hero .hp-global-hero-sub { margin-top: 14px; font-size: 14px; line-height: 1.55; } #hp-global-hero::before { width: 190px; height: 190px; right: -120px; bottom: -100px; } #hp-global-hero::after { display: none; } #hp-global-hero .hp-global-hero-wave { height: 36px; } }
+          @media (max-width: 390px) { #hp-global-hero { --hp-gap-fix: 0px; padding: 32px 12px 46px 12px; } #hp-global-hero .hp-global-brand { font-size: 19px; } #hp-global-hero .hp-global-title { font-size: 28px; line-height: 1.14; } #hp-global-hero .hp-global-hero-main { font-size: 14.5px; line-height: 1.45; } #hp-global-hero .hp-global-hero-sub { font-size: 13.5px; line-height: 1.5; } }
       `;
 
-  return (
+        return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
       <style dangerouslySetInnerHTML={{ __html: HERO_CSS }} />
       <Header />
 
       <section className="hp-global-hero" id="hp-global-hero">
         <div className="hp-global-hero-inner">
-          <p className="hp-global-eyebrow">Helpdesk Público</p>
+          <div className="hp-global-brand">Helpdesk Público</div>
 
-          <h1 className="hp-global-title">Contratação Pública Eficiente</h1>
+          <div className="hp-global-title">
+            <span className="hp-title-line">Contratação </span>
+            <span className="hp-title-line">Pública </span>
+            <span className="hp-title-line">Eficiente</span>
+          </div>
 
           <div className="hp-global-hero-main">
+            <span className="hp-main-line">Suporte especializado</span>
+            <span className="hp-main-line">a Entidades Públicas e Empresas</span>
             <span className="hp-main-line">
-              Suporte especializado a Entidades Públicas e Empresas em todas as fases da Contratação Pública
+              em todas as fases da Contratação Pública
             </span>
           </div>
 
           <div className="hp-global-hero-sub">
             <span className="hp-sub-line">
-              Informação, ferramentas e soluções digitais para atuar no mercado público com mais agilidade, conformidade e eficiência
+              Informação, ferramentas e soluções digitais para atuar no mercado
+              público
+            </span>
+            <span className="hp-sub-line">
+              com mais agilidade, conformidade e eficiência
             </span>
           </div>
         </div>
 
-        <div className="hp-global-hero-wave" style={{ marginLeft: "calc(-50vw + 50%)", marginRight: "calc(-50vw + 50%)", width: "100vw", position: "relative", zIndex: 2, marginTop: "-95px" }}>
-          <svg viewBox="0 0 1440 340" preserveAspectRatio="none" style={{ width: "100%", height: "280px", display: "block" }}>
+        <div className="hp-global-hero-wave">
+          <svg viewBox="0 0 1440 80" preserveAspectRatio="none">
             <path
-              d="M0,180 C180,80 360,260 540,160 C720,60 900,220 1080,150 C1260,80 1360,140 1440,130 L1440,260 C1260,300 1080,220 900,280 C720,340 540,240 360,300 C180,360 80,280 0,310 Z"
-              fill="#3f6f27"
-              opacity={0.35}
-            />
-            <path
-              d="M0,210 C200,120 380,280 600,190 C780,120 960,240 1140,175 C1300,120 1380,160 1440,155 L1440,280 C1280,320 1080,250 900,300 C700,355 480,260 300,315 C150,360 60,295 0,330 Z"
-              fill="#2f5218"
-              opacity={0.45}
-            />
-            <path
-              d="M0,240 C150,170 320,300 520,230 C700,165 880,270 1080,210 C1240,160 1360,195 1440,190 L1440,295 C1300,330 1120,270 940,315 C740,365 540,275 360,325 C200,368 80,305 0,340 Z"
-              fill="#2f5218"
-              opacity={0.6}
-            />
-            <path
-              d="M0,270 C120,220 280,310 460,265 C640,215 820,295 1020,255 C1200,215 1340,245 1440,240 L1440,310 C1320,340 1140,285 960,325 C760,368 560,290 380,335 C210,372 90,318 0,345 Z"
-              fill="#244315"
-              opacity={0.8}
-            />
+              d="M0,50 C250,80 500,20 750,50 C1000,80 1200,30 1440,50 L1440,80 L0,80 Z"
+              fill={BODY_BG}
+            ></path>
           </svg>
         </div>
-
-        <div className="hp-global-hero-bottom-title">Mercado Público</div>
       </section>
 
-      <main className="flex-1 relative overflow-hidden pt-6 pb-10 sm:pt-8 sm:pb-14 lg:pt-10 lg:pb-16">
-
-        {/* Decoração esquerda — círculo dashed + bolinha verde */}
+      <main className="flex-1 relative overflow-hidden">
+        {/* Elementos geométricos decorativos */}
         <div
           className="absolute pointer-events-none hidden sm:block"
           style={{
@@ -224,12 +192,11 @@ export default async function HomePage() {
             top: "95px",
             width: "25px",
             height: "25px",
-            background: "#2f5218",
+            background: GREEN,
             opacity: 0.8,
           }}
         />
 
-        {/* Decoração direita — círculo dashed + bolinha verde */}
         <div
           className="absolute pointer-events-none hidden sm:block"
           style={{
@@ -249,12 +216,16 @@ export default async function HomePage() {
             bottom: "100px",
             width: "180px",
             height: "180px",
-            background: "#2f5218",
+            background: GREEN,
             opacity: 0.8,
           }}
         />
 
-        <div className="relative z-10 mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="relative z-10 mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-14 lg:py-16">
+          <h1 className="mb-8 text-center text-3xl font-extrabold tracking-tight text-slate-900 sm:mb-12 sm:text-[2.6rem]">
+            Mercado Público
+          </h1>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-6">
             {cards.slice(0, 3).map((c) => (
               <Card key={c.href} {...c} green={GREEN} />
@@ -295,7 +266,7 @@ function Card({
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl transition-colors sm:h-20 sm:w-20">
         <Icon
           className="h-8 w-8 sm:h-10 sm:w-10"
-          style={{ color: "#2f5218" }}
+          style={{ color: green }}
           strokeWidth={1.5}
         />
       </div>
