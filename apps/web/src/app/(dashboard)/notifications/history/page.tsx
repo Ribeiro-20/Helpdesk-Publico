@@ -12,7 +12,7 @@ export default async function NotificationsHistoryPage() {
 
   let query = supabase
     .from("notifications")
-    .select(`id, status, channel, sent_at, error, created_at, clients (name, email), announcements (title, publication_date, description, detail_url, raw_payload)`)
+    .select(`id, status, channel, sent_at, error, created_at, clients (name, email), announcements (title, publication_date, description, detail_url, dr_announcement_no, base_announcement_id, raw_payload)`)
     .order("created_at", { ascending: false })
     .limit(PAGE_SIZE);
 
