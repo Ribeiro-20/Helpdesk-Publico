@@ -38,6 +38,19 @@ type CompanyRow = {
   top_entities: TopEntity[];
 };
 
+function decodeHtml(str: string): string {
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
 function toNumber(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value === "string") {
@@ -88,7 +101,7 @@ function normalizeCompany(row: Record<string, unknown>): CompanyRow {
   return {
     id: String(row.id ?? ""),
     nif: String(row.nif ?? ""),
-    name: String(row.name ?? "Sem nome"),
+    name: decodeHtml(String(row.name ?? "Sem nome")),
     location: toStringOrNull(row.location),
     contracts_won: Math.max(0, Math.round(toNumber(row.contracts_won))),
     total_value_won: Math.max(0, toNumber(row.total_value_won)),
