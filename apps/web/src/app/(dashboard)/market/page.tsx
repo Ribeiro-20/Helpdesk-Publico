@@ -42,6 +42,14 @@ type CpvStatsForOverview = {
   avg_discount_pct: number | null;
 };
 
+type RpcMarketOverviewRow = {
+  cpv_code: string;
+  contracts: number;
+  total_value: number | null;
+  avg_contract_value: number | null;
+  avg_discount_pct: number | null;
+};
+
 type CpvCarouselItem = {
   code: string;
   description: string | null;
@@ -49,25 +57,74 @@ type CpvCarouselItem = {
   totalValue: number;
 };
 
+type MarketOverviewData = {
+  totalContracts: number;
+  totalValue: number;
+  activeCpvs: number;
+  avgDiscountPct: number | null;
+  items: Array<{
+    code: string;
+    description: string | null;
+    contracts: number;
+    totalValue: number;
+    avgContractValue: number;
+    avgDiscountPct: number | null;
+  }>;
+};
+
+type CpvInsightData = {
+  cpv_code: string;
+  cpv_description: string | null;
+  cpv_division: string | null;
+  total_contracts: number;
+  contracts_last_365d: number;
+  total_value: number;
+  avg_contract_value: number | null;
+  avg_discount_pct: number | null;
+  yoy_growth_pct: number | null;
+  min_contract_value: number | null;
+  median_contract_value: number | null;
+  max_contract_value: number | null;
+  top_entities: unknown;
+  top_companies: unknown;
+  computed_at: string | null;
+};
+
+type MarketCacheData = {
+  totalCpvStats: number;
+  cpvCarouselItems: CpvCarouselItem[];
+  marketOverview: MarketOverviewData | null;
+  cpvCatalogMatch: { id: string; descricao: string } | null;
+  isRealtimeFallback: boolean;
+  cpvInsight: CpvInsightData | null;
+};
+
+const CONTRACTS_PAGE_SIZE = 5000;
+const CPV_STATS_PAGE_SIZE = 5000;
+const MARKET_CACHE_TTL_MS = 30_000;
+const MARKET_CACHE_MAX_ENTRIES = 200;
+const MARKET_PERF_LOG_ENABLED = process.env.MARKET_PERF_LOG === "true";
+
+const marketPageCache = new Map<string, { expiresAt: number; data: MarketCacheData }>();
+
 async function fetchAllContractsForTenant<T>(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tenantId: string,
   columns: string,
 ): Promise<T[]> {
-  const pageSize = 1000;
   const rows: T[] = [];
 
-  for (let from = 0; ; from += pageSize) {
+  for (let from = 0; ; from += CONTRACTS_PAGE_SIZE) {
     const { data } = await supabase
       .from("contracts")
       .select(columns)
       .eq("tenant_id", tenantId)
-      .range(from, from + pageSize - 1);
+      .range(from, from + CONTRACTS_PAGE_SIZE - 1);
 
     const chunk = (data ?? []) as T[];
     if (chunk.length === 0) break;
     rows.push(...chunk);
-    if (chunk.length < pageSize) break;
+    if (chunk.length < CONTRACTS_PAGE_SIZE) break;
   }
 
   return rows;
@@ -78,20 +135,19 @@ async function fetchAllCpvStatsForTenant<T>(
   tenantId: string,
   columns: string,
 ): Promise<T[]> {
-  const pageSize = 1000;
   const rows: T[] = [];
 
-  for (let from = 0; ; from += pageSize) {
+  for (let from = 0; ; from += CPV_STATS_PAGE_SIZE) {
     const { data } = await supabase
       .from("cpv_stats")
       .select(columns)
       .eq("tenant_id", tenantId)
-      .range(from, from + pageSize - 1);
+      .range(from, from + CPV_STATS_PAGE_SIZE - 1);
 
     const chunk = (data ?? []) as T[];
     if (chunk.length === 0) break;
     rows.push(...chunk);
-    if (chunk.length < pageSize) break;
+    if (chunk.length < CPV_STATS_PAGE_SIZE) break;
   }
 
   return rows;
@@ -332,44 +388,43 @@ export default async function MarketPage({
     .maybeSingle();
 
   const tenantId = appUser?.tenant_id;
+  const requestStart = performance.now();
+  const perf: Record<string, number> = {};
+
+  let cachedData: MarketCacheData | null = null;
+  let cacheKey: string | null = null;
+
+  if (tenantId) {
+    cacheKey = `${tenantId}::${cpvFilter || "__overview__"}`;
+    const cacheEntry = marketPageCache.get(cacheKey);
+    if (cacheEntry) {
+      if (cacheEntry.expiresAt > Date.now()) {
+        cachedData = cacheEntry.data;
+        perf.cache_hit = 1;
+      } else {
+        marketPageCache.delete(cacheKey);
+      }
+    }
+  }
 
   let totalCpvStats = 0;
   let cpvCarouselItems: CpvCarouselItem[] = [];
-  let marketOverview: {
-    totalContracts: number;
-    totalValue: number;
-    activeCpvs: number;
-    avgDiscountPct: number | null;
-    items: Array<{
-      code: string;
-      description: string | null;
-      contracts: number;
-      totalValue: number;
-      avgContractValue: number;
-      avgDiscountPct: number | null;
-    }>;
-  } | null = null;
+  let marketOverview: MarketOverviewData | null = null;
   let cpvCatalogMatch: { id: string; descricao: string } | null = null;
   let isRealtimeFallback = false;
-  let cpvInsight: {
-    cpv_code: string;
-    cpv_description: string | null;
-    cpv_division: string | null;
-    total_contracts: number;
-    contracts_last_365d: number;
-    total_value: number;
-    avg_contract_value: number | null;
-    avg_discount_pct: number | null;
-    yoy_growth_pct: number | null;
-    min_contract_value: number | null;
-    median_contract_value: number | null;
-    max_contract_value: number | null;
-    top_entities: unknown;
-    top_companies: unknown;
-    computed_at: string | null;
-  } | null = null;
+  let cpvInsight: CpvInsightData | null = null;
 
-  if (tenantId) {
+  if (cachedData) {
+    totalCpvStats = cachedData.totalCpvStats;
+    cpvCarouselItems = cachedData.cpvCarouselItems;
+    marketOverview = cachedData.marketOverview;
+    cpvCatalogMatch = cachedData.cpvCatalogMatch;
+    isRealtimeFallback = cachedData.isRealtimeFallback;
+    cpvInsight = cachedData.cpvInsight;
+  }
+
+  if (tenantId && !cachedData) {
+    const computeStart = performance.now();
     const totalCpvStatsPromise = supabase
       .from("cpv_stats")
       .select("*", { count: "exact", head: true })
@@ -385,6 +440,7 @@ export default async function MarketPage({
       totalCpvStatsPromise,
       cpvStatsOverviewPromise,
     ]);
+    perf.base_queries_ms = Number((performance.now() - computeStart).toFixed(2));
 
     totalCpvStats = totalCpvStatsResult.count ?? 0;
 
@@ -416,56 +472,25 @@ export default async function MarketPage({
         items: overviewItems,
       };
     } else {
-      const overviewRows = (await fetchAllContractsForTenant<ContractForOverview>(
-        supabase,
-        tenantId,
-        "cpv_main, contract_price, base_price",
-      )).filter((row) => row.cpv_main != null);
+      const { data: overviewRpcRows } = await supabase.rpc("market_overview_by_cpv", {
+        p_tenant_id: tenantId,
+      });
 
-      const overviewAgg = new Map<string, { contracts: number; totalValue: number; discountSum: number; discountCount: number }>();
-      let overviewTotalContracts = 0;
-      let overviewTotalValue = 0;
-      let overviewDiscountSum = 0;
-      let overviewDiscountCount = 0;
+      const rows = (overviewRpcRows ?? []) as RpcMarketOverviewRow[];
 
-      for (const row of overviewRows) {
-        const code = normalizeCpvCode(row.cpv_main);
-        if (!code) continue;
+      if (rows.length > 0) {
+        const overviewTotalContracts = rows.reduce((sum, row) => sum + Number(row.contracts ?? 0), 0);
+        const overviewTotalValue = rows.reduce((sum, row) => sum + Number(row.total_value ?? 0), 0);
+        const discountRows = rows.filter((row) => row.avg_discount_pct != null);
+        const overviewAvgDiscount = discountRows.length > 0
+          ? discountRows.reduce((sum, row) => sum + Number(row.avg_discount_pct ?? 0), 0) / discountRows.length
+          : null;
 
-        const contractValue = row.contract_price == null ? null : Number(row.contract_price);
-        const baseValue = row.base_price == null ? null : Number(row.base_price);
-        const safeContractValue = contractValue != null && Number.isFinite(contractValue) ? contractValue : 0;
-
-        overviewTotalContracts += 1;
-        overviewTotalValue += safeContractValue;
-
-        const current = overviewAgg.get(code) ?? { contracts: 0, totalValue: 0, discountSum: 0, discountCount: 0 };
-        current.contracts += 1;
-        current.totalValue += safeContractValue;
-
-        if (
-          contractValue != null &&
-          baseValue != null &&
-          Number.isFinite(contractValue) &&
-          Number.isFinite(baseValue) &&
-          baseValue > 0
-        ) {
-          const discount = (1 - contractValue / baseValue) * 100;
-          current.discountSum += discount;
-          current.discountCount += 1;
-          overviewDiscountSum += discount;
-          overviewDiscountCount += 1;
-        }
-
-        overviewAgg.set(code, current);
-      }
-
-      if (overviewAgg.size > 0) {
-        const overviewCodes = Array.from(overviewAgg.keys());
+        const topRows = rows.slice(0, 16);
         const { data: overviewCatalogRows } = await supabase
           .from("cpv_codes")
           .select("id, descricao")
-          .in("id", overviewCodes);
+          .in("id", topRows.map((row) => row.cpv_code));
 
         const overviewDescMap = new Map<string, string>();
         for (const row of overviewCatalogRows ?? []) {
@@ -473,24 +498,19 @@ export default async function MarketPage({
           overviewDescMap.set(item.id, item.descricao);
         }
 
-        const overviewItems = Array.from(overviewAgg.entries())
-          .map(([code, agg]) => ({
-            code,
-            description: overviewDescMap.get(code) ?? null,
-            contracts: agg.contracts,
-            totalValue: agg.totalValue,
-            avgContractValue: agg.contracts > 0 ? agg.totalValue / agg.contracts : 0,
-            avgDiscountPct: agg.discountCount > 0 ? agg.discountSum / agg.discountCount : null,
-          }))
-          .sort((a, b) => (b.contracts - a.contracts) || (b.totalValue - a.totalValue))
-          .slice(0, 16);
-
         marketOverview = {
           totalContracts: overviewTotalContracts,
           totalValue: overviewTotalValue,
-          activeCpvs: overviewAgg.size,
-          avgDiscountPct: overviewDiscountCount > 0 ? overviewDiscountSum / overviewDiscountCount : null,
-          items: overviewItems,
+          activeCpvs: rows.length,
+          avgDiscountPct: overviewAvgDiscount,
+          items: topRows.map((row) => ({
+            code: row.cpv_code,
+            description: overviewDescMap.get(row.cpv_code) ?? null,
+            contracts: Number(row.contracts ?? 0),
+            totalValue: Number(row.total_value ?? 0),
+            avgContractValue: Number(row.avg_contract_value ?? 0),
+            avgDiscountPct: row.avg_discount_pct == null ? null : Number(row.avg_discount_pct),
+          })),
         };
       }
     }
@@ -500,7 +520,7 @@ export default async function MarketPage({
         .from("cpv_stats")
         .select("cpv_code, cpv_description, cpv_division, total_contracts, contracts_last_365d, total_value, avg_contract_value, avg_discount_pct, yoy_growth_pct, min_contract_value, median_contract_value, max_contract_value, top_entities, top_companies, computed_at")
         .eq("tenant_id", tenantId)
-        .ilike("cpv_code", cpvFamilyLike || `${cpvFilter}%`)
+        .like("cpv_code", cpvFamilyLike || `${cpvFilter}%`)
         .order("total_contracts", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -538,6 +558,14 @@ export default async function MarketPage({
           totalValue: item.totalValue,
           description: descMap.get(item.code) ?? item.description,
         }));
+      } else if (marketOverview?.items && marketOverview.items.length > 0) {
+        // Fallback: use real-time computed data from marketOverview when cpv_stats is empty.
+        cpvCarouselItems = marketOverview.items.slice(0, 12).map((item) => ({
+          code: item.code,
+          contracts: item.contracts,
+          totalValue: item.totalValue,
+          description: item.description,
+        }));
       } else {
         const { data: cpvCatalogRows } = await supabase
           .from("cpv_codes")
@@ -550,6 +578,25 @@ export default async function MarketPage({
           return { code: item.id, description: item.descricao, contracts: 0, totalValue: 0 };
         });
       }
+    }
+
+    if (cacheKey) {
+      if (marketPageCache.size >= MARKET_CACHE_MAX_ENTRIES) {
+        const oldestKey = marketPageCache.keys().next().value;
+        if (oldestKey) marketPageCache.delete(oldestKey);
+      }
+
+      marketPageCache.set(cacheKey, {
+        expiresAt: Date.now() + MARKET_CACHE_TTL_MS,
+        data: {
+          totalCpvStats,
+          cpvCarouselItems,
+          marketOverview,
+          cpvCatalogMatch,
+          isRealtimeFallback,
+          cpvInsight,
+        },
+      });
     }
   }
 
@@ -566,7 +613,7 @@ export default async function MarketPage({
       const { data: familyCatalogMatch } = await supabase
         .from("cpv_codes")
         .select("id, descricao")
-        .ilike("id", cpvFamilyLike)
+        .like("id", cpvFamilyLike)
         .order("id", { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -621,6 +668,15 @@ export default async function MarketPage({
         isRealtimeFallback = true;
       }
     }
+  }
+
+  perf.total_ms = Number((performance.now() - requestStart).toFixed(2));
+  if (MARKET_PERF_LOG_ENABLED) {
+    console.info("[market][server]", {
+      tenantId,
+      cpvFilter: cpvFilter || null,
+      ...perf,
+    });
   }
 
   return (
