@@ -277,7 +277,7 @@ export default async function EstatisticasPrivadoPage({
               Empresas e Adjudicatários
             </h1>
             <p className="text-gray-500 text-sm">
-              {totalRows} empresas encontradas
+              {totalRows} entidades encontradas
             </p>
           </div>
         </div>
