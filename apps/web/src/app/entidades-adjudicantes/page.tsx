@@ -332,7 +332,7 @@ export default async function EstatisticasPublicoPage({
           <BarChart2 className="w-6 h-6 text-green-500" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Estatisticas de Entidades Adjudicantes
+              Entidades Adjudicantes
             </h1>
             <p className="text-gray-500 text-sm">
               {totalRows} entidades encontradas
