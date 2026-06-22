@@ -858,7 +858,7 @@ export default async function MercadoPublicoPage({
             <FileText className="w-6 h-6 text-green-500 shrink-0" />
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
-                Estatísticas de Mercado
+                Contratos Públicos
               </h1>
               <p className="text-gray-500 text-sm">
                 {totalCount} contratos publicados
