@@ -15,7 +15,7 @@ function mostFrequentLocation(locations: string[]): string | null {
     freq.set(key, (freq.get(key) ?? 0) + 1);
   }
   let best = ""; let bestCount = 0;
-  for (const [key, count] of freq) { if (count > bestCount) { best = key; bestCount = count; } }
+  for (const [key, count] of Array.from(freq.entries())) { if (count > bestCount) { best = key; bestCount = count; } }
   return best || null;
 }
 
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Build & upsert rows
     const rows: Array<Record<string, unknown>> = [];
-    for (const [nif, d] of companyData) {
+    for (const [nif, d] of Array.from(companyData.entries())) {
       const existing = existingCompanies.get(nif);
       const location = existing?.location ?? mostFrequentLocation(d.locations);
       if (location && !existing?.location) stats.locations_set++;

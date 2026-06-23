@@ -29,7 +29,7 @@ function mostFrequentLocation(locations: string[]): string | null {
     freq.set(key, (freq.get(key) ?? 0) + 1);
   }
   let best = ""; let bestCount = 0;
-  for (const [key, count] of freq) { if (count > bestCount) { best = key; bestCount = count; } }
+  for (const [key, count] of Array.from(freq.entries())) { if (count > bestCount) { best = key; bestCount = count; } }
   return best || null;
 }
 
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Build & upsert rows
     const rows: Array<Record<string, unknown>> = [];
-    for (const [nif, info] of entityInfo) {
+    for (const [nif, info] of Array.from(entityInfo.entries())) {
       const cd = entityContracts.get(nif);
       const existing = existingEntities.get(nif);
       const inferredType = inferEntityType(info.name);
