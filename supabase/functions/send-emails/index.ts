@@ -17,6 +17,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   buildAnnouncementEmail,
+  buildAnnouncementEmailOutlook,
   createEmailProvider,
 } from "../_shared/emailProvider.ts";
 import {
@@ -38,6 +39,15 @@ function isAnnouncementExpired(deadlineAt: string | null | undefined): boolean {
   if (!Number.isFinite(deadlineMs)) return false;
 
   return deadlineMs < Date.now();
+}
+
+function selectEmailBuilder(recipientEmail: string): typeof buildAnnouncementEmail {
+  // Use div-based version for Gmail (best rendering)
+  if (recipientEmail.toLowerCase().includes("@gmail.com")) {
+    return buildAnnouncementEmail;
+  }
+  // Use table-based version for Outlook and others (Outlook-compatible)
+  return buildAnnouncementEmailOutlook;
 }
 
 Deno.serve(async (req: Request) => {
@@ -321,7 +331,10 @@ Deno.serve(async (req: Request) => {
           ? cpvDescriptionMap.get(announcement.cpv_main) ?? null
           : null;
 
-        const { subject, html, text } = buildAnnouncementEmail({
+        // Choose the appropriate email builder based on recipient email domain
+        const emailBuilder = selectEmailBuilder(client.email);
+
+        const { subject, html, text } = emailBuilder({
           clientName: client.name,
           title: announcement.title,
           entityName: announcement.entity_name,

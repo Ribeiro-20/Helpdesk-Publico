@@ -450,7 +450,15 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const clientId of regionFilteredClientIds) {
-          const scheduledFor = getNextBusinessDay10am();
+          // Check if auto-scheduling is disabled (for testing)
+          const autoScheduleEnabled = (Deno.env.get("QUEUE_AUTO_SCHEDULE") ?? "true")
+            .trim()
+            .toLowerCase() === "true";
+          
+          const scheduledFor = autoScheduleEnabled 
+            ? getNextBusinessDay10am()
+            : new Date().toISOString();
+          
           const { error: insertErr } = await supabase
             .from("notifications")
             .insert({
