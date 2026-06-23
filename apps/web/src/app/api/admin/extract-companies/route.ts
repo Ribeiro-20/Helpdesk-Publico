@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
     const companyData = new Map<string, CompanyData>();
 
-    function getOrCreate(nif: string, name: string): CompanyData {
+    const getOrCreate = (nif: string, name: string): CompanyData => {
       let d = companyData.get(nif);
       if (!d) { d = { name, contractsWon: 0, contractsParticipated: 0, totalValueWon: 0, locations: [], cpvs: new Map(), entities: new Map(), lastWinDate: null }; companyData.set(nif, d); }
       if (name && d.name === nif) d.name = name;
