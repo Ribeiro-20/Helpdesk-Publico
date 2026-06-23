@@ -32,21 +32,6 @@ function formatDate(d: string | null): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-function discountBadge(base: number | null, contract: number | null) {
-  if (base == null || contract == null || base === 0) return null;
-  const pct = ((base - contract) / base) * 100;
-  if (Math.abs(pct) < 0.5) return null;
-  const isDiscount = pct > 0;
-  return (
-    <span
-      className={`inline-block text-xs px-1.5 py-0.5 rounded font-medium ${
-        isDiscount ? "bg-brand-50 text-brand-700" : "bg-red-50 text-red-700"
-      }`}
-    >
-      {isDiscount ? "-" : "+"}{Math.abs(pct).toFixed(0)}%
-    </span>
-  );
-}
 
 /** Extract display name from contract party payloads (string or object). */
 function decodeHtml(str: string): string {
@@ -191,7 +176,7 @@ export default async function ContractsPage({
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const cpvCodes = [...new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[])];
+  const cpvCodes = Array.from(new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[]));
   const cpvDescriptions: Record<string, string> = {};
   if (cpvCodes.length > 0) {
     const { data: cpvData } = await supabase
