@@ -465,8 +465,7 @@ export default async function EstatisticasPublicoPage({
                         {row.name}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {row.nif}{" "}
-                        {row.entity_type ? `· ${row.entity_type}` : ""}
+                        {row.nif}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right">
