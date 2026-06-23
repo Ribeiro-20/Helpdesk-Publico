@@ -747,7 +747,7 @@ export function buildAnnouncementEmail(params: {
             <table cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="padding-right:10px;vertical-align:middle;">
-                  <img src="${headerLogoUrl}" alt="Helpdesk Público" style="display:block;height:52px;width:auto;" />
+                  <img src="${headerLogoUrl}" width="52" height="52" alt="" style="display:block;width:52px;height:52px;border:0;outline:none;text-decoration:none;" />
                 </td>
                 <td style="vertical-align:middle;">
                   <div style="font-size:19px;font-weight:800;color:#ffffff;letter-spacing:0.01em;line-height:1.1;">Helpdesk Público</div>
@@ -908,9 +908,8 @@ export function buildAnnouncementEmail(params: {
         <tr>
           <td style="padding:16px 20px;text-align:center;">
             <div style="margin-bottom:10px;">
-              <a href="https://www.linkedin.com/company/helpdeskpublico/posts/?feedView=all" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">in</a>
-              <a href="#" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">f</a>
-              <a href="#" style="color:#9ca3af;text-decoration:none;margin:0 8px;display:inline-block;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
+              <a href="https://www.linkedin.com/company/helpdeskpublico/posts/?feedView=all" target="_blank" style="color:#9ca3af;text-decoration:none;font-size:13px;font-weight:700;margin:0 8px;">in</a>
+              <a href="https://www.instagram.com/helpdeskpublico?igsh=ejhsajhpeWI3azY5" target="_blank" style="color:#9ca3af;text-decoration:none;font-size:13px;font-weight:700;margin:0 8px;">ig</a>
             </div>
             <div style="font-size:11px;color:#9ca3af;">
               Helpdesk Público &middot; <a href="#" style="color:#6b7280;text-decoration:none;">aviso legal</a> &middot; <a href="#" style="color:#6b7280;text-decoration:none;">cancelar subscrição</a>
@@ -998,7 +997,6 @@ export function buildAnnouncementEmailOutlook(params: {
   const originalUrl = detailUrl ?? `${appBaseUrl}/announcements`;
   const subject = `Nova oportunidade: ${objectStr.slice(0, 70)}`;
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
-
   const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" };
   const deadlineColor = deadlineColorMap[remainingInfo.color];
 
@@ -1019,7 +1017,7 @@ export function buildAnnouncementEmailOutlook(params: {
             <table cellpadding="0" cellspacing="0" border="0">
               <tr>
                 <td style="padding-right:10px;vertical-align:middle;">
-                  <img src="${headerLogoUrl}" alt="Helpdesk Público" style="display:block;height:52px;width:auto;" />
+                  <img src="${headerLogoUrl}" width="52" height="52" alt="" style="display:block;width:52px;height:52px;border:0;outline:none;text-decoration:none;" />
                 </td>
                 <td style="vertical-align:middle;">
                   <div style="font-size:19px;font-weight:800;color:#ffffff;letter-spacing:0.01em;line-height:1.1;">Helpdesk Público</div>
@@ -1191,9 +1189,8 @@ export function buildAnnouncementEmailOutlook(params: {
         <tr>
           <td style="padding:16px 20px;text-align:center;">
             <div style="margin-bottom:10px;">
-              <a href="https://www.linkedin.com/company/helpdeskpublico/posts/?feedView=all" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">in</a>
-              <a href="#" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">f</a>
-              <a href="#" style="color:#9ca3af;text-decoration:none;margin:0 8px;display:inline-block;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
+              <a href="https://www.linkedin.com/company/helpdeskpublico/posts/?feedView=all" target="_blank" style="color:#9ca3af;text-decoration:none;font-size:13px;font-weight:700;margin:0 8px;">in</a>
+              <a href="https://www.instagram.com/helpdeskpublico?igsh=ejhsajhpeWI3azY5" target="_blank" style="color:#9ca3af;text-decoration:none;font-size:13px;font-weight:700;margin:0 8px;">ig</a>
             </div>
             <div style="font-size:11px;color:#9ca3af;">
               Helpdesk Público &middot; <a href="#" style="color:#6b7280;text-decoration:none;">aviso legal</a> &middot; <a href="#" style="color:#6b7280;text-decoration:none;">cancelar subscrição</a>
