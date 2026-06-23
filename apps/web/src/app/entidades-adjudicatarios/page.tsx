@@ -1,9 +1,9 @@
 import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { createAdminClient } from "@/lib/supabase/server";
-import { BarChart2, Building2, ChevronDown, Filter, House, Search } from "lucide-react";
-import BackButton from "@/components/BackButton";
 import PublicFooter from "@/components/layout/PublicFooter";
+import { createAdminClient } from "@/lib/supabase/server";
+import { BarChart2, ChevronDown, Filter, House } from "lucide-react";
+import BackButton from "@/components/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -18,24 +18,24 @@ type PageParams = {
   year?: string;
 };
 
-type TopCompany = {
+type TopEntity = {
   nif: string;
   name: string;
   count: number;
   value: number;
 };
 
-type EntityRow = {
+type CompanyRow = {
   id: string;
   nif: string;
   name: string;
-  entity_type: string | null;
   location: string | null;
-  total_contracts: number;
-  total_value: number;
+  contracts_won: number;
+  total_value_won: number;
   avg_contract_value: number | null;
-  last_activity_at: string | null;
-  top_companies: TopCompany[];
+  win_rate: number | null;
+  last_win_at: string | null;
+  top_entities: TopEntity[];
 };
 
 function decodeHtml(str: string): string {
@@ -73,28 +73,9 @@ function parsePositiveInt(value: string | undefined, fallback: number): number {
   return parsed;
 }
 
-function euros(value: number): string {
-  return new Intl.NumberFormat("pt-PT", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
-function integer(value: number): string {
-  return new Intl.NumberFormat("pt-PT").format(value);
-}
-
-function shortDate(iso: string | null): string {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("pt-PT");
-}
-
-function parseTopCompanies(value: unknown): TopCompany[] {
+function parseTopEntities(value: unknown): TopEntity[] {
   if (!Array.isArray(value)) return [];
-  const out: TopCompany[] = [];
+  const out: TopEntity[] = [];
 
   for (const item of value) {
     if (!item || typeof item !== "object") continue;
@@ -116,49 +97,21 @@ function parseTopCompanies(value: unknown): TopCompany[] {
   return out.sort((a, b) => b.count - a.count);
 }
 
-function normalizeEntity(row: Record<string, unknown>): EntityRow {
+function normalizeCompany(row: Record<string, unknown>): CompanyRow {
   return {
     id: String(row.id ?? ""),
     nif: String(row.nif ?? ""),
     name: decodeHtml(String(row.name ?? "Sem nome")),
-    entity_type: toStringOrNull(row.entity_type),
     location: toStringOrNull(row.location),
-    total_contracts: Math.max(0, Math.round(toNumber(row.total_contracts))),
-    total_value: Math.max(0, toNumber(row.total_value)),
+    contracts_won: Math.max(0, Math.round(toNumber(row.contracts_won))),
+    total_value_won: Math.max(0, toNumber(row.total_value_won)),
     avg_contract_value:
       row.avg_contract_value == null
         ? null
         : Math.max(0, toNumber(row.avg_contract_value)),
-    last_activity_at: toStringOrNull(row.last_activity_at),
-    top_companies: parseTopCompanies(row.top_companies),
-  };
-}
-
-function supplierShare(row: EntityRow): number {
-  const top = row.top_companies[0];
-  if (!top || row.total_contracts <= 0) return 0;
-  return (top.count / row.total_contracts) * 100;
-}
-
-function concentrationBadge(share: number): {
-  label: string;
-  className: string;
-} {
-  if (share >= 70) {
-    return {
-      label: "Alta",
-      className: "bg-rose-50 text-rose-700 border border-rose-200",
-    };
-  }
-  if (share >= 45) {
-    return {
-      label: "Media",
-      className: "bg-amber-50 text-amber-700 border border-amber-200",
-    };
-  }
-  return {
-    label: "Baixa",
-    className: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    win_rate: row.win_rate == null ? null : Math.max(0, toNumber(row.win_rate)),
+    last_win_at: toStringOrNull(row.last_win_at),
+    top_entities: parseTopEntities(row.top_entities),
   };
 }
 
@@ -175,10 +128,10 @@ function buildQuery(
   }
 
   const qs = params.toString();
-  return qs ? `/estatisticas-publico?${qs}` : "/estatisticas-publico";
+  return qs ? `/estatisticas-privado?${qs}` : "/estatisticas-privado";
 }
 
-export default async function EstatisticasPublicoPage({
+export default async function EstatisticasPrivadoPage({
   searchParams,
 }: {
   searchParams: Promise<PageParams>;
@@ -220,7 +173,7 @@ export default async function EstatisticasPublicoPage({
       <PageShell>
         <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-gray-900">
-            /estatisticas-publico
+            /estatisticas-privado
           </h1>
           <p className="text-sm text-gray-500 mt-2">
             Nao foi possivel resolver o tenant para mostrar estatisticas.
@@ -231,32 +184,29 @@ export default async function EstatisticasPublicoPage({
   }
 
   let query = supabase
-    .from("entities")
+    .from("companies")
     .select(
-      "id,nif,name,entity_type,location,total_contracts,total_value,avg_contract_value,last_activity_at,top_companies",
+      "id,nif,name,location,contracts_won,total_value_won,avg_contract_value,win_rate,last_win_at,top_entities",
       { count: "exact" },
     )
     .eq("tenant_id", tenantId);
 
-  // Filter by Year: Fetch contracts in that year to find active NIFs
   if (yearFilter) {
-    const start = `${yearFilter}-01-01`;
-    const end = `${yearFilter}-12-31`;
-
+    // Filter by Year: Fetch contracts in that year to find active NIFs (winners)
     const { data: contractsInYear } = await supabase
       .from("contracts")
-      .select("contracting_entities")
+      .select("winners")
       .eq("tenant_id", tenantId)
-      .gte("signing_date", start)
-      .lte("signing_date", end)
+      .gte("signing_date", `${yearFilter}-01-01`)
+      .lte("signing_date", `${yearFilter}-12-31`)
       .limit(100000);
 
     const nifSet = new Set<string>();
+
     if (contractsInYear) {
       for (const c of contractsInYear) {
-        const ents = c.contracting_entities;
-        if (Array.isArray(ents)) {
-          for (const item of ents) {
+        if (Array.isArray(c.winners)) {
+          for (const item of c.winners) {
             if (typeof item === "string") {
               // Tenta extrair NIF do formato "NIF - Nome" ou apenas "NIF"
               let nif = item.split(" - ")[0]?.trim();
@@ -275,7 +225,8 @@ export default async function EstatisticasPublicoPage({
     }
 
     if (nifSet.size === 0) {
-      query = query.eq("nif", "000000000"); // Nenhum contrato encontrado -> filtro impossível
+      // Se não houver contratos nesse ano, força resultado vazio
+      query = query.eq("nif", "000000000");
     } else {
       query = query.in("nif", Array.from(nifSet));
     }
@@ -289,29 +240,20 @@ export default async function EstatisticasPublicoPage({
   }
 
   query = query
-    .order("total_value", { ascending: false })
-    .order("total_contracts", { ascending: false });
+    .order("total_value_won", { ascending: false })
+    .order("contracts_won", { ascending: false });
 
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
-  const { data: entityRows, count } = await query.range(from, to);
+  const { data: companyRows, count } = await query.range(from, to);
 
-  const entities = ((entityRows ?? []) as Record<string, unknown>[]).map(
-    normalizeEntity,
+  const companies = ((companyRows ?? []) as Record<string, unknown>[]).map(
+    normalizeCompany,
   );
   const totalRows = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-
-  const currentPageContracts = entities.reduce(
-    (sum, row) => sum + row.total_contracts,
-    0,
-  );
-  const currentPageValue = entities.reduce(
-    (sum, row) => sum + row.total_value,
-    0,
-  );
 
   const baseQuery: Record<string, string> = {
     nif: nifFilter,
@@ -345,7 +287,7 @@ export default async function EstatisticasPublicoPage({
           <BarChart2 className="w-6 h-6 text-green-500" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Estatisticas de Entidades Adjudicantes
+              Empresas e Adjudicatários
             </h1>
             <p className="text-gray-500 text-sm">
               {totalRows} entidades encontradas
@@ -368,12 +310,12 @@ export default async function EstatisticasPublicoPage({
         <div className="flex flex-col md:flex-row md:items-end gap-3">
           <div className="flex-1">
             <label className="block text-xs font-medium text-gray-500 mb-1 ml-1">
-              Entidade
+              Empresa
             </label>
             <input
               name="name"
               defaultValue={nameFilter}
-              placeholder="Nome da entidade"
+              placeholder="Nome da empresa"
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
             />
           </div>
@@ -421,7 +363,7 @@ export default async function EstatisticasPublicoPage({
           {hasFilters ? (
             <div>
               <Link
-                href="/estatisticas-publico"
+                href="/estatisticas-privado"
                 className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[38px]"
               >
                 Limpar
@@ -437,7 +379,7 @@ export default async function EstatisticasPublicoPage({
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
-                  Entidade
+                  Empresa
                 </th>
                 <th className="text-right px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">
                   Ação
@@ -446,8 +388,8 @@ export default async function EstatisticasPublicoPage({
             </thead>
 
             <tbody className="divide-y divide-gray-100">
-              {entities.map((row) => {
-                let contractsHref = `/mercado-publico?entity=${encodeURIComponent(
+              {companies.map((row) => {
+                let contractsHref = `/mercado-publico?winner=${encodeURIComponent(
                   row.nif,
                 )}`;
 
@@ -461,12 +403,12 @@ export default async function EstatisticasPublicoPage({
                     className="hover:bg-green-50/40 transition-colors"
                   >
                     <td className="px-4 py-3">
-                          <p className="text-gray-900 font-medium leading-tight">
+                      <p className="text-gray-900 font-medium leading-tight">
                         {row.name}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {row.nif}{" "}
-                        {row.entity_type ? `· ${row.entity_type}` : ""}
+                        {row.nif}
+                        {row.location ? ` · ${row.location}` : ""}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -481,13 +423,13 @@ export default async function EstatisticasPublicoPage({
                 );
               })}
 
-              {entities.length === 0 && (
+              {companies.length === 0 && (
                 <tr>
                   <td
                     colSpan={2}
                     className="px-4 py-16 text-center text-gray-400"
                   >
-                    Nenhuma entidade encontrada com estes filtros.
+                    Nenhuma empresa encontrada com estes filtros.
                   </td>
                 </tr>
               )}
@@ -542,15 +484,6 @@ export default async function EstatisticasPublicoPage({
         </div>
       )}
     </PageShell>
-  );
-}
-
-function SummaryCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-slate-50/60 p-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="text-sm font-semibold text-gray-900 mt-1">{value}</p>
-    </div>
   );
 }
 
