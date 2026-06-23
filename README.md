@@ -310,12 +310,19 @@ Invoke-RestMethod `
 ```powershell
 cd supabase/cron
 npm install
+npm install --prefix ../../scripts
 ```
 
 | Modo                   | Comando                 |
 | ---------------------- | ----------------------- |
 | Execução única (teste) | `npx tsx run.ts --once` |
+| Sync HubSpot isolado   | `npx tsx run.ts --hubspot-once` |
 | Daemon contínuo        | `npx tsx run.ts`        |
+
+O daemon sincroniza os clientes HubSpot diariamente as 07:00 e 21:00 em
+`Europe/Lisbon`. Novos clientes ficam inativos; clientes retirados da lista
+sao desativados e perdem apenas as regras CPV de origem HubSpot. O processo
+deve permanecer ativo no servidor atraves de um gestor de servicos.
 
 **Agendador de Tarefas do Windows (execução automática)**
 

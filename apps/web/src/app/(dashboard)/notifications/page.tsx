@@ -19,7 +19,7 @@ export default async function NotificationsPage({
   const supabase = await createClient();
   const { data: appUser } = await supabase
     .from("app_users")
-    .select("tenant_id")
+    .select("tenant_id, role")
     .maybeSingle();
 
   let query = supabase
@@ -51,6 +51,7 @@ export default async function NotificationsPage({
         statusFilter={statusFilter}
         page={page}
         totalPages={totalPages}
+        canManage={appUser?.role === "admin" || appUser?.role === "operator"}
       />
     </div>
   );

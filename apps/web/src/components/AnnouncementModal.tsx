@@ -91,6 +91,7 @@ export default function AnnouncementModal({
   announcementId,
   onClose,
   showSource = true,
+
 }: {
   announcementId: string;
   onClose: () => void;
@@ -320,7 +321,7 @@ export default function AnnouncementModal({
                 </div>
                 <hr className="border-gray-200 mb-4" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <InfoCard title="CPV principal">
+                  <InfoCard title="CPV(s)">
                     {cpvMain ? (
                       <CpvValue item={cpvMain} />
                     ) : announcement.cpv_main ? (

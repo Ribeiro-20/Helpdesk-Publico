@@ -85,7 +85,7 @@ export default function Header() {
                 onClick={() => setMenuOpen(false)}
               >
                 <Mail className="w-4.5 h-4.5" strokeWidth={1.6} />
-                <span>Contacte-nos</span>
+                <span>Contactos</span>
               </a>
 
               <Link

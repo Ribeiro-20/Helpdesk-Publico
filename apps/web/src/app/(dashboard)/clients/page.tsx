@@ -20,6 +20,7 @@ export default async function ClientsPage() {
     .select(
       "id, name, company_name, cpv_s_alerta_concursos_publicos, notification_regions, contact_name, phone, email, is_active, notify_mode, max_emails_per_day, created_at, client_cpv_rules (id, pattern, match_type, is_exclusion)",
     )
+    .eq("tenant_id", appUser?.tenant_id ?? "")
     .order("created_at", { ascending: false });
 
   const isAdmin =

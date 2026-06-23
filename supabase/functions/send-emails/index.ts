@@ -19,6 +19,10 @@ import {
   buildAnnouncementEmail,
   createEmailProvider,
 } from "../_shared/emailProvider.ts";
+import {
+  getLisbonDayRangeUtc,
+  getNextBusinessDay10am,
+} from "../_shared/scheduling.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -45,6 +49,28 @@ Deno.serve(async (req: Request) => {
     const body =
       req.method === "POST" ? await req.json().catch(() => ({})) : {};
 
+    const sendEnabled = (Deno.env.get("EMAIL_SEND_ENABLED") ?? "false")
+      .trim()
+      .toLowerCase() === "true";
+
+    if (!sendEnabled) {
+      return new Response(
+        JSON.stringify({
+          disabled: true,
+          claimed: 0,
+          processed: 0,
+          sent: 0,
+          failed: 0,
+          skipped: 0,
+          rate_limited: 0,
+          errors: 0,
+          message:
+            "Email sending is disabled. Set EMAIL_SEND_ENABLED=true to enable it.",
+        }),
+        { status: 200, headers: CORS },
+      );
+    }
+
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -68,11 +94,62 @@ Deno.serve(async (req: Request) => {
       tenantId = tenant.id;
     }
 
-    const batchSize = Number(body.batch_size ?? 50);
+    const requestedBatchSize = Number(body.batch_size ?? 50);
+    const batchSize = Number.isFinite(requestedBatchSize)
+      ? Math.min(Math.max(Math.floor(requestedBatchSize), 1), 50)
+      : 50;
     const appBaseUrl =
       Deno.env.get("APP_BASE_URL") ?? "http://localhost:3001";
 
-    // Fetch PENDING notifications with related data
+    const nowIso = new Date().toISOString();
+
+    // Fetch due notification ids first, then claim them atomically.
+    const { data: dueRows, error: dueErr } = await supabase
+      .from("notifications")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("status", "PENDING")
+      .lte("scheduled_for", nowIso)
+      .order("scheduled_for", { ascending: true })
+      .order("created_at", { ascending: true })
+      .limit(batchSize);
+
+    if (dueErr) throw dueErr;
+
+    const dueIds = (dueRows ?? []).map((row: { id: string }) => row.id);
+
+    const stats = {
+      claimed: 0,
+      processed: 0,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      rate_limited: 0,
+      errors: 0,
+    };
+
+    if (dueIds.length === 0) {
+      return new Response(JSON.stringify(stats), { status: 200, headers: CORS });
+    }
+
+    const { data: claimedRows, error: claimErr } = await supabase
+      .from("notifications")
+      .update({ status: "PROCESSING", error: null })
+      .eq("tenant_id", tenantId)
+      .eq("status", "PENDING")
+      .in("id", dueIds)
+      .select("id");
+
+    if (claimErr) throw claimErr;
+
+    const claimedIds = (claimedRows ?? []).map((row: { id: string }) => row.id);
+    stats.claimed = claimedIds.length;
+
+    if (claimedIds.length === 0) {
+      return new Response(JSON.stringify(stats), { status: 200, headers: CORS });
+    }
+
+    // Load claimed rows with related data for email generation.
     const { data: notifications, error: fetchErr } = await supabase
       .from("notifications")
       .select(`
@@ -88,11 +165,40 @@ Deno.serve(async (req: Request) => {
         announcements (*)
       `)
       .eq("tenant_id", tenantId)
-      .eq("status", "PENDING")
-      .order("created_at", { ascending: true })
-      .limit(batchSize);
+      .eq("status", "PROCESSING")
+      .in("id", claimedIds)
+      .order("created_at", { ascending: true });
 
     if (fetchErr) throw fetchErr;
+
+    const { startIso, endIso } = getLisbonDayRangeUtc(new Date());
+    const claimedClientIds = Array.from(new Set(
+      (notifications ?? [])
+        .map((notif) => String((notif as Record<string, unknown>).client_id ?? ""))
+        .filter(Boolean),
+    ));
+
+    const sentTodayByClient = new Map<string, number>();
+    if (claimedClientIds.length > 0) {
+      const { data: sentTodayRows, error: sentTodayErr } = await supabase
+        .from("notifications")
+        .select("client_id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "SENT")
+        .gte("sent_at", startIso)
+        .lt("sent_at", endIso)
+        .in("client_id", claimedClientIds);
+
+      if (sentTodayErr) {
+        console.warn("[send-emails] could not load today's sent counters:", sentTodayErr);
+      } else {
+        for (const row of sentTodayRows ?? []) {
+          const clientId = String((row as Record<string, unknown>).client_id ?? "");
+          if (!clientId) continue;
+          sentTodayByClient.set(clientId, (sentTodayByClient.get(clientId) ?? 0) + 1);
+        }
+      }
+    }
 
     const cpvCodes = Array.from(new Set(
       (notifications ?? [])
@@ -124,8 +230,6 @@ Deno.serve(async (req: Request) => {
 
     const emailProvider = createEmailProvider();
 
-    const stats = { processed: 0, sent: 0, failed: 0, errors: 0 };
-
     for (const notif of notifications ?? []) {
       stats.processed++;
 
@@ -135,6 +239,7 @@ Deno.serve(async (req: Request) => {
         is_active: boolean;
         max_emails_per_day: number;
       } | null;
+      const clientId = String((notif as Record<string, unknown>).client_id ?? "");
 
       const announcement = (notif as Record<string, unknown>)
         .announcements as {
@@ -153,7 +258,8 @@ Deno.serve(async (req: Request) => {
         await supabase
           .from("notifications")
           .update({ status: "FAILED", error: "Missing client or announcement" })
-          .eq("id", notif.id);
+          .eq("id", notif.id)
+          .eq("status", "PROCESSING");
         stats.failed++;
         continue;
       }
@@ -174,8 +280,39 @@ Deno.serve(async (req: Request) => {
         await supabase
           .from("notifications")
           .update({ status: "SKIPPED", error: "Client inactive" })
-          .eq("id", notif.id);
-        stats.processed--;
+          .eq("id", notif.id)
+          .eq("status", "PROCESSING");
+        stats.skipped++;
+        continue;
+      }
+
+      const maxEmailsPerDay = Number(client.max_emails_per_day ?? 0);
+      const sentToday = sentTodayByClient.get(clientId) ?? 0;
+      if (Number.isFinite(maxEmailsPerDay) && maxEmailsPerDay >= 0 && sentToday >= maxEmailsPerDay) {
+        const postponedTo = getNextBusinessDay10am(new Date());
+        await supabase
+          .from("notifications")
+          .update({
+            status: "PENDING",
+            scheduled_for: postponedTo,
+            error: `Rate limit reached (${maxEmailsPerDay}/day); postponed`,
+          })
+          .eq("id", notif.id)
+          .eq("status", "PROCESSING");
+
+        try {
+          await supabase.from("email_histories").insert({
+            tenant_id: tenantId,
+            notification_id: notif.id,
+            status: "RATE_LIMITED",
+            payload: { client, announcement, postponed_to: postponedTo },
+            error: `Rate limit reached (${maxEmailsPerDay}/day)`,
+          });
+        } catch (e) {
+          console.error("[send-emails] could not insert email_history for rate limit:", e);
+        }
+
+        stats.rate_limited++;
         continue;
       }
 
@@ -237,7 +374,8 @@ Deno.serve(async (req: Request) => {
           await supabase
             .from("notifications")
             .update({ status: "SENT", sent_at: new Date().toISOString() })
-            .eq("id", notif.id);
+            .eq("id", notif.id)
+            .eq("status", "PROCESSING");
 
           // record email history
           try {
@@ -255,11 +393,13 @@ Deno.serve(async (req: Request) => {
           }
 
           stats.sent++;
+          sentTodayByClient.set(clientId, sentToday + 1);
         } else {
           await supabase
             .from("notifications")
             .update({ status: "FAILED", error: result.error ?? "Unknown" })
-            .eq("id", notif.id);
+            .eq("id", notif.id)
+            .eq("status", "PROCESSING");
 
           try {
             await supabase.from("email_histories").insert({
@@ -283,7 +423,8 @@ Deno.serve(async (req: Request) => {
         await supabase
           .from("notifications")
           .update({ status: "FAILED", error: String(sendErr) })
-          .eq("id", notif.id);
+          .eq("id", notif.id)
+          .eq("status", "PROCESSING");
 
         try {
           await supabase.from("email_histories").insert({
