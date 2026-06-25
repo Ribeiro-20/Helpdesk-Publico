@@ -959,8 +959,10 @@ export function buildAnnouncementEmail(params: {
                 <td style="padding:7px 14px 7px 10px;">
                   <table cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td width="14" style="width:14px;padding-right:6px;vertical-align:middle;font-size:13px;line-height:13px;color:#7ec94a;">&#9679;</td>
-                      <td style="font-size:12px;color:#d4edaa;font-weight:600;white-space:nowrap;">Nova oportunidade identificada para si</td>
+                      <td style="padding-right:7px;vertical-align:middle;">
+                        <div style="width:8px;height:8px;background:#7ec94a;border-radius:50%;"></div>
+                      </td>
+                      <td style="font-size:12px;color:#d4edaa;font-weight:600;white-space:nowrap;">Uma nova oportunidade segundo a sua seleção de Alerta</td>
                     </tr>
                   </table>
                 </td>
@@ -1227,8 +1229,8 @@ export function buildAnnouncementEmailOutlook(params: {
                 <td style="padding:7px 14px;">
                   <table cellpadding="0" cellspacing="0" border="0">
                     <tr>
-                      <td width="14" style="width:14px;padding-right:6px;vertical-align:middle;font-size:13px;line-height:13px;color:#7ec94a;">&#9679;</td>
-                      <td style="font-size:12px;color:#d4edaa;font-weight:600;">Nova oportunidade identificada para si</td>
+                      <td bgcolor="#7ec94a" width="8" height="8" style="padding-right:7px;vertical-align:middle;"></td>
+                      <td style="font-size:12px;color:#d4edaa;font-weight:600;">Uma nova oportunidade segundo a sua seleção de Alerta</td>
                     </tr>
                   </table>
                 </td>
