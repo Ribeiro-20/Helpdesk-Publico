@@ -120,15 +120,13 @@ class MailpitEmailProvider implements EmailProvider {
       if (!res.ok) {
         const err = await res.text();
         console.warn(`[Mailpit] send failed (${res.status}): ${err} – falling back to console`);
-        // Fallback: just log
         console.log(`[Mailpit-fallback] To: ${msg.to} | Subject: ${msg.subject}`);
-        return { success: true }; // treat as success in dev
+        return { success: true };
       }
 
       console.log(`[Mailpit] Email sent to ${msg.to}: ${msg.subject}`);
       return { success: true };
     } catch (err) {
-      // Mailpit not reachable – log and continue
       console.warn(`[Mailpit] unreachable (${err}) – logging email`);
       console.log(`[EMAIL] To: ${msg.to} | Subject: ${msg.subject}`);
       return { success: true };
@@ -522,6 +520,201 @@ function formatEmailCpv(
   return code;
 }
 
+function renderAnnouncementEmailHtml(input: {
+  subject: string;
+  objectStr: string;
+  deadlineStr: string;
+  remainingInfo: { text: string; daysRemaining: number; color: "green" | "yellow" | "red" };
+  priceStr: string;
+  actTypeStr: string;
+  procedureTypeStr: string;
+  entityStr: string;
+  cpvStr: string;
+  originalUrl: string;
+  headerLogoUrl: string;
+}): string {
+  const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" } as const;
+  const deadlineColor = deadlineColorMap[input.remainingInfo.color];
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeEmailHtml(input.subject)}</title>
+</head>
+
+<body style="margin:0; padding:0; box-sizing:border-box; font-family:Arial, Helvetica, sans-serif; line-height:1.5; color:#333333; background-color:#f5f5f3;">
+
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f5f5f3;">
+    <tr>
+      <td align="center" style="padding:12px;">
+
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:700px; background-color:#ffffff; border:1px solid #e0e0dc;">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="padding:20px 18px; background-color:#2d4a1e;">
+              <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="52" valign="middle" style="width:52px; padding:0 12px 0 0;">
+                    <img src="${input.headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
+                  </td>
+                  <td valign="middle" style="color:#ffffff;">
+                    <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
+                    <div style="font-size:14px; line-height:18px; color:#d3e9a0; margin-top:4px;">Contratação Pública Eficiente</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- BADGE -->
+          <tr>
+            <td style="padding:18px 18px 4px 18px;">
+              <div style="background-color:#eef6e9; padding:11px 14px; font-size:14px; line-height:19px; color:#2d4a1e; font-weight:700;">
+                Nova oportunidade segundo a sua seleção de alerta
+              </div>
+            </td>
+          </tr>
+
+          <!-- OBJETO DO CONTRATO -->
+          <tr>
+            <td style="padding:18px 18px 8px 18px;">
+              <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:6px;">Objeto do contrato</div>
+              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(input.objectStr)}</div>
+            </td>
+          </tr>
+
+          <!-- METRICAS -->
+          <tr>
+            <td style="padding:14px 18px 4px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Prazo restante</div>
+                    <div style="font-size:15px; line-height:21px; color:${deadlineColor}; font-weight:700; word-break:break-word;">${escapeEmailHtml(input.remainingInfo.text)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Data limite</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(input.deadlineStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Preço base</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(input.priceStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Tipo de ato</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(input.actTypeStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Tipo de procedimento</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(input.procedureTypeStr)}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ENTIDADE -->
+          <tr>
+            <td style="padding:14px 18px 0 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
+                <tr>
+                  <td style="padding:13px 16px;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:5px;">Entidade(s) Adjudicante(s)</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:600; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(input.entityStr)}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- CPV -->
+          <tr>
+            <td style="padding:14px 18px 0 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
+                <tr>
+                  <td style="padding:13px 16px;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:5px;">CPV(s)</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:600; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(input.cpvStr)}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- BOTAO -->
+          <tr>
+            <td align="center" style="padding:22px 18px 12px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background-color:#2d4a1e;">
+                    <a href="${escapeEmailHtml(input.originalUrl)}" target="_blank" style="display:inline-block; padding:15px 18px; font-size:16px; line-height:19px; font-weight:700; color:#ffffff; text-decoration:none; background-color:#2d4a1e;">Ver todos os detalhes</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- BULLETS -->
+          <tr>
+            <td style="padding:4px 18px 22px 18px;">
+              <div style="font-size:14px; line-height:21px; color:#4b5563; margin-bottom:6px;">Consulte todos os detalhes do procedimento.</div>
+              <div style="font-size:14px; line-height:21px; color:#4b5563; margin-bottom:6px;">Aceda diretamente às peças do procedimento.</div>
+              <div style="font-size:14px; line-height:21px; color:#4b5563;">Verifique requisitos e prazo de participação.</div>
+            </td>
+          </tr>
+
+          <!-- SUPORTE -->
+          <tr>
+            <td style="padding:20px 18px; background-color:#f7f7f5; border-top:1px solid #e5e5e0;">
+              <div style="font-size:14px; line-height:19px; color:#6b7280; font-weight:700; margin-bottom:12px;">Precisa de suporte especializado?</div>
+              <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="padding:0 0 8px 0;">
+                    <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" style="display:block; padding:13px 16px; border:1px solid #d1d5db; background-color:#ffffff; font-size:14px; line-height:19px; font-weight:700; color:#374151; text-decoration:none; text-align:center;">Go / No-Go - Concursos Públicos</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:0;">
+                    <a href="https://www.helpdeskpublico.pt/" target="_blank" style="display:block; padding:13px 16px; border:1px solid #d1d5db; background-color:#ffffff; font-size:14px; line-height:19px; font-weight:700; color:#374151; text-decoration:none; text-align:center;">Plataforma de Suporte - Contratação Pública</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
+              <div style="font-size:14px; line-height:19px; color:#9ca3af; margin-bottom:8px;">
+                <a href="https://www.linkedin.com/company/helpdeskpublico/posts/?feedView=all" target="_blank" style="color:#6b7280; text-decoration:none; font-weight:700;">LinkedIn</a>
+                <span style="color:#d1d5db;"> | </span>
+                <a href="https://www.instagram.com/helpdeskpublico?igsh=ejhsajhpeWI3azY5" target="_blank" style="color:#6b7280; text-decoration:none; font-weight:700;">Instagram</a>
+              </div>
+              <div style="font-size:12px; line-height:17px; color:#9ca3af;">Helpdesk Público &middot; <a href="#" style="color:#6b7280; text-decoration:none;">aviso legal</a> &middot; <a href="#" style="color:#6b7280; text-decoration:none;">cancelar subscrição</a></div>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>`;
+}
+
 function buildAnnouncementEmailLegacy(params: {
   clientName: string;
   title: string;
@@ -723,9 +916,7 @@ export function buildAnnouncementEmail(params: {
   const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
   const originalUrl = detailUrl ?? `${appBaseUrl}/announcements`;
   const subject = `Nova oportunidade: ${objectStr.slice(0, 70)}`;
-  const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
-
-  
+  const headerLogoUrl = HEADER_LOGO_DATA_URL || "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
 
   const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" };
   const deadlineColor = deadlineColorMap[remainingInfo.color];
@@ -996,7 +1187,7 @@ export function buildAnnouncementEmailOutlook(params: {
   const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
   const originalUrl = detailUrl ?? `${appBaseUrl}/announcements`;
   const subject = `Nova oportunidade: ${objectStr.slice(0, 70)}`;
-  const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
+  const headerLogoUrl = HEADER_LOGO_DATA_URL || "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
   const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" };
   const deadlineColor = deadlineColorMap[remainingInfo.color];
 
