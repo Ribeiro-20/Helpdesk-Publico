@@ -599,28 +599,45 @@ function parsePrice(raw: string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function stripDiacritics(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function hasUsefulDrDetailText(text: string): boolean {
+  const normalized = stripDiacritics(text);
+  return (
+    /Vocabulario\s+Principal\s*:\s*\d{8}(?:-\d)?/i.test(normalized) ||
+    /Valor\s*do\s*preco\s*base\s*do\s*procedimento\s*:/i.test(normalized) ||
+    /Preco\s*base\s*s\/IVA\s*:\s*[0-9]/i.test(normalized) ||
+    /Preco\s*base\s*do\s*procedimento\s*:\s*[0-9]/i.test(normalized) ||
+    /Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:/i.test(normalized)
+  );
+}
+
 function extractNif(text: string): string | null {
   const m = text.match(/\b(?:NIPC|NIF)\s*:\s*(\d{9})\b/i);
   return m ? m[1] : null;
 }
 
 function extractCpvList(text: string): string[] {
+  const normalized = stripDiacritics(text);
   const matches = Array.from(
-    text.matchAll(/Vocabul[aá]rio\s+Principal\s*:\s*(\d{8}(?:-\d)?)/gi),
+    normalized.matchAll(/Vocabulario\s+Principal\s*:\s*(\d{8}(?:-\d)?)/gi),
   ).map((m) => m[1]);
 
   return [...new Set(matches.map((v) => normalizeSpace(v).toUpperCase()).filter(Boolean))];
 }
 
 function extractBasePrice(text: string): number | null {
+  const normalized = stripDiacritics(text);
   const patterns = [
-    /Valor\s*do\s*preço\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
-    /Preço\s*base\s*s\/IVA\s*:\s*([0-9\.\s,]+)/i,
-    /Preço\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
+    /Valor\s*do\s*preco\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
+    /Preco\s*base\s*s\/IVA\s*:\s*([0-9\.\s,]+)/i,
+    /Preco\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
   ];
 
   for (const p of patterns) {
-    const m = text.match(p);
+    const m = normalized.match(p);
     const price = parsePrice(m ? m[1] : null);
     if (price !== null) return price;
   }
@@ -634,21 +651,23 @@ function extractContractType(text: string): string | null {
 }
 
 function extractDeadlineDays(text: string): number | null {
-  const m = text.match(/(\d+)\s*dias\s*a\s*contar\s*do\s*termo\s*do\s*prazo\s*para\s*a\s*apresentação\s*das\s*propostas/i);
+  const normalized = stripDiacritics(text);
+  const m = normalized.match(/(\d+)\s*dias\s*a\s*contar\s*do\s*termo\s*do\s*prazo\s*para\s*a\s*apresentacao\s*das\s*propostas/i);
   if (!m) return null;
   const n = Number.parseInt(m[1], 10);
   return Number.isFinite(n) ? n : null;
 }
 
 function extractDeadlineAt(text: string): string | null {
-  const pt = text.match(/Prazo\s*para\s*apresentação\s*das\s*propostas\s*:\s*(\d{2})[\/-](\d{2})[\/-](\d{4})(?:\s+(\d{2}):(\d{2}))?/i);
+  const normalized = stripDiacritics(text);
+  const pt = normalized.match(/Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:\s*(\d{2})[\/-](\d{2})[\/-](\d{4})(?:\s+(\d{2}):(\d{2}))?/i);
   if (pt) {
     const hh = pt[4] ?? "00";
     const mm = pt[5] ?? "00";
     return `${pt[3]}-${pt[2]}-${pt[1]}T${hh}:${mm}:00Z`;
   }
 
-  const iso = text.match(/Prazo\s*para\s*apresentação\s*das\s*propostas\s*:\s*(\d{4}-\d{2}-\d{2})/i);
+  const iso = normalized.match(/Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:\s*(\d{4}-\d{2}-\d{2})/i);
   if (iso) return `${iso[1]}T00:00:00Z`;
 
   return null;
@@ -845,8 +864,9 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
         }
       }
 
-      if (!detalhe) {
-        // SLOW PATH: Playwright fallback
+      if (!detalhe || !hasUsefulDrDetailText(String(detalhe["Texto"] ?? ""))) {
+        // SLOW PATH: Playwright fallback. Some direct DR payloads have summary
+        // metadata but miss the rich "Texto" block with CPV, price and deadlines.
         const page = await context.newPage();
         const responsePromise = waitForJsonResponse(
           page,
@@ -856,6 +876,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
 
         await page.goto(item.detail_url, { waitUntil: "domcontentloaded", timeout: 120000 }).catch(() => undefined);
 
+        let fallbackDetalhe: DrDetalheConteudo | null = null;
         const res = await responsePromise;
 
         if (res) {
@@ -863,21 +884,29 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
             const j = (await res.json()) as Record<string, JsonValue>;
             const data = j.data as Record<string, JsonValue> | undefined;
             const det = data?.DetalheConteudo as DrDetalheConteudo | undefined;
-            if (det) detalhe = det;
+            if (det) fallbackDetalhe = det;
           } catch {
             // Ignore malformed payloads.
           }
         }
 
-        if (!detalhe) {
+        if (fallbackDetalhe && hasUsefulDrDetailText(String(fallbackDetalhe["Texto"] ?? ""))) {
+          detalhe = {
+            ...(detalhe ?? {}),
+            ...fallbackDetalhe,
+          };
+        } else {
           const visibleText = await page.locator("body").innerText().catch(() => "");
           if (visibleText.trim()) {
             detalhe = {
-              Id: item.base_announcement_id,
-              Numero: item.dr_announcement_no,
-              Sumario: item.description,
+              Id: fallbackDetalhe?.["Id"] ?? detalhe?.["Id"] ?? item.base_announcement_id,
+              Numero: fallbackDetalhe?.["Numero"] ?? detalhe?.["Numero"] ?? item.dr_announcement_no,
+              Sumario: fallbackDetalhe?.["Sumario"] ?? detalhe?.["Sumario"] ?? item.description,
               Texto: visibleText,
-              DataPublicacao: parsePublicationDate(visibleText),
+              DataPublicacao:
+                fallbackDetalhe?.["DataPublicacao"] ??
+                detalhe?.["DataPublicacao"] ??
+                parsePublicationDate(visibleText),
             };
           }
         }
@@ -896,10 +925,13 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
         item.entity_nif = extractNif(texto) ?? item.entity_nif;
         item.contract_type = extractContractType(texto) ?? item.contract_type;
         item.base_price = extractBasePrice(texto) ?? item.base_price;
-        item.cpv_list = extractCpvList(texto);
-        item.cpv_main = item.cpv_list[0] ?? null;
-        item.proposal_deadline_days = extractDeadlineDays(texto);
-        item.proposal_deadline_at = extractDeadlineAt(texto);
+        const extractedCpvs = extractCpvList(texto);
+        if (extractedCpvs.length > 0) {
+          item.cpv_list = extractedCpvs;
+          item.cpv_main = extractedCpvs[0] ?? item.cpv_main;
+        }
+        item.proposal_deadline_days = extractDeadlineDays(texto) ?? item.proposal_deadline_days;
+        item.proposal_deadline_at = extractDeadlineAt(texto) ?? item.proposal_deadline_at;
         item.raw_payload = {
           ...(item.raw_payload as Record<string, JsonValue>),
           detalhe_conteudo: detalhe as JsonValue,
