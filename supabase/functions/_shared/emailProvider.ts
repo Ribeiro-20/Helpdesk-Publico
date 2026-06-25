@@ -97,7 +97,7 @@ class MailpitEmailProvider implements EmailProvider {
 
   constructor() {
     this.apiUrl = Deno.env.get("MAILPIT_URL") ?? "http://127.0.0.1:55324";
-    this.from = Deno.env.get("EMAIL_FROM") ?? "noreply@localhost";
+    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@localhost";
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
@@ -144,7 +144,7 @@ class SendGridEmailProvider implements EmailProvider {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.from = Deno.env.get("EMAIL_FROM") ?? "noreply@example.com";
+    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@example.com";
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
@@ -188,7 +188,7 @@ class BrevoEmailProvider implements EmailProvider {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.fromEmail = Deno.env.get("EMAIL_FROM") ?? "noreply@example.com";
+    this.fromEmail = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@example.com";
     this.fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "BASE Monitor";
   }
 
@@ -573,7 +573,7 @@ function renderAnnouncementEmailHtml(input: {
           <tr>
             <td style="padding:18px 18px 4px 18px;">
               <div style="background-color:#eef6e9; padding:11px 14px; font-size:14px; line-height:19px; color:#2d4a1e; font-weight:700;">
-                Nova oportunidade segundo a sua seleção de alerta
+                Nova oportunidade identificada para si
               </div>
             </td>
           </tr>
@@ -713,6 +713,99 @@ function renderAnnouncementEmailHtml(input: {
 
 </body>
 </html>`;
+}
+
+function buildAnnouncementEmailUnified(params: {
+  clientName: string;
+  title: string;
+  entityName?: string | null;
+  publicationDate?: string | null;
+  cpvMain?: string | null;
+  basePrice?: number | null;
+  currency?: string;
+  detailUrl?: string | null;
+  appBaseUrl: string;
+  announcement?: Record<string, unknown>;
+}): { subject: string; html: string; text: string } {
+  const {
+    title,
+    entityName,
+    publicationDate,
+    cpvMain,
+    basePrice,
+    currency,
+    detailUrl,
+    appBaseUrl,
+    announcement,
+  } = params;
+
+  const rawPayload = isPlainObject(announcement?.raw_payload) ? announcement.raw_payload : null;
+  const payload = rawPayload && isPlainObject(rawPayload.payload)
+    ? rawPayload.payload
+    : rawPayload;
+
+  const priceStr = formatEmailPrice(basePrice, currency ?? "EUR");
+  const deadlineAt = announcement?.proposal_deadline_at;
+  const deadlineStr = deadlineAt
+    ? safeDate(deadlineAt, true)
+    : firstEmailText(
+      announcement?.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : null,
+      pickEmailPayloadValue(payload, ["prazoApresentacaoPropostas", "Prazo para apresentacao das propostas"]),
+    );
+  const remainingInfo = formatEmailDeadlineDays(deadlineAt);
+  const entityStr = firstEmailText(
+    entityName,
+    announcement?.entity_name,
+    pickEmailPayloadValue(payload, ["designacaoEntidade", "Designacao da entidade adjudicante"]),
+  );
+  const cpvStr = formatEmailCpv(announcement, cpvMain, payload);
+  const actTypeStr = firstEmailText(
+    announcement?.act_type,
+    pickEmailPayloadValue(payload, ["tipoAto", "Tipo de Ato"]),
+  );
+  const procedureTypeStr = firstEmailText(
+    announcement?.procedure_type,
+    pickEmailPayloadValue(payload, ["tipoProcedimento", "modeloAnuncio", "Tipo de Procedimento"]),
+  );
+  const objectStr = firstEmailText(
+    title,
+    announcement?.description,
+    pickEmailPayloadValue(payload, ["descricaoAnuncio", "descricaoContrato", "Descricao", "Sumario"]),
+  ).replace(/\.{3}$/, "");
+  const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
+  const opportunitiesUrl = "https://mercado.helpdeskpublico.pt/oportunidades";
+  const originalUrl = announcementNoStr !== "-"
+    ? `${opportunitiesUrl}?announcement_number=${encodeURIComponent(announcementNoStr)}`
+    : opportunitiesUrl;
+  const subject = `Nova oportunidade: ${objectStr.slice(0, 70)}`;
+  const headerLogoUrl = HEADER_LOGO_DATA_URL || "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
+
+  const html = renderAnnouncementEmailHtml({
+    subject,
+    objectStr,
+    deadlineStr,
+    remainingInfo,
+    priceStr,
+    actTypeStr,
+    procedureTypeStr,
+    entityStr,
+    cpvStr,
+    originalUrl,
+    headerLogoUrl,
+  });
+
+  const text = `Nova oportunidade
+=================
+Objeto: ${objectStr}
+Entidade (s) Adjudicante (s): ${entityStr}
+CPV: ${cpvStr}
+Valor: ${priceStr}
+Prazo: ${deadlineStr}
+Dias restantes: ${remainingInfo.text}
+Referência: ${announcementNoStr}
+Link: ${originalUrl}`;
+
+  return { subject, html, text };
 }
 
 function buildAnnouncementEmailLegacy(params: {
@@ -865,6 +958,10 @@ export function buildAnnouncementEmail(params: {
   appBaseUrl: string;
   announcement?: Record<string, unknown>;
 }): { subject: string; html: string; text: string } {
+  return buildAnnouncementEmailUnified(params);
+
+  /*
+
   const {
     clientName,
     title,
@@ -1124,6 +1221,8 @@ Link: ${originalUrl}`;
   return { subject, html, text };
 }
 
+*/
+}
 // Outlook-specific version with table-based layout (border-radius and flexbox incompatible)
 export function buildAnnouncementEmailOutlook(params: {
   clientName: string;
@@ -1137,6 +1236,10 @@ export function buildAnnouncementEmailOutlook(params: {
   appBaseUrl: string;
   announcement?: Record<string, unknown>;
 }): { subject: string; html: string; text: string } {
+  return buildAnnouncementEmailUnified(params);
+
+  /*
+
   const {
     clientName,
     title,
@@ -1407,4 +1510,5 @@ Referência: ${announcementNoStr}
 Link: ${originalUrl}`;
 
   return { subject, html, text };
+  */
 }
