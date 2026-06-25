@@ -4,11 +4,12 @@ import { getSupabaseAdminEnv, getSupabasePublicEnv } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = [
   "/",
-  "/contratos-publicos",
-  "/entidades-adjudicantes",
-  "/entidades-adjudicatarios",
-  "/oportunidades",
-  "/login-mi",
+  "/mp/contratos-publicos",
+  "/mp/entidades-adjudicantes",
+  "/mp/empresas-adjudicatarios",
+  "/mp/oportunidades-mercado",
+  "/mp/login-mi",
+  "/mp/login",
   "/outros",
   "/api/contracts",
   "/api/mi-login",
@@ -103,13 +104,13 @@ export async function middleware(request: NextRequest) {
     const miSession = request.cookies.get("mi-session")?.value;
     if (!miSession) {
       const url = request.nextUrl.clone();
-      url.pathname = "/login-mi";
+      url.pathname = "/mp/login-mi";
       return NextResponse.redirect(url);
     }
     return NextResponse.next({ request });
   }
 
-  const isLoginPage = pathname.startsWith("/login");
+  const isLoginPage = pathname.startsWith("/mp/login");
   const isAuthCallback = pathname.startsWith("/auth");
 
   const { supabase, getResponse } = createMiddlewareSupabaseClient(request);
@@ -126,7 +127,7 @@ export async function middleware(request: NextRequest) {
 
   if (!user && !isLoginPage && !isAuthCallback) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/mp/login";
     return NextResponse.redirect(url);
   }
 

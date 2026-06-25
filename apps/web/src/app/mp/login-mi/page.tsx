@@ -59,14 +59,14 @@ export default function LoginMiPage() {
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href="/login"
+                  href="/mp/login"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                 >
                   Entrar no serviço
                   &gt;
                 </Link>
                 <Link
-                  href="/mercado-publico"
+                  href="/mp/contratos-publicos"
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                 >
                   Explorar mercado público

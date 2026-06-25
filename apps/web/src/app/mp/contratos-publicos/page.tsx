@@ -840,8 +840,8 @@ export default async function MercadoPublicoPage({
   if (sortField) qsParams.set("sort", sortField);
   if (PAGE_SIZE !== 25) qsParams.set("limit", PAGE_SIZE.toString());
   const buildQsBase = qsParams.toString()
-    ? `/mercado-publico?${qsParams.toString()}`
-    : "/mercado-publico";
+    ? `/mp/contratos-publicos?${qsParams.toString()}`
+    : "/mp/contratos-publicos";
 
   return (
     <div
@@ -1028,7 +1028,7 @@ export default async function MercadoPublicoPage({
             </button>
             {hasFilters && (
               <Link
-                href="/contratos-publicos"
+                href="/mp/contratos-publicos"
                 className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar

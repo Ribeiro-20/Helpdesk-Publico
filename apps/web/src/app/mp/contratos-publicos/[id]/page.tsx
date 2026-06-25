@@ -226,7 +226,7 @@ export default async function PublicContractDetailPage({
         {/* Back + title */}
         <div className="flex items-start gap-4">
           <Link
-            href="/mercado-publico"
+            href="/mp/contratos-publicos"
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mt-1 shrink-0 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

@@ -76,35 +76,35 @@ export default async function HomePage() {
       icon: FileText,
       title: "Contratos Públicos",
       description: "Consulte os dados e as informações dos contratos públicos.",
-      href: "/contratos-publicos",
+      href: "/mp/contratos-publicos",
     },
     {
       icon: Landmark,
       title: "Adjudicantes",
       description:
         "Consulte as informações das Entidades Adjudicantes ativas no mercado público.",
-      href: "/entidades-adjudicantes",
+      href: "/mp/entidades-adjudicantes",
     },
     {
       icon: Building2,
       title: "Adjudicatários",
       description:
         "Consulte as informações dos Adjudicatários ativos no mercado público.",
-      href: "/entidades-adjudicatarios",
+      href: "/mp/empresas-adjudicatarios",
     },
     {
       icon: FileSearch,
       title: "Oportunidades no Mercado Público",
       description:
         "Consulte todas as oportunidades de negócio ativas no mercado público.",
-      href: "/oportunidades",
+      href: "/mp/oportunidades-mercado",
     },
     {
       icon: ScanSearch,
       title: "Market Intelligence",
       description:
         "Consulte todos os contratos públicos a terminar ou em fase de renovação (área reservada a subscritores do serviço).",
-      href: "/login-mi/mi",
+      href: "/mp/login-mi/mi",
     },
   ];
 

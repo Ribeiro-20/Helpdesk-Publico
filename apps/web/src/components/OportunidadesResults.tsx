@@ -95,7 +95,7 @@ function buildHref(page: number, params: SearchParams): string {
   if (params.from_date) qp.set("from_date", params.from_date);
   if (params.to_date) qp.set("to_date", params.to_date);
   const query = qp.toString();
-  return `/oportunidades${query ? `?${query}` : ""}`;
+  return `/mp/oportunidades-mercado${query ? `?${query}` : ""}`;
 }
 
 export default function OportunidadesResults({

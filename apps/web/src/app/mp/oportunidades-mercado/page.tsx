@@ -8,7 +8,7 @@ import InfoPopover from "@/components/InfoPopover";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
-import CurrencyValueField from "../../components/CurrencyValueField";
+import CurrencyValueField from "@/components/CurrencyValueField";
 import { FileText, Filter, House } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -589,7 +589,7 @@ export default async function OportunidadesPage({
               <div className="flex justify-center md:justify-start">
                 {hasFilters && (
                   <Link
-                    href="/oportunidades"
+                    href="/mp/oportunidades-mercado"
                     className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-500 transition-all hover:bg-gray-50"
                   >
                     Limpar
