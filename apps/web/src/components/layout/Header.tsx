@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ChevronDown, Mail, UserCircle2 } from "lucide-react";
+import { ChevronDown, Mail, UserCircle2, Home } from "lucide-react";
 
 const NAV_BG = "#1a1b1f";
 
@@ -57,8 +57,19 @@ export default function Header() {
 
         <div className="flex-1" />
 
-        {/* ── Right menu ── */}
-        <div className="relative shrink-0" ref={menuRef}>
+        {/* ── Right menu & Actions ── */}
+        <div className="relative shrink-0 flex items-center gap-2" ref={menuRef}>
+          
+          {/* Botão "Início" sempre fora do menu - Atualizado com o link externo */}
+          <a
+            href="https://www.helpdeskpublico.pt"
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 active:scale-95"
+          >
+            <Home className="w-4 h-4" strokeWidth={2} />
+            <span>Início</span>
+          </a>
+
+          {/* Botão de Menu Dropdown */}
           <button
             type="button"
             aria-haspopup="menu"
@@ -76,7 +87,7 @@ export default function Header() {
           {menuOpen && (
             <div
               role="menu"
-              className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-60 rounded-xl border border-white/10 bg-[#202329] p-1.5 shadow-xl"
+              className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-60 rounded-xl border border-white/10 bg-[#202329] p-1.5 shadow-xl top-full"
             >
               <a
                 href="https://www.helpdeskpublico.pt/contactos"
