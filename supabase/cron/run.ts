@@ -14,7 +14,7 @@
  * Schedule:
  *   - HubSpot client sync                               : daily at 07:00 and 21:00
  *   - ingest-base                                       : weekdays at 13:30 and 23:30
- *   - send-emails                                       : daily at 10:00 (Europe/Lisbon)
+ *   - send-emails                                       : daily at 08:30 (Europe/Lisbon)
  */
 
 import { config as loadDotenv } from "dotenv";
@@ -445,6 +445,7 @@ async function runIngestPipeline(): Promise<void> {
 }
 
 async function runSendEmailsJob(): Promise<void> {
+  const startedAt = new Date().toISOString();
   const batchSizeRaw = Number(process.env.SEND_EMAILS_BATCH_SIZE ?? "50");
   const batchSize = Number.isFinite(batchSizeRaw) && batchSizeRaw > 0
     ? Math.floor(batchSizeRaw)
@@ -457,11 +458,23 @@ async function runSendEmailsJob(): Promise<void> {
   let totalFailed = 0;
   let totalSkipped = 0;
   let totalRateLimited = 0;
+  let status: "success" | "error" = "success";
+  let errorMessage: string | null = null;
+  const batches: Array<Record<string, unknown>> = [];
 
   while (true) {
     const res = await callFunction("send-emails", { batch_size: batchSize });
     if (!res.ok) {
       console.error("[cron] send-emails job failed:", res.data);
+      status = "error";
+      errorMessage = typeof res.data === "string"
+        ? res.data
+        : JSON.stringify(res.data ?? { status: res.status });
+      batches.push({
+        ok: false,
+        status: res.status,
+        data: res.data,
+      });
       break;
     }
 
@@ -477,6 +490,15 @@ async function runSendEmailsJob(): Promise<void> {
     totalFailed += Number.isFinite(failed) ? failed : 0;
     totalSkipped += Number.isFinite(skipped) ? skipped : 0;
     totalRateLimited += Number.isFinite(rateLimited) ? rateLimited : 0;
+    batches.push({
+      ok: true,
+      processed,
+      sent,
+      failed,
+      skipped,
+      rate_limited: rateLimited,
+      payload,
+    });
 
     if (!Number.isFinite(processed) || processed < batchSize || processed === 0) {
       break;
@@ -486,6 +508,52 @@ async function runSendEmailsJob(): Promise<void> {
   console.log(
     `[cron] send-emails job done: processed=${totalProcessed} sent=${totalSent} failed=${totalFailed} skipped=${totalSkipped} rate_limited=${totalRateLimited}`,
   );
+
+  try {
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { data: tenantRow, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (tenantError) throw tenantError;
+
+    const summary = {
+      batch_size: batchSize,
+      processed: totalProcessed,
+      sent: totalSent,
+      failed: totalFailed,
+      skipped: totalSkipped,
+      rate_limited: totalRateLimited,
+      batches: batches.length,
+      error: errorMessage,
+    };
+
+    const { error } = await supabaseAdmin.from("ingestion_history").insert({
+      tenant_id: tenantRow?.id ?? null,
+      user_id: null,
+      title: "Envio automático de emails",
+      category: "processing",
+      status,
+      range: { started_at: startedAt, finished_at: new Date().toISOString() },
+      steps: [{
+        fn: "send-emails",
+        label: "Emails pendentes",
+        category: "processing",
+        status,
+        summary,
+        payload: { ...summary, batches },
+      }],
+      note: errorMessage,
+    });
+
+    if (error) throw error;
+    console.log("[cron] send-emails history recorded");
+  } catch (error) {
+    console.error("[cron] send-emails history insert failed:", error);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -534,7 +602,7 @@ if (isHubspotOnce) {
     runIngestPipeline().catch(console.error);
   }, { timezone: "Europe/Lisbon" });
 
-  cron.schedule("0 10 * * *", () => {
+  cron.schedule("30 8 * * *", () => {
     console.log(`\n[cron] ${new Date().toISOString()} – send scheduled emails`);
     runSendEmailsJob().catch(console.error);
   }, { timezone: "Europe/Lisbon" });
@@ -546,6 +614,6 @@ if (isHubspotOnce) {
       : "  hubspot-client-sync                                -> disabled",
   );
   console.log("  ingest-base                                       → weekdays at 13:30 and 23:30");
-  console.log("  send-emails                                       → daily at 10:00 Europe/Lisbon");
+  console.log("  send-emails                                       → daily at 08:30 Europe/Lisbon");
   console.log("[cron] Press Ctrl+C to stop.\n");
 }
