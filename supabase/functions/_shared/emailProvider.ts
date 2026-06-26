@@ -802,7 +802,7 @@ export function buildAnnouncementEmail(params: {
                 </tr>
                 <tr>
                   <td style="padding:12px 16px;">
-                    <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:5px;">CPV(s)</div>
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; letter-spacing:0.3px; margin-bottom:5px;">CPV(s)</div>
                     <div style="font-size:15px; line-height:21px; color:#111827; font-weight:600; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(cpvStr)}</div>
                   </td>
                 </tr>
