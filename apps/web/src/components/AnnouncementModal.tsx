@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Calendar, Loader2, Tag, X } from "lucide-react";
+import { Calendar, Info, Loader2, Tag, X } from "lucide-react";
 import { STATUS_BADGE, STATUS_LABEL, cleanAnnouncementText, effectiveStatus, extractProcedurePiecesUrl } from "@/lib/announcements";
 
 interface AnnouncementVersion {
@@ -85,6 +85,30 @@ function fmtDate(value: string | null): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleDateString("pt-PT");
+}
+
+function MissingValue({ label = "Dados em atualizacao" }: { label?: string }) {
+  return (
+    <span className="group relative inline-flex w-fit items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-sm font-medium text-gray-500">
+      <span>{label}</span>
+      <span
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-gray-100 text-gray-500"
+        aria-label="Dados ainda nao disponiveis"
+      >
+        <Info className="h-3 w-3" />
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-[calc(100%+8px)] z-50 w-56 rounded-xl border border-gray-200 bg-white p-3 text-left shadow-xl ring-1 ring-black/5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 whitespace-normal"
+      >
+        <span className="absolute left-4 -top-1 h-2 w-2 rotate-45 border-l border-t border-gray-200 bg-white" />
+        <span className="block text-[10px] font-bold uppercase text-gray-400">INFO</span>
+        <span className="mt-1 block text-xs font-normal leading-5 text-gray-700 whitespace-normal break-words">
+          Dados em atualização, consulte novamente mais tarde.
+        </span>
+      </span>
+    </span>
+  );
 }
 
 export default function AnnouncementModal({
@@ -263,21 +287,33 @@ export default function AnnouncementModal({
                     Preço Base
                   </p>
                   <p className="text-xl font-bold text-green-500">
-                    {fmtEur(announcement.base_price, announcement.currency)}
+                    {announcement.base_price == null ? (
+                      <MissingValue />
+                    ) : (
+                      fmtEur(announcement.base_price, announcement.currency)
+                    )}
                   </p>
                 </div>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     DATA DE PUBLICAÇÃO
                   </p>
-                  <p className="text-xl font-medium text-gray-700">{fmtDate(announcement.publication_date)}</p>
+                  <p className="text-xl font-medium text-gray-700">
+                    {announcement.publication_date ? fmtDate(announcement.publication_date) : <MissingValue />}
+                  </p>
                 </div>
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     DATA LIMITE PROPOSTAS
                   </p>
                   <p className="text-xl font-medium text-gray-700">
-                    {announcement.proposal_deadline_at ? fmtDate(announcement.proposal_deadline_at) : (announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-")}
+                    {announcement.proposal_deadline_at ? (
+                      fmtDate(announcement.proposal_deadline_at)
+                    ) : announcement.proposal_deadline_days != null ? (
+                      `${announcement.proposal_deadline_days} dias`
+                    ) : (
+                      <MissingValue />
+                    )}
                   </p>
                 </div>
               </div>
@@ -297,7 +333,7 @@ export default function AnnouncementModal({
                       PRAZO DE EXECUÇÃO
                     </p>
                     <p className="text-sm text-gray-800">
-                      {announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : "-"}
+                      {announcement.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : <MissingValue />}
                     </p>
                   </div>
 
@@ -325,7 +361,9 @@ export default function AnnouncementModal({
                         <span className="whitespace-normal break-words">{announcement.cpv_main}</span>
                       </span>
                     ) : (
-                      <p className="text-sm text-gray-400">Sem CPV identificado no anúncio.</p>
+                      <p className="text-sm">
+                        <MissingValue label="CPV em atualizacao" />
+                      </p>
                     )}
                   </InfoCard>
                   <InfoCard title="Referências">
