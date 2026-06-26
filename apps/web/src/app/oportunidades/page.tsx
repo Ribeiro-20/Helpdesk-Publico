@@ -507,7 +507,7 @@ export default async function OportunidadesPage({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-stretch">
-              <div className="h-full rounded-xl border-2 border-gray-300 bg-white p-3">
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <div className="mb-2">
                   <label className="block text-xs text-gray-400">Ordenar valor por</label>
                 </div>
@@ -543,7 +543,7 @@ export default async function OportunidadesPage({
                 <MercadoDateDropdown name="to_date" defaultValue={toDate} />
               </div>
 
-              <div>
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <MercadoSingleSelect
                   name="limit"
                   label="Apresentar"
@@ -556,7 +556,7 @@ export default async function OportunidadesPage({
                 />
               </div>
 
-              <div>
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <MercadoSingleSelect
                   name="sort"
                   label="Ordenar Oportunidades por"
