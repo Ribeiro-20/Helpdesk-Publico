@@ -135,7 +135,7 @@ export default function LoginPage() {
             </button>
 
             <Link
-              href="/"
+              href="/mp"
               className="w-full inline-flex items-center justify-center border border-surface-200 bg-white hover:bg-surface-50 text-gray-700 font-medium py-2.5 rounded-xl transition-all text-sm"
             >
               Voltar à página principal

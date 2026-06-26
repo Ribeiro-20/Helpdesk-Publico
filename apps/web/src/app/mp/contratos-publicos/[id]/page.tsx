@@ -197,7 +197,7 @@ export default async function PublicContractDetailPage({
         className="flex items-center justify-between px-10 py-3 sticky top-0 z-50"
         style={{ background: NAV_BG }}
       >
-        <Link href="/" className="shrink-0">
+        <Link href="/mp" className="shrink-0">
           <Image
             src="/logo-white.webp"
             alt="Helpdesk Público"

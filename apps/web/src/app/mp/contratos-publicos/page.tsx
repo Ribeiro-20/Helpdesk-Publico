@@ -867,7 +867,7 @@ export default async function MercadoPublicoPage({
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <Link
-              href="/"
+              href="/mp"
               className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
             >
               <House className="h-4 w-4" />
