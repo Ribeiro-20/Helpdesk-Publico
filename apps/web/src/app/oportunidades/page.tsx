@@ -307,15 +307,9 @@ export default async function OportunidadesPage({
         { count: "exact" },
       )
       .eq("tenant_id", tenantId);
-
-      // Keep expired opportunities visible for 30 days after their proposal deadline.
-      const expiryCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const expiryCutoffDate = `${expiryCutoff.getUTCFullYear()}-${String(
-        expiryCutoff.getUTCMonth() + 1,
-      ).padStart(2, "0")}-${String(expiryCutoff.getUTCDate()).padStart(2, "0")}`;
-
-      // Include rows where status == 'active' OR (status == 'expired' AND proposal_deadline_at >= cutoff).
-      query = query.or(`status.eq.active,and(status.eq.expired,proposal_deadline_at.gte.${expiryCutoffDate})`);
+      // Mostrar apenas anúncios ativos (exclui expirados).
+      const todayIso = new Date().toISOString().slice(0, 10);
+      query = query.eq("status", "active").or(`proposal_deadline_at.is.null,proposal_deadline_at.gte.${todayIso}`);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) query = query.ilike("entity_name", `%${entity}%`);
@@ -417,7 +411,7 @@ export default async function OportunidadesPage({
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Oportunidades de Contratação Pública</h1>
                 <p className="text-gray-500 text-sm mt-0.5">
-                  {totalCount.toLocaleString("pt-PT")} anúncios encontrados
+                  {totalCount.toLocaleString("pt-PT")} anúncios ativos encontrados
                 </p>
               </div>
             </div>
