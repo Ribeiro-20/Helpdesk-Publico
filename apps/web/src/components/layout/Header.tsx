@@ -100,7 +100,7 @@ export default function Header() {
               </a>
 
               <Link
-                href="/login"
+                href="/mp/login"
                 role="menuitem"
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 hover:text-white transition-colors"
                 onClick={() => setMenuOpen(false)}
