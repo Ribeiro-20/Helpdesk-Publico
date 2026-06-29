@@ -24,7 +24,7 @@ export default function PublicFooter() {
             </Link>
             
             {/* Ícones com recuo pl-6 para alinhar exatamente sob o escudo/bandeira */}
-            <div className="flex items-center gap-4 pl-6 text-gray-500">
+            <div className="flex items-center gap-4 pl-0 sm:pl-6 text-gray-500">
               <Link href="https://linkedin.com/company/helpdeskpublico/" className="hover:text-white transition-colors" aria-label="LinkedIn">
                 <Linkedin className="w-5 h-5" />
               </Link>

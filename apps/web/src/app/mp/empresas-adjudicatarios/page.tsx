@@ -282,7 +282,7 @@ export default async function EstatisticasPrivadoPage({
 
   return (
     <PageShell>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <BarChart2 className="w-6 h-6 text-green-500" />
           <div>
@@ -490,7 +490,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
       <Header />
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {children}
       </main>
       <PublicFooter />

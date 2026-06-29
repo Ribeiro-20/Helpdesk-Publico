@@ -25,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt">
-      <body>
+      <body className="overflow-x-hidden">
         {/* Google Tag (gtag.js) */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
