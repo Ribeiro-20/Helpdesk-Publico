@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/layout/PageHeader";
 import SingleDatePicker from "@/components/SingleDatePicker";
 import Link from "next/link";
@@ -110,10 +110,26 @@ export default async function ContractsPage({
   const sortField = params.sort ?? "signing_date";
 
   const supabase = await createClient();
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("tenant_id")
-    .maybeSingle();
+  const adminSupabase = await createAdminClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let tenantId = "00000000-0000-0000-0000-000000000000";
+
+  if (user?.id) {
+    const { data: appUser } = await adminSupabase
+      .from("app_users")
+      .select("tenant_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (appUser?.tenant_id) tenantId = appUser.tenant_id as string;
+  }
+
+  if (tenantId === "00000000-0000-0000-0000-000000000000") {
+    const { data: fallback } = await adminSupabase
+      .from("tenants").select("id").limit(1).maybeSingle();
+    if (fallback?.id) tenantId = fallback.id as string;
+  }
 
   const from = (page - 1) * PAGE_SIZE;
 
@@ -146,7 +162,7 @@ export default async function ContractsPage({
   let totalCount = 0;
 
   const { data: rpcResult } = await supabase.rpc("search_contracts", {
-    p_tenant_id: appUser?.tenant_id ?? "00000000-0000-0000-0000-000000000000",
+    p_tenant_id: tenantId,
     p_entity_nif: effectiveEntityNif,
     p_winner_nif: effectiveWinnerNif,
     p_cpv: cpvFilter || null,
