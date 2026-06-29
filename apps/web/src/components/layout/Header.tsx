@@ -66,7 +66,7 @@ export default function Header() {
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 active:scale-95"
           >
             <Home className="w-4 h-4" strokeWidth={2} />
-            <span className="hidden sm:inline">Início</span>
+            <span>Início</span>
           </a>
 
           {/* Botão de Menu Dropdown */}
