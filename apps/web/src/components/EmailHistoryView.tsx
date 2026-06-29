@@ -23,7 +23,7 @@ type Notification = {
   } | null;
 };
 
-const PRODUCTION_OPPORTUNITIES_URL = "https://mercado.helpdeskpublico.pt/oportunidades";
+const PRODUCTION_OPPORTUNITIES_URL = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
 
 const STATUS_OPTIONS = ["", "PENDING", "SENT", "FAILED", "SKIPPED", "RATE_LIMITED"];
 

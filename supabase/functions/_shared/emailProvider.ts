@@ -31,32 +31,6 @@ export interface EmailProvider {
   send(message: EmailMessage): Promise<SendResult>;
 }
 
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-  return btoa(binary);
-}
-
-async function loadHeaderLogoDataUrl(): Promise<string> {
-  try {
-    const fileUrl = new URL("../../../bandeira Fundo Escuro-01.png", import.meta.url);
-    const denoWithFs = Deno as typeof Deno & {
-      readFile(path: string | URL): Promise<Uint8Array>;
-    };
-    const bytes = await denoWithFs.readFile(fileUrl);
-    return `data:image/png;base64,${bytesToBase64(bytes)}`;
-  } catch (error) {
-    console.warn("[email] could not load local header logo:", error);
-    return "";
-  }
-}
-
-const HEADER_LOGO_DATA_URL = await loadHeaderLogoDataUrl();
-
 // ---------------------------------------------------------------------------
 // Dev / console provider
 // ---------------------------------------------------------------------------
@@ -86,7 +60,7 @@ class MailpitEmailProvider implements EmailProvider {
 
   constructor() {
     this.apiUrl = Deno.env.get("MAILPIT_URL") ?? "http://127.0.0.1:55324";
-    this.from = Deno.env.get("EMAIL_FROM") ?? "noreply@localhost";
+    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@localhost";
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
@@ -135,7 +109,7 @@ class SendGridEmailProvider implements EmailProvider {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.from = Deno.env.get("EMAIL_FROM") ?? "noreply@example.com";
+    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@example.com";
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
@@ -179,7 +153,7 @@ class BrevoEmailProvider implements EmailProvider {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.fromEmail = Deno.env.get("EMAIL_FROM") ?? "noreply@example.com";
+    this.fromEmail = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@example.com";
     this.fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "BASE Monitor";
   }
 
@@ -433,12 +407,67 @@ function firstEmailText(...values: unknown[]): string {
   return "-";
 }
 
+function normalizeEmailPayloadKey(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function findEmailPayloadValueRecursive(
+  node: unknown,
+  wantedKeys: Set<string>,
+  depth = 0,
+): unknown {
+  if (!node || depth > 5) return null;
+
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = findEmailPayloadValueRecursive(item, wantedKeys, depth + 1);
+      if (found != null && found !== "") return found;
+    }
+    return null;
+  }
+
+  if (!isPlainObject(node)) return null;
+
+  for (const [rawKey, value] of Object.entries(node)) {
+    const key = normalizeEmailPayloadKey(rawKey);
+    if (wantedKeys.has(key) && value != null && value !== "") return value;
+  }
+
+  for (const value of Object.values(node)) {
+    const found = findEmailPayloadValueRecursive(value, wantedKeys, depth + 1);
+    if (found != null && found !== "") return found;
+  }
+
+  return null;
+}
+
 function pickEmailPayloadValue(payload: Record<string, unknown> | null, keys: string[]): unknown {
   if (!payload) return null;
   for (const key of keys) {
     const value = payload[key];
     if (value != null && value !== "") return value;
   }
+
+  const normalizedKeys = new Set(keys.map(normalizeEmailPayloadKey));
+  return findEmailPayloadValueRecursive(payload, normalizedKeys);
+}
+
+function extractEmailLabeledValue(text: unknown, labels: string[]): string | null {
+  if (typeof text !== "string" || !text.trim()) return null;
+
+  for (const label of labels) {
+    const re = new RegExp(`${label}\\s*:?\\s*([^\\r\\n]+)`, "i");
+    const match = text.match(re);
+    if (!match) continue;
+
+    const value = match[1]?.replace(/^Principal\s*:\s*/i, "").trim();
+    if (value) return value;
+  }
+
   return null;
 }
 
@@ -511,6 +540,22 @@ function formatEmailCpv(
   return code;
 }
 
+function toTitleCasePt(value: string): string {
+  const minor = new Set([
+    "de", "da", "do", "dos", "das", "e", "a", "o", "as", "os",
+    "para", "com", "em", "no", "na", "nos", "nas", "por", "ao", "aos", "à", "às",
+  ]);
+  return value
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) =>
+      index > 0 && minor.has(word)
+        ? word
+        : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(" ");
+}
+
 function buildAnnouncementEmailLegacy(params: {
   clientName: string;
   title: string;
@@ -523,130 +568,7 @@ function buildAnnouncementEmailLegacy(params: {
   appBaseUrl: string;
   announcement?: Record<string, unknown>;
 }): { subject: string; html: string; text: string } {
-  const {
-    clientName,
-    title,
-    entityName,
-    publicationDate,
-    cpvMain,
-    basePrice,
-    currency,
-    detailUrl,
-    appBaseUrl,
-    announcement,
-  } = params;
-
-  const priceStr = basePrice
-    ? `${basePrice.toLocaleString("pt-PT")} ${currency}`
-    : "Não especificado";
-
-  const subject = `Novo anúncio BASE: ${title.slice(0, 60)}`;
-  const safeDescription = String((announcement && (announcement.description ?? announcement.descricao ?? announcement.sumario)) ?? "").trim();
-  const descriptionShort = safeDescription
-    ? (safeDescription.length > 1000 ? `${safeDescription.slice(0, 1000)}...` : safeDescription)
-    : null;
-  const sections = announcement ? buildAnnouncementSections(announcement) : [];
-
-  const html = `
-<!DOCTYPE html>
-<html lang="pt">
-<head><meta charset="UTF-8"><style>
-  body { font-family: Arial, Helvetica, sans-serif; color: #1f2937; background: #f3f6f7; margin: 0; padding: 20px; }
-  .container { max-width: 760px; margin: 0 auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
-  .header { background: #124c2b; color: white; padding: 24px 26px; }
-  .brand { font-size: 20px; font-weight: 700; margin: 0; }
-  .subtitle { margin: 4px 0 0; opacity: 0.9; font-size: 13px; }
-  .summary { padding: 18px 26px; background: #f8fafc; border-bottom: 1px solid #e8eef0; }
-  .summary-grid { display: table; width: 100%; border-collapse: collapse; }
-  .summary-cell { display: table-cell; vertical-align: top; padding-right: 12px; width: 25%; }
-  .chip { background: #ffffff; border: 1px solid #e5edf0; padding: 10px 12px; border-radius: 6px; min-height: 58px; }
-  .chip .label { display:block; font-size:11px; color:#6b7280; text-transform:uppercase; letter-spacing:.02em; }
-  .chip .value { display:block; font-weight:700; color:#0f1724; margin-top:6px; line-height: 1.25; }
-  .content { padding: 20px 26px 26px; color: #0f1724; }
-  .greeting { font-size: 14px; margin: 0 0 12px 0; color: #475569; }
-  .title { font-size: 18px; line-height: 1.35; font-weight:700; margin: 0 0 16px 0; color:#111827; }
-  .section { margin-top: 18px; }
-  .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #124c2b; margin: 0 0 10px 0; font-weight: 700; }
-  .table { width: 100%; border-collapse: collapse; border: 1px solid #e6eef0; border-radius: 8px; overflow: hidden; }
-  .table td { border-bottom: 1px solid #edf2f4; padding: 10px 12px; vertical-align: top; font-size: 13px; }
-  .table tr:last-child td { border-bottom: none; }
-  .table td.label { width: 34%; background: #f8fafc; color: #64748b; font-weight: 700; text-transform: none; }
-  .table td.value { color: #111827; font-weight: 600; word-break: break-word; }
-  .description { margin-top: 14px; padding: 14px 16px; background: #f8fafc; border: 1px solid #e6eef0; border-radius: 8px; }
-  .description .label { font-size: 11px; color: #64748b; text-transform: uppercase; font-weight: 700; display:block; margin-bottom: 6px; }
-  .description .value { font-size: 13px; line-height: 1.55; color: #111827; white-space: pre-wrap; }
-  .btn { display:inline-block; background:#124c2b; color:#ffffff !important; padding:11px 18px; border-radius:8px; text-decoration:none; margin-top:16px; font-weight:700; }
-  .footer { padding:14px 26px; font-size:12px; color:#6b7280; background:#fbfdfe; border-top: 1px solid #edf2f4; }
-  .muted { color:#6b7280; font-size:12px; }
-</style></head>
-<body>
-  <div class="container">
-    <div class="header">
-      <div class="brand">Helpdesk Público</div>
-      <div class="subtitle">Detalhe do anúncio</div>
-    </div>
-
-    <div class="summary">
-      <div class="summary-grid">
-        <div class="summary-cell"><div class="chip"><span class="label">Publicado</span><span class="value">${publicationDate ?? "-"}</span></div></div>
-        <div class="summary-cell"><div class="chip"><span class="label">Entidade</span><span class="value">${entityName ?? "-"}</span></div></div>
-        <div class="summary-cell"><div class="chip"><span class="label">CPV</span><span class="value">${cpvMain ?? "-"}</span></div></div>
-        <div class="summary-cell"><div class="chip"><span class="label">Preço base</span><span class="value">${priceStr}</span></div></div>
-      </div>
-    </div>
-
-    <div class="content">
-      <p class="greeting">Olá <strong>${clientName}</strong>, foi publicado um novo anúncio que corresponde às suas regras CPV.</p>
-      <div class="title">${title}</div>
-
-      ${descriptionShort ? `
-        <div class="description">
-          <span class="label">Descrição</span>
-          <div class="value">${descriptionShort}</div>
-        </div>
-      ` : ""}
-
-      ${sections.map((section) => `
-        <div class="section">
-          <div class="section-title">${section.title}</div>
-          <table class="table" role="presentation">
-            <tbody>
-              ${section.rows.map((row) => `
-                <tr>
-                  <td class="label">${row.label}</td>
-                  <td class="value">${row.value}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      `).join("")}
-
-      <div class="muted" style="margin-top:14px">${announcement?.detail_url ? `ID: ${String(announcement.id ?? "-")}` : ""}</div>
-      ${
-        detailUrl
-          ? `<a href="${detailUrl}" class="btn">Ver mais detalhes</a>`
-          : `<a href="${appBaseUrl}/announcements" class="btn">Ver mais detalhes</a>`
-      }
-    </div>
-
-    <div class="footer">
-      Recebe este email porque está registado no Helpdesk Público. Para gerir as suas preferências aceda a <a href="${appBaseUrl}/settings">${appBaseUrl}/settings</a>.
-    </div>
-  </div>
-</body>
-</html>`;
-
-  const text = `Novo Anúncio BASE
-=================
-Título: ${title}
-${entityName ? `Entidade: ${entityName}` : ""}
-Data: ${publicationDate}
-${cpvMain ? `CPV: ${cpvMain}` : ""}
-Preço base: ${priceStr}
-${detailUrl ? `Link: ${detailUrl}` : `Ver em: ${appBaseUrl}/announcements`}`;
-
-  return { subject, html, text };
+  return buildAnnouncementEmail(params);
 }
 
 export function buildAnnouncementEmail(params: {
@@ -662,7 +584,6 @@ export function buildAnnouncementEmail(params: {
   announcement?: Record<string, unknown>;
 }): { subject: string; html: string; text: string } {
   const {
-    clientName,
     title,
     entityName,
     publicationDate,
@@ -678,9 +599,17 @@ export function buildAnnouncementEmail(params: {
   const payload = rawPayload && isPlainObject(rawPayload.payload)
     ? rawPayload.payload
     : rawPayload;
+  const detailText = (
+    isPlainObject(payload?.detalhe_conteudo) && typeof payload.detalhe_conteudo.Texto === "string"
+      ? payload.detalhe_conteudo.Texto
+      : null
+  ) ?? (
+    isPlainObject(payload?.detalhe_conteudo) && typeof payload.detalhe_conteudo.TextoFormatado === "string"
+      ? payload.detalhe_conteudo.TextoFormatado
+      : null
+  );
 
   const priceStr = formatEmailPrice(basePrice, currency ?? "EUR");
-  const publishedStr = publicationDate ? safeDate(publicationDate) : "-";
   const deadlineAt = announcement?.proposal_deadline_at;
   const deadlineStr = deadlineAt
     ? safeDate(deadlineAt, true)
@@ -695,221 +624,277 @@ export function buildAnnouncementEmail(params: {
     pickEmailPayloadValue(payload, ["designacaoEntidade", "Designacao da entidade adjudicante"]),
   );
   const cpvStr = formatEmailCpv(announcement, cpvMain, payload);
-  const actTypeStr = firstEmailText(
+  const actTypeStr = toTitleCasePt(firstEmailText(
+    extractEmailLabeledValue(detailText, ["Tipo de Contrato", "Tipo de Ato"]),
+    pickEmailPayloadValue(payload, ["tipoContrato", "Tipo de Contrato", "tipoAto", "Tipo de Ato"]),
     announcement?.act_type,
-    pickEmailPayloadValue(payload, ["tipoAto", "Tipo de Ato"]),
-  );
-  const procedureTypeStr = firstEmailText(
+  ));
+  const procedureTypeStr = toTitleCasePt(firstEmailText(
+    extractEmailLabeledValue(detailText, ["Tipo de Procedimento", "Modelo de Anúncio"]),
+    pickEmailPayloadValue(payload, ["tipoProcedimento", "modeloAnuncio", "Tipo de Procedimento", "Modelo de Anúncio"]),
     announcement?.procedure_type,
-    pickEmailPayloadValue(payload, ["tipoProcedimento", "modeloAnuncio", "Tipo de Procedimento"]),
-  );
+  ));
  
   const objectStr = firstEmailText(
     title,
     announcement?.description,
     pickEmailPayloadValue(payload, ["descricaoAnuncio", "descricaoContrato", "Descricao", "Sumario"]),
-  ).replace(/\.{3}$/, "");  // Remove trailing ellipsis
+  )
+    .replace(/^\s*\d{6,}\s*[-–—]\s*/, "")  // Remove prefixo de ID do anúncio (ex: "2526000345 - ")
+    .replace(/\.{3}$/, "");  // Remove trailing ellipsis
   const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
-  const originalUrl = detailUrl ?? `${appBaseUrl}/announcements`;
-  const subject = `Nova oportunidade: ${objectStr.slice(0, 70)}`;
+  const marketOpportunitiesUrl = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
+  const opportunityFilters = new URLSearchParams();
+
+  if (announcementNoStr !== "-") {
+    opportunityFilters.set("announcement_number", announcementNoStr);
+  }
+
+  const cpvFilter = firstEmailText(announcement?.cpv_main, cpvMain);
+  if (cpvFilter !== "-") {
+    opportunityFilters.set("cpv", cpvFilter);
+  }
+
+  if (entityStr !== "-") {
+    opportunityFilters.set("entity", entityStr);
+  }
+
+  if (procedureTypeStr !== "-") {
+    opportunityFilters.set("model", procedureTypeStr);
+  }
+
+  const publicationDateIso = typeof announcement?.publication_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(announcement.publication_date)
+    ? announcement.publication_date
+    : (typeof publicationDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(publicationDate) ? publicationDate : "");
+
+  if (publicationDateIso) {
+    opportunityFilters.set("from_date", publicationDateIso);
+    opportunityFilters.set("to_date", publicationDateIso);
+  }
+
+  const originalUrl = opportunityFilters.toString()
+    ? `${marketOpportunitiesUrl}?${opportunityFilters.toString()}`
+    : marketOpportunitiesUrl;
+  const subject = `Helpdesk Público | Nova oportunidade: ${objectStr.slice(0, 70)}`;
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
 
   
 
   const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" };
+  const deadlineBgMap = { green: "#eef6e9", yellow: "#fff7ed", red: "#fef2f2" };
+  const deadlineBorderMap = { green: "#cfe3bd", yellow: "#fed7aa", red: "#fecaca" };
+  const deadlineLabelMap = { green: "#4d6b2a", yellow: "#9a6a2c", red: "#991b1b" };
   const deadlineColor = deadlineColorMap[remainingInfo.color];
+  const deadlineBg = deadlineBgMap[remainingInfo.color];
+  const deadlineBorder = deadlineBorderMap[remainingInfo.color];
+  const deadlineLabel = deadlineLabelMap[remainingInfo.color];
 
   const html = `<!DOCTYPE html>
-<html lang="pt">
+<html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeEmailHtml(subject)}</title>
+  <style type="text/css">
+    a, a:link, a:visited, a:hover, a:active {
+      color: #111111 !important;
+      cursor: pointer !important;
+      text-decoration: none !important;
+    }
+    a span {
+      cursor: pointer !important;
+      text-decoration: none !important;
+    }
+    span.MsoHyperlink, span.MsoHyperlinkFollowed {
+      color: #111111 !important;
+      text-decoration: none !important;
+    }
+    .link-black, .link-black:link, .link-black:visited, .link-black:hover, .link-black:active {
+      color: #111111 !important;
+    }
+    .link-white, .link-white:link, .link-white:visited, .link-white:hover, .link-white:active {
+      color: #ffffff !important;
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;background:#f5f5f3;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
-  <div style="width:100%;background:#f5f5f3;padding:20px 0;">
-    <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:4px;overflow:hidden;border:1px solid #e0e0dc;">
 
-      <!-- HEADER -->
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#2d4a1e;">
-        <tr>
-          <td style="padding:18px 24px 14px 24px;">
-            <table cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td style="padding-right:10px;vertical-align:middle;">
-                  <img src="${headerLogoUrl}" alt="Helpdesk Público" style="display:block;height:52px;width:auto;" />
-                </td>
-                <td style="vertical-align:middle;">
-                  <div style="font-size:19px;font-weight:800;color:#ffffff;letter-spacing:0.01em;line-height:1.1;">Helpdesk Público</div>
-                  <div style="font-size:13px;color:#d3e9a0;margin-top:4px;font-weight:400;line-height:1.15;">Contratação Pública Eficiente</div>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+<body id="body" style="margin:0; padding:0; box-sizing:border-box; font-family:Arial, Helvetica, sans-serif; line-height:1.5; color:#333333; background-color:#f5f5f3;">
 
-      <!-- ALERT BADGE -->
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;">
-        <tr>
-          <td style="padding:14px 20px 2px 20px;">
-            <table cellpadding="0" cellspacing="0" border="0" style="background:#3a5c22;border-radius:20px;padding:0;">
-              <tr>
-                <td style="padding:7px 14px 7px 10px;">
-                  <table cellpadding="0" cellspacing="0" border="0">
-                    <tr>
-                      <td style="padding-right:7px;vertical-align:middle;">
-                        <div style="width:8px;height:8px;background:#7ec94a;border-radius:50%;"></div>
-                      </td>
-                      <td style="font-size:12px;color:#d4edaa;font-weight:600;white-space:nowrap;">Uma nova oportunidade segundo a sua seleção de Alerta</td>
-                    </tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f5f5f3;">
+    <tr>
+      <td align="center" style="padding:12px;">
 
-      <!-- CARDS -->
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:20px 20px 0 20px;background:#ffffff;">
-        <tr>
-          <td width="33%" style="padding:6px 4px 6px 0;">
-            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Prazo restante</div>
-              <div style="font-size:22px;font-weight:800;color:${deadlineColor};line-height:1;">${remainingInfo.daysRemaining} dias</div>
-            </div>
-          </td>
-          <td width="33%" style="padding:6px 4px;">
-            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Data limite</div>
-              <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">${escapeEmailHtml(deadlineStr)}</div>
-            </div>
-          </td>
-          <td width="33%" style="padding:6px 0 6px 4px;">
-            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Preço base</div>
-              <div style="font-size:15px;font-weight:800;color:#111827;line-height:1.3;">${escapeEmailHtml(priceStr)}</div>
-            </div>
-          </td>
-        </tr>
-      </table>
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:700px; background-color:#ffffff; border:1px solid #e0e0dc;">
 
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:0 20px 0 20px;background:#ffffff;">
-        <tr>
-          <td width="50%" style="padding:6px 4px 0 0;">
-            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Tipo de ato</div>
-              <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">${escapeEmailHtml(actTypeStr)}</div>
-            </div>
-          </td>
-          <td width="50%" style="padding:6px 0 0 4px;">
-            <div style="background:#f7f7f5;border:1px solid #e5e5e0;border-radius:6px;padding:14px 10px;text-align:center;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Tipo de procedimento</div>
-              <div style="font-size:15px;font-weight:700;color:#111827;line-height:1.3;">${escapeEmailHtml(procedureTypeStr)}</div>
-            </div>
-          </td>
-        </tr>
-      </table>
+          <!-- HEADER -->
+          <tr>
+            <td style="padding:20px 18px; background-color:#2d4a1e;">
+              <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="52" valign="middle" style="width:52px; padding:0 12px 0 0;">
+                    <img src="${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
+                  </td>
+                  <td valign="middle" style="color:#ffffff;">
+                    <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
+                    <div style="font-size:14px; line-height:18px; color:#ffffff; margin-top:4px;">Contratação Pública Eficiente</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-      <!-- BODY -->
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:16px 20px 0 20px;background:#ffffff;">
+          <!-- BADGE -->
+          <tr>
+            <td style="padding:18px 18px 4px 18px;">
+              <div style="background-color:#eef6e9; padding:11px 14px; font-size:14px; line-height:19px; color:#2d4a1e; font-weight:700;">
+                Identificámos uma oportunidade de Contratação Pública
+              </div>
+            </td>
+          </tr>
 
-        <!-- Entidade -->
-        <tr>
-          <td style="padding-bottom:12px;">
-            <div style="border:1px solid #e5e5e0;border-radius:6px;padding:12px 14px;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">Entidade(s) Adjudicante(s)</div>
-              <div style="font-size:14px;color:#111827;font-weight:600;line-height:1.4;">${escapeEmailHtml(entityStr)}</div>
-            </div>
-          </td>
-        </tr>
+          <!-- OBJETO DO CONTRATO -->
+          <tr>
+            <td style="padding:18px 18px 8px 18px;">
+              <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:6px;">Objeto do contrato</div>
+              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(objectStr)}</div>
+            </td>
+          </tr>
 
-        <!-- CPV -->
-        <tr>
-          <td style="padding-bottom:12px;">
-            <div style="border:1px solid #e5e5e0;border-radius:6px;padding:12px 14px;">
-              <div style="font-size:11px;color:#6b7280;letter-spacing:.05em;font-weight:700;margin-bottom:6px;">CPV(s)</div>
-              <div style="font-size:14px;color:#111827;font-weight:600;line-height:1.4;">${escapeEmailHtml(cpvStr)}</div>
-            </div>
-          </td>
-        </tr>
+          <!-- DETALHES DO PROCEDIMENTO -->
+          <tr>
+            <td style="padding:8px 18px 4px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
+                <tr>
+                  <td style="padding:14px 16px; background-color:${deadlineBg}; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:${deadlineLabel}; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:4px;">Prazo</div>
+                    <div style="font-size:22px; line-height:26px; color:${deadlineColor}; font-weight:700; word-break:break-word;">${escapeEmailHtml(remainingInfo.text)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Data limite</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(deadlineStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Preço base</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(priceStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Tipo de ato</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(actTypeStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Tipo de procedimento</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(procedureTypeStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; letter-spacing:0.3px; margin-bottom:5px;">Entidade(s) Adjudicante(s)</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:600; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(entityStr)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; letter-spacing:0.3px; margin-bottom:5px;">CPV(s)</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:600; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(cpvStr)}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-        
-       
+          <!-- BOTAO -->
+          <tr>
+            <td align="center" style="padding:22px 18px 12px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
+                    <a href="${escapeEmailHtml(originalUrl)}" target="_blank" class="link-white" style="display:block; padding:15px 26px; font-size:16px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">
+                      <span style="color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff;">Aceda ao Procedimento</span>
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-        <!-- Objeto do Contrato -->
-        <tr>
-          <td style="padding-bottom:20px;">
-            <div style="background:#f7f7f5;border-radius:6px;padding:14px;">
-              <div style="font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;font-weight:700;margin-bottom:8px;">Objeto do Contrato</div>
-              <div style="font-size:14px;color:#111827;font-weight:500;line-height:1.55;">${escapeEmailHtml(objectStr)}</div>
-            </div>
-          </td>
-        </tr>
+          <!-- PARAGRAFO -->
+          <tr>
+            <td style="padding:4px 18px 14px 18px;">
+              <div style="font-size:14px; line-height:21px; color:#4b5563;">Consulte toda a informação disponível sobre o procedimento, aceda diretamente às peças concursais e confirme os requisitos de participação antes do prazo limite.</div>
+            </td>
+          </tr>
 
-        <!-- CTA -->
-        <tr>
-          <td style="padding-bottom:14px;">
-            <a href="${escapeEmailHtml(originalUrl)}" style="display:block;background:#2d4a1e;color:#ffffff;text-align:center;text-decoration:none;font-size:15px;font-weight:700;padding:15px;border-radius:6px;">Ver todos os detalhes</a>
-          </td>
-        </tr>
+          <!-- NOTA DE MONITORIZACAO -->
+          <tr>
+            <td style="padding:0 18px 14px 18px;">
+              <div style="background-color:#eef6e9; padding:12px 14px; font-size:13px; line-height:19px; color:#4b5563;">
+                Este procedimento foi identificado automaticamente com base nos critérios de monitorização da sua conta.
+              </div>
+            </td>
+          </tr>
 
-        <!-- Checklist -->
-        <tr>
-          <td style="padding-bottom:24px;">
-            <div style="font-size:13px;color:#4b5563;line-height:2;">
-              <div>✓ Consulte todos os detalhes do procedimento</div>
-              <div>✓ Aceda diretamente às peças do procedimento</div>
-              <div>✓ Verifique requisitos e prazo de participação</div>
-            </div>
-          </td>
-        </tr>
+          <!-- SUPORTE -->
+          <tr>
+            <td style="padding:20px 18px; background-color:#edf3e6; border-top:1px solid #d7e3c8;">
+              <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px;">Precisa de apoio para decidir ou preparar a sua proposta?</div>
+              <div style="text-align:center; font-size:0;">
+                <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="49%" valign="top"><![endif]-->
+                <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
+                  <div style="padding:0 6px 8px 6px;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
+                      <tr>
+                        <td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
+                          <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" class="link-black" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Go / No-Go<br>Concursos Públicos</span></a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+                <!--[if mso]></td><td width="2%" valign="top" style="font-size:0; line-height:0;">&nbsp;</td><td width="49%" valign="top"><![endif]-->
+                <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
+                  <div style="padding:0 6px 8px 6px;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
+                      <tr>
+                        <td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
+                          <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" class="link-black" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Plataforma de Suporte<br>Contratação Pública</span></a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+                <!--[if mso]></td></tr></table><![endif]-->
+              </div>
+            </td>
+          </tr>
 
-      </table>
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
+              <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
+              <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
+                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-black" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Contactos</span></a>
+                <span style="color:#d1d5db;"> | </span>
+                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" class="link-black" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Política de Privacidade</span></a>
+                <span style="color:#d1d5db;"> | </span>
+                <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Website</span></a>
+              </div>
+            </td>
+          </tr>
 
-      <!-- UPSELL -->
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f7f7f5;border-top:1px solid #e5e5e0;">
-        <tr>
-          <td style="padding:20px 20px 8px 20px;">
-            <div style="font-size:13px;color:#6b7280;font-weight:600;margin-bottom:14px;">Precisa de suporte especializado?</div>
-            <table width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                <td width="50%" style="padding:0 6px 10px 0;">
-                  <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;">
-                    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">Go / No-Go</div>
-                    <div style="font-size:11px;color:#9ca3af;border-top:1px solid #e5e5e0;padding-top:10px;">Concursos Públicos</div>
-                  </a>
-                </td>
-                <td width="50%" style="padding:0 0 10px 6px;">
-                  <a href="https://www.helpdeskpublico.pt/" style="display:block;background:#ffffff;border:1px solid #d1d5db;border-radius:6px;padding:12px 10px;text-align:center;text-decoration:none;">
-                    <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:10px;">Plataforma de Suporte</div>
-                    <div style="font-size:11px;color:#9ca3af;border-top:1px solid #e5e5e0;padding-top:10px;">Contratação Pública</div>
-                  </a>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
+        </table>
 
-      <!-- FOOTER -->
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-top:1px solid #e5e5e0;">
-        <tr>
-          <td style="padding:16px 20px;text-align:center;">
-            <div style="margin-bottom:10px;">
-              <a href="#" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">in</a>
-              <a href="#" style="color:#9ca3af;text-decoration:none;font-size:13px;margin:0 8px;">f</a>
-              <a href="#" style="color:#9ca3af;text-decoration:none;margin:0 8px;display:inline-block;vertical-align:middle;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
-            </div>
-            <div style="font-size:11px;color:#9ca3af;">
-              Helpdesk Público &middot; <a href="#" style="color:#6b7280;text-decoration:none;">aviso legal</a> &middot; <a href="#" style="color:#6b7280;text-decoration:none;">cancelar subscrição</a>
-            </div>
-          </td>
-        </tr>
-      </table>
+      </td>
+    </tr>
+  </table>
 
-    </div>
-  </div>
 </body>
 </html>`;
 
@@ -925,4 +910,19 @@ Referência: ${announcementNoStr}
 Link: ${originalUrl}`;
 
   return { subject, html, text };
+}
+
+export function buildAnnouncementEmailOutlook(params: {
+  clientName: string;
+  title: string;
+  entityName?: string | null;
+  publicationDate?: string | null;
+  cpvMain?: string | null;
+  basePrice?: number | null;
+  currency?: string;
+  detailUrl?: string | null;
+  appBaseUrl: string;
+  announcement?: Record<string, unknown>;
+}): { subject: string; html: string; text: string } {
+  return buildAnnouncementEmail(params);
 }

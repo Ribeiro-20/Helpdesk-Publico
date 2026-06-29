@@ -82,8 +82,8 @@ export function getNextBusinessDay10am(baseDate: Date = new Date()): string {
     candidate.year,
     candidate.month,
     candidate.day,
-    10,
-    0,
+    8,
+    30,
     0,
     LISBON_TIMEZONE,
   );

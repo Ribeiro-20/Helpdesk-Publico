@@ -220,11 +220,15 @@ async function fetchHomeContagemHits(maxWaitMs: number): Promise<HomeContagemHit
 }
 
 function buildDailyUrlFromParts(numero: string, ano: string, dbId: string): string {
-  return `https://diariodarepublica.pt/dr/detalhe/diario-republica/${numero}-${ano}-${dbId}-41`;
+  return `https://diariodarepublica.pt/dr/detalhe/diario-republica/${numero}-${ano}-${dbId}`;
 }
 
 function buildDailyUrlFromHit(hit: HomeContagemHit): string {
   return buildDailyUrlFromParts(hit.numero, hit.ano, hit.dbId);
+}
+
+function normalizeSearchText(value: string): string {
+  return stripDiacritics(value).toLowerCase();
 }
 
 interface SearchIssueHit {
@@ -368,13 +372,15 @@ async function findDailyIssueBySearch(date: string, maxWaitMs: number): Promise<
       const ano = String(source.ano ?? parsedNo?.ano ?? "").trim();
       if (!numero || !ano) continue;
 
+      const normalizedTitle = normalizeSearchText(title);
+
       issues.push({
         dbId,
         ano,
         numero,
         dataPublicacao,
         title,
-        isSerieII: /s[ée]rie\s*ii/i.test(title),
+        isSerieII: /serie\s*ii/i.test(normalizedTitle),
         isSupplement: /suplemento/i.test(title),
       });
     }
@@ -400,11 +406,11 @@ async function resolveTodayDailyUrl(maxWaitMs: number): Promise<string> {
 
   const target = hits.find((s) => {
     const pubDate = s.dataPublicacao;
-    const parte = s.parte.toLowerCase();
-    return pubDate === today && parte.includes("contratos públicos");
+    const parte = normalizeSearchText(s.parte);
+    return pubDate === today && parte.includes("contratos publicos");
   }) ?? hits.find((s) => {
-    const parte = s.parte.toLowerCase();
-    return parte.includes("contratos públicos");
+    const parte = normalizeSearchText(s.parte);
+    return parte.includes("contratos publicos");
   });
 
   if (!target) {
@@ -425,7 +431,7 @@ async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[]
   const seen = new Set<string>();
 
   for (const date of [...dates].reverse()) {
-    const target = hits.find((h) => h.dataPublicacao === date && h.parte.toLowerCase().includes("contratos públicos"));
+    const target = hits.find((h) => h.dataPublicacao === date && normalizeSearchText(h.parte).includes("contratos publicos"));
 
     if (target) {
       const url = buildDailyUrlFromHit(target);
@@ -599,28 +605,45 @@ function parsePrice(raw: string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function stripDiacritics(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function hasUsefulDrDetailText(text: string): boolean {
+  const normalized = stripDiacritics(text);
+  return (
+    /Vocabulario\s+Principal\s*:\s*\d{8}(?:-\d)?/i.test(normalized) ||
+    /Valor\s*do\s*preco\s*base\s*do\s*procedimento\s*:/i.test(normalized) ||
+    /Preco\s*base\s*s\/IVA\s*:\s*[0-9]/i.test(normalized) ||
+    /Preco\s*base\s*do\s*procedimento\s*:\s*[0-9]/i.test(normalized) ||
+    /Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:/i.test(normalized)
+  );
+}
+
 function extractNif(text: string): string | null {
   const m = text.match(/\b(?:NIPC|NIF)\s*:\s*(\d{9})\b/i);
   return m ? m[1] : null;
 }
 
 function extractCpvList(text: string): string[] {
+  const normalized = stripDiacritics(text);
   const matches = Array.from(
-    text.matchAll(/Vocabul[aá]rio\s+Principal\s*:\s*(\d{8}(?:-\d)?)/gi),
+    normalized.matchAll(/Vocabulario\s+Principal\s*:\s*(\d{8}(?:-\d)?)/gi),
   ).map((m) => m[1]);
 
   return [...new Set(matches.map((v) => normalizeSpace(v).toUpperCase()).filter(Boolean))];
 }
 
 function extractBasePrice(text: string): number | null {
+  const normalized = stripDiacritics(text);
   const patterns = [
-    /Valor\s*do\s*preço\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
-    /Preço\s*base\s*s\/IVA\s*:\s*([0-9\.\s,]+)/i,
-    /Preço\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
+    /Valor\s*do\s*preco\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
+    /Preco\s*base\s*s\/IVA\s*:\s*([0-9\.\s,]+)/i,
+    /Preco\s*base\s*do\s*procedimento\s*:\s*([0-9\.\s,]+)/i,
   ];
 
   for (const p of patterns) {
-    const m = text.match(p);
+    const m = normalized.match(p);
     const price = parsePrice(m ? m[1] : null);
     if (price !== null) return price;
   }
@@ -634,21 +657,23 @@ function extractContractType(text: string): string | null {
 }
 
 function extractDeadlineDays(text: string): number | null {
-  const m = text.match(/(\d+)\s*dias\s*a\s*contar\s*do\s*termo\s*do\s*prazo\s*para\s*a\s*apresentação\s*das\s*propostas/i);
+  const normalized = stripDiacritics(text);
+  const m = normalized.match(/(\d+)\s*dias\s*a\s*contar\s*do\s*termo\s*do\s*prazo\s*para\s*a\s*apresentacao\s*das\s*propostas/i);
   if (!m) return null;
   const n = Number.parseInt(m[1], 10);
   return Number.isFinite(n) ? n : null;
 }
 
 function extractDeadlineAt(text: string): string | null {
-  const pt = text.match(/Prazo\s*para\s*apresentação\s*das\s*propostas\s*:\s*(\d{2})[\/-](\d{2})[\/-](\d{4})(?:\s+(\d{2}):(\d{2}))?/i);
+  const normalized = stripDiacritics(text);
+  const pt = normalized.match(/Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:\s*(\d{2})[\/-](\d{2})[\/-](\d{4})(?:\s+(\d{2}):(\d{2}))?/i);
   if (pt) {
     const hh = pt[4] ?? "00";
     const mm = pt[5] ?? "00";
     return `${pt[3]}-${pt[2]}-${pt[1]}T${hh}:${mm}:00Z`;
   }
 
-  const iso = text.match(/Prazo\s*para\s*apresentação\s*das\s*propostas\s*:\s*(\d{4}-\d{2}-\d{2})/i);
+  const iso = normalized.match(/Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:\s*(\d{4}-\d{2}-\d{2})/i);
   if (iso) return `${iso[1]}T00:00:00Z`;
 
   return null;
@@ -664,13 +689,32 @@ async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResu
 
   let listaDoDiario: Array<Record<string, JsonValue>> = [];
 
-  const responsePromise = waitForJsonResponse(
+  const timeoutMs = Math.max(3000, maxWaitMs);
+  const normalizedDailyUrl = dailyUrl.replace(
+    /(\/dr\/detalhe\/diario-republica\/\d+-\d{4}-\d+)-\d+$/i,
+    "$1",
+  );
+
+  const initialResponsePromise = waitForJsonResponse(
     page,
     "/Legislacao_Conteudos/Conteudo_Det_Diario/DataActionGetDadosAndApplicationSettings",
-    Math.max(3000, maxWaitMs),
+    timeoutMs,
   );
-  await page.goto(dailyUrl, { waitUntil: "domcontentloaded", timeout: 120000 });
-  const response = await responsePromise;
+  await page.goto(normalizedDailyUrl, { waitUntil: "domcontentloaded", timeout: 120000 });
+  let response = await initialResponsePromise;
+
+  const partSelect = page.locator("#Dropdown");
+  if ((await partSelect.count()) > 0) {
+    const filteredResponsePromise = waitForJsonResponse(
+      page,
+      "/Legislacao_Conteudos/Conteudo_Det_Diario/DataActionGetDadosAndApplicationSettings",
+      timeoutMs,
+    );
+
+    await partSelect.selectOption("7").catch(() => undefined);
+    const filteredResponse = await filteredResponsePromise;
+    if (filteredResponse) response = filteredResponse;
+  }
 
   if (response) {
     try {
@@ -684,6 +728,35 @@ async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResu
     } catch {
       // Ignore malformed API payloads.
     }
+  }
+
+  if (listaDoDiario.length === 0) {
+    const domRows = await page.locator(".diario-s1-diploma-list-container").evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const link = node.querySelector<HTMLAnchorElement>("a[href*='/dr/detalhe/']");
+        const text = (node.textContent ?? "").replace(/\s+/g, " ").trim();
+        const title = (link?.textContent ?? "").replace(/\s+/g, " ").trim();
+        const emitterMatch = text.match(/Emitente:\s*(.+)$/i);
+        const withoutTitle = title ? text.replace(title, "").trim() : text;
+        const summary = emitterMatch
+          ? withoutTitle.replace(/Emitente:\s*.+$/i, "").trim()
+          : withoutTitle;
+
+        return {
+          Titulo: title,
+          Emissor: emitterMatch?.[1]?.trim() ?? "",
+          Sumario: summary,
+          TipoDiploma: link?.href.match(/\/dr\/detalhe\/([^/]+)\//)?.[1] ?? "",
+          Numero: title.match(/(\d{1,6}\/\d{4}(?:\/\d+)?)/)?.[1] ?? "",
+          ContratoPublicoId: link?.href.split("-").pop() ?? "",
+          DetailUrl: link?.href ?? "",
+        };
+      }),
+    );
+
+    listaDoDiario = domRows
+      .filter((x) => !!x.DetailUrl)
+      .map((x) => x as Record<string, JsonValue>);
   }
 
   const pageText = await page.locator("body").innerText();
@@ -704,10 +777,13 @@ async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResu
       const drNo = normalizeSpace(String(row.Numero ?? "")) || extractAnnouncementNo([title]);
 
       const numeroSlug = drNo ? drNo.replace("/", "-") : "";
-      const detailPath = contratoId
+      const detailUrlFromRow = normalizeSpace(String(row.DetailUrl ?? ""));
+      const detailPath = !detailUrlFromRow && contratoId
         ? `/dr/detalhe/${tipoDiploma || "anuncio-procedimento"}/${numeroSlug ? `${numeroSlug}-` : ""}${contratoId}`
         : null;
-      const detailUrl = detailPath
+      const detailUrl = detailUrlFromRow
+        ? detailUrlFromRow
+        : detailPath
         ? new URL(detailPath, "https://diariodarepublica.pt").toString()
         : null;
 
@@ -845,8 +921,9 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
         }
       }
 
-      if (!detalhe) {
-        // SLOW PATH: Playwright fallback
+      if (!detalhe || !hasUsefulDrDetailText(String(detalhe["Texto"] ?? ""))) {
+        // SLOW PATH: Playwright fallback. Some direct DR payloads have summary
+        // metadata but miss the rich "Texto" block with CPV, price and deadlines.
         const page = await context.newPage();
         const responsePromise = waitForJsonResponse(
           page,
@@ -856,6 +933,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
 
         await page.goto(item.detail_url, { waitUntil: "domcontentloaded", timeout: 120000 }).catch(() => undefined);
 
+        let fallbackDetalhe: DrDetalheConteudo | null = null;
         const res = await responsePromise;
 
         if (res) {
@@ -863,21 +941,29 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
             const j = (await res.json()) as Record<string, JsonValue>;
             const data = j.data as Record<string, JsonValue> | undefined;
             const det = data?.DetalheConteudo as DrDetalheConteudo | undefined;
-            if (det) detalhe = det;
+            if (det) fallbackDetalhe = det;
           } catch {
             // Ignore malformed payloads.
           }
         }
 
-        if (!detalhe) {
+        if (fallbackDetalhe && hasUsefulDrDetailText(String(fallbackDetalhe["Texto"] ?? ""))) {
+          detalhe = {
+            ...(detalhe ?? {}),
+            ...fallbackDetalhe,
+          };
+        } else {
           const visibleText = await page.locator("body").innerText().catch(() => "");
           if (visibleText.trim()) {
             detalhe = {
-              Id: item.base_announcement_id,
-              Numero: item.dr_announcement_no,
-              Sumario: item.description,
+              Id: fallbackDetalhe?.["Id"] ?? detalhe?.["Id"] ?? item.base_announcement_id,
+              Numero: fallbackDetalhe?.["Numero"] ?? detalhe?.["Numero"] ?? item.dr_announcement_no,
+              Sumario: fallbackDetalhe?.["Sumario"] ?? detalhe?.["Sumario"] ?? item.description,
               Texto: visibleText,
-              DataPublicacao: parsePublicationDate(visibleText),
+              DataPublicacao:
+                fallbackDetalhe?.["DataPublicacao"] ??
+                detalhe?.["DataPublicacao"] ??
+                parsePublicationDate(visibleText),
             };
           }
         }
@@ -896,10 +982,13 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
         item.entity_nif = extractNif(texto) ?? item.entity_nif;
         item.contract_type = extractContractType(texto) ?? item.contract_type;
         item.base_price = extractBasePrice(texto) ?? item.base_price;
-        item.cpv_list = extractCpvList(texto);
-        item.cpv_main = item.cpv_list[0] ?? null;
-        item.proposal_deadline_days = extractDeadlineDays(texto);
-        item.proposal_deadline_at = extractDeadlineAt(texto);
+        const extractedCpvs = extractCpvList(texto);
+        if (extractedCpvs.length > 0) {
+          item.cpv_list = extractedCpvs;
+          item.cpv_main = extractedCpvs[0] ?? item.cpv_main;
+        }
+        item.proposal_deadline_days = extractDeadlineDays(texto) ?? item.proposal_deadline_days;
+        item.proposal_deadline_at = extractDeadlineAt(texto) ?? item.proposal_deadline_at;
         item.raw_payload = {
           ...(item.raw_payload as Record<string, JsonValue>),
           detalhe_conteudo: detalhe as JsonValue,
@@ -910,6 +999,66 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
 
   await context.close();
   await browser.close();
+}
+
+function hasMeaningfulAnnouncementValue(value: unknown): boolean {
+  if (value == null) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.trim().length > 0;
+  return true;
+}
+
+function announcementRowCompletenessScore(row: Record<string, any>): number {
+  let score = 0;
+  for (const key of [
+    "base_price",
+    "cpv_main",
+    "proposal_deadline_at",
+    "entity_nif",
+    "contract_type",
+    "detail_url",
+    "description",
+  ]) {
+    if (hasMeaningfulAnnouncementValue(row[key])) score += 1;
+  }
+
+  if (Array.isArray(row.cpv_list)) {
+    score += Math.min(row.cpv_list.length, 3);
+  }
+
+  return score;
+}
+
+function dedupeAnnouncementRowsByField(
+  rows: Array<Record<string, any>>,
+  field: "base_announcement_id" | "dr_announcement_no",
+): Array<Record<string, any>> {
+  const withoutValue: Array<Record<string, any>> = [];
+  const byValue = new Map<string, Record<string, any>>();
+
+  for (const row of rows) {
+    const value = normalizeSpace(String(row[field] ?? ""));
+    if (!value) {
+      withoutValue.push(row);
+      continue;
+    }
+
+    row[field] = value;
+
+    const existing = byValue.get(value);
+    if (!existing || announcementRowCompletenessScore(row) >= announcementRowCompletenessScore(existing)) {
+      byValue.set(value, row);
+    }
+  }
+
+  return [...withoutValue, ...byValue.values()];
+}
+
+function dedupeAnnouncementRows(rows: Array<Record<string, any>>): Array<Record<string, any>> {
+  return dedupeAnnouncementRowsByField(
+    dedupeAnnouncementRowsByField(rows, "base_announcement_id"),
+    "dr_announcement_no",
+  );
 }
 
 async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ inserted: number; updated: number; skipped: number }> {
@@ -1009,12 +1158,13 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
 
       const rawHash = sha256(stableStringify(raw));
       const effectiveTitle = buildEffectiveTitle(c.title, c.description, c.entity_name);
+      const drAnnouncementNo = normalizeSpace(c.dr_announcement_no ?? "");
 
       return {
         tenant_id: tenantId,
         source: "DR_SCRAPE",
         base_announcement_id: c.base_announcement_id,
-        dr_announcement_no: c.dr_announcement_no,
+        dr_announcement_no: drAnnouncementNo || null,
         publication_date: c.publication_date ?? new Date().toISOString().slice(0, 10),
         title: effectiveTitle,
         description: c.description,
@@ -1039,26 +1189,68 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
     rows.push(...chunkRows);
   }
 
-  const drNos = rows
+  const uniqueRows = dedupeAnnouncementRows(rows);
+  const duplicateRowsSkipped = rows.length - uniqueRows.length;
+  if (duplicateRowsSkipped > 0) {
+    console.warn(`[dr-scrape] skipped ${duplicateRowsSkipped} duplicate DR candidate(s) before upsert`);
+  }
+
+  const drNos = Array.from(new Set(uniqueRows
     .map((r) => r.dr_announcement_no)
-    .filter((v): v is string => typeof v === "string" && v.trim().length > 0);
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)));
+  const baseIds = Array.from(new Set(uniqueRows
+    .map((r) => r.base_announcement_id)
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)));
 
   const existingByDrNo = new Set<string>();
-  for (let i = 0; i < drNos.length; i += 500) {
-    const chunk = drNos.slice(i, i + 500);
-    const { data } = await supabase
+  const EXISTING_LOOKUP_CHUNK_SIZE = 100;
+  for (let i = 0; i < drNos.length; i += EXISTING_LOOKUP_CHUNK_SIZE) {
+    const chunk = drNos.slice(i, i + EXISTING_LOOKUP_CHUNK_SIZE);
+    const { data, error } = await supabase
       .from("announcements")
       .select("dr_announcement_no")
       .eq("tenant_id", tenantId)
       .in("dr_announcement_no", chunk);
 
+    if (error) {
+      throw new Error(`Failed loading existing DR announcements: ${error.message}`);
+    }
+
     for (const row of data ?? []) {
-      if (row.dr_announcement_no) existingByDrNo.add(String(row.dr_announcement_no));
+      const drNo = normalizeSpace(String(row.dr_announcement_no ?? ""));
+      if (drNo) existingByDrNo.add(drNo);
     }
   }
 
-  const toInsert = rows.filter((r) => !r.dr_announcement_no || !existingByDrNo.has(r.dr_announcement_no));
-  const toUpdate = rows.filter((r) => r.dr_announcement_no && existingByDrNo.has(r.dr_announcement_no));
+  const existingByBaseId = new Set<string>();
+  for (let i = 0; i < baseIds.length; i += EXISTING_LOOKUP_CHUNK_SIZE) {
+    const chunk = baseIds.slice(i, i + EXISTING_LOOKUP_CHUNK_SIZE);
+    const { data, error } = await supabase
+      .from("announcements")
+      .select("base_announcement_id")
+      .eq("tenant_id", tenantId)
+      .in("base_announcement_id", chunk);
+
+    if (error) {
+      throw new Error(`Failed loading existing base announcements: ${error.message}`);
+    }
+
+    for (const row of data ?? []) {
+      const baseId = normalizeSpace(String(row.base_announcement_id ?? ""));
+      if (baseId) existingByBaseId.add(baseId);
+    }
+  }
+
+  const toInsert = uniqueRows.filter((r) => {
+    const hasExistingDrNo = !!r.dr_announcement_no && existingByDrNo.has(r.dr_announcement_no);
+    const hasExistingBaseId = !!r.base_announcement_id && existingByBaseId.has(r.base_announcement_id);
+    return !hasExistingDrNo && !hasExistingBaseId;
+  });
+  const toUpdate = uniqueRows.filter((r) => {
+    const hasExistingDrNo = !!r.dr_announcement_no && existingByDrNo.has(r.dr_announcement_no);
+    const hasExistingBaseId = !!r.base_announcement_id && existingByBaseId.has(r.base_announcement_id);
+    return hasExistingDrNo || hasExistingBaseId;
+  });
 
   if (toInsert.length > 0) {
     const { error } = await supabase.from("announcements").insert(toInsert);
@@ -1071,17 +1263,24 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
     
     await Promise.all(chunk.map(async (row) => {
       const { raw_hash, tenant_id, dr_announcement_no, ...incoming } = row;
+      const baseAnnouncementId = normalizeSpace(String(incoming.base_announcement_id ?? ""));
 
-      const { data: existing, error: fetchErr } = await supabase
+      let existingQuery = supabase
         .from("announcements")
         .select(
           "source, publication_date, title, description, entity_nif, contract_type, base_price, cpv_main, cpv_list, proposal_deadline_days, proposal_deadline_at, detail_url, raw_payload",
         )
-        .eq("tenant_id", tenant_id)
-        .eq("dr_announcement_no", dr_announcement_no as string)
-        .maybeSingle();
+        .eq("tenant_id", tenant_id);
 
-      if (fetchErr) throw new Error(`Fetch existing failed for DR ${dr_announcement_no}: ${fetchErr.message}`);
+      if (baseAnnouncementId) {
+        existingQuery = existingQuery.eq("base_announcement_id", baseAnnouncementId);
+      } else {
+        existingQuery = existingQuery.eq("dr_announcement_no", dr_announcement_no as string);
+      }
+
+      const { data: existing, error: fetchErr } = await existingQuery.maybeSingle();
+
+      if (fetchErr) throw new Error(`Fetch existing failed for DR ${dr_announcement_no ?? baseAnnouncementId}: ${fetchErr.message}`);
 
       const existingCanonicalCpv = await resolveCanonicalCpv(
         typeof existing?.cpv_main === "string" ? existing.cpv_main : null,
@@ -1125,7 +1324,7 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
   }
 
   const currentDrNos = new Set(
-    rows
+    uniqueRows
       .map((r) => r.dr_announcement_no)
       .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
       .map((v) => v.trim()),
@@ -1133,7 +1332,7 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
 
   const publicationDates = Array.from(
     new Set(
-      rows
+      uniqueRows
         .map((r) => r.publication_date)
         .filter((v): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)),
     ),
@@ -1178,7 +1377,7 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
   return {
     inserted: toInsert.length,
     updated: toUpdate.length,
-    skipped: rows.length - toInsert.length - toUpdate.length,
+    skipped: duplicateRowsSkipped + uniqueRows.length - toInsert.length - toUpdate.length,
   };
 }
 

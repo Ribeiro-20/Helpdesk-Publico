@@ -4,11 +4,13 @@
   "description": "Local cron scheduler for BASE Monitor edge functions",
   "type": "module",
   "scripts": {
-    "start": "tsx run.ts",
+    "start": "tsx start-all.ts",
+    "start:main": "tsx run.ts",
     "once": "tsx run.ts --once",
-    "contracts": "tsx cron-contracts.ts",
-    "contracts:once": "tsx cron-contracts.ts --once",
-    "hubspot:once": "tsx run.ts --hubspot-once"
+    "hubspot:once": "tsx run.ts --hubspot-once",
+    "cleanup:announcements": "tsx cleanup-announcements.ts",
+    "cleanup:announcements:once": "tsx cleanup-announcements.ts --once",
+    "cleanup:announcements:dry-run": "tsx cleanup-announcements.ts --once --dry-run"
   },
   "dependencies": {
     "node-cron": "^4.5.0",
