@@ -644,36 +644,9 @@ export function buildAnnouncementEmail(params: {
     .replace(/\.{3}$/, "");  // Remove trailing ellipsis
   const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
   const marketOpportunitiesUrl = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
-  const opportunityFilters = new URLSearchParams();
-
-  if (announcementNoStr !== "-") {
-    opportunityFilters.set("announcement_number", announcementNoStr);
-  }
-
-  const cpvFilter = firstEmailText(announcement?.cpv_main, cpvMain);
-  if (cpvFilter !== "-") {
-    opportunityFilters.set("cpv", cpvFilter);
-  }
-
-  if (entityStr !== "-") {
-    opportunityFilters.set("entity", entityStr);
-  }
-
-  if (procedureTypeStr !== "-") {
-    opportunityFilters.set("model", procedureTypeStr);
-  }
-
-  const publicationDateIso = typeof announcement?.publication_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(announcement.publication_date)
-    ? announcement.publication_date
-    : (typeof publicationDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(publicationDate) ? publicationDate : "");
-
-  if (publicationDateIso) {
-    opportunityFilters.set("from_date", publicationDateIso);
-    opportunityFilters.set("to_date", publicationDateIso);
-  }
-
-  const originalUrl = opportunityFilters.toString()
-    ? `${marketOpportunitiesUrl}?${opportunityFilters.toString()}`
+  const compactRedirectBaseUrl = "https://mercado.helpdeskpublico.pt/mp/o";
+  const originalUrl = announcementNoStr !== "-"
+    ? `${compactRedirectBaseUrl}/${encodeURIComponent(announcementNoStr)}`
     : marketOpportunitiesUrl;
   const subject = `Helpdesk Público | Nova oportunidade: ${objectStr.slice(0, 70)}`;
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
