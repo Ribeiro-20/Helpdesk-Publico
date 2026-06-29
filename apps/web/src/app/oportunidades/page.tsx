@@ -324,7 +324,7 @@ export default async function OportunidadesPage({
     }
     if (announcementNumber) {
       query = query.or(
-        `dr_announcement_no.ilike.%${announcementNumber}%,base_announcement_id.ilike.%${announcementNumber}%`,
+        `dr_announcement_no.ilike.${announcementNumber},base_announcement_id.ilike.${announcementNumber}`,
       );
     }
     if (minValue) query = query.gte("base_price", Number.parseFloat(minValue));
