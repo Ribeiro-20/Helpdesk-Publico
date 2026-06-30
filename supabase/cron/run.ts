@@ -414,7 +414,10 @@ async function runDirectDrScrape(requestBody: Record<string, unknown>) {
   const maxResults = typeof requestBody.max_results === "number" && Number.isFinite(requestBody.max_results)
     ? Math.floor(requestBody.max_results)
     : 500;
-  const waitMs = 12000;
+  const configuredWaitMs = Number.parseInt(process.env.DR_SCRAPE_WAIT_MS ?? "", 10);
+  const waitMs = Number.isFinite(configuredWaitMs) && configuredWaitMs > 0
+    ? configuredWaitMs
+    : 30000;
 
   console.log(`[cron] → ingest-dr (direct ${path.relative(process.cwd(), scriptsDir) || scriptsDir}) ...`);
 
