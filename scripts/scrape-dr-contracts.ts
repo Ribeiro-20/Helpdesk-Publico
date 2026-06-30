@@ -671,6 +671,29 @@ function hasUsefulDrDetailText(text: string): boolean {
   );
 }
 
+async function waitForUsefulDrDetailText(page: Page, timeoutMs: number): Promise<void> {
+  await page
+    .waitForFunction(
+      () => {
+        const text = document.body?.innerText ?? "";
+        const normalized = text
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+
+        return (
+          /Vocabulario\s+Principal\s*:\s*\d{8}(?:-\d)?/i.test(normalized) ||
+          /Valor\s*do\s*preco\s*base\s*do\s*procedimento\s*:/i.test(normalized) ||
+          /Preco\s*base\s*s\/IVA\s*:\s*[0-9]/i.test(normalized) ||
+          /Preco\s*base\s*do\s*procedimento\s*:\s*[0-9]/i.test(normalized) ||
+          /Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:/i.test(normalized)
+        );
+      },
+      undefined,
+      { timeout: timeoutMs },
+    )
+    .catch(() => undefined);
+}
+
 function extractNif(text: string): string | null {
   const m = text.match(/\b(?:NIPC|NIF)\s*:\s*(\d{9})\b/i);
   return m ? m[1] : null;
@@ -999,6 +1022,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
         );
 
         await page.goto(item.detail_url, { waitUntil: "domcontentloaded", timeout: 120000 }).catch(() => undefined);
+        await waitForUsefulDrDetailText(page, timeoutMs);
 
         let fallbackDetalhe: DrDetalheConteudo | null = null;
         const res = await responsePromise;

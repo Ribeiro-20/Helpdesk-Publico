@@ -116,8 +116,21 @@ loadDotenv({ path: resolve(__dirname, ".env") });
 
 const HUBSPOT_BASE_URL = "https://api.hubapi.com";
 const applyMode = process.argv.includes("--apply");
+
+function getCliArgValue(name: string): string | null {
+  const prefix = `${name}=`;
+  const inline = process.argv.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length).trim() || null;
+
+  const index = process.argv.indexOf(name);
+  if (index >= 0) return process.argv[index + 1]?.trim() || null;
+
+  return null;
+}
+
 const token = process.env.HUBSPOT_ACCESS_TOKEN?.trim();
-const listId = process.env.HUBSPOT_SEGMENT_ID?.trim();
+const cliSegmentId = getCliArgValue("--segment-id");
+const listId = cliSegmentId || process.env.HUBSPOT_SEGMENT_ID?.trim();
 const supabaseUrl = process.env.SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const configuredTenantId = process.env.TENANT_ID?.trim();

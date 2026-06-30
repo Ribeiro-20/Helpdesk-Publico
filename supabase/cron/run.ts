@@ -414,7 +414,10 @@ async function runDirectDrScrape(requestBody: Record<string, unknown>) {
   const maxResults = typeof requestBody.max_results === "number" && Number.isFinite(requestBody.max_results)
     ? Math.floor(requestBody.max_results)
     : 500;
-  const waitMs = 12000;
+  const configuredWaitMs = Number.parseInt(process.env.DR_SCRAPE_WAIT_MS ?? "", 10);
+  const waitMs = Number.isFinite(configuredWaitMs) && configuredWaitMs > 0
+    ? configuredWaitMs
+    : 30000;
 
   console.log(`[cron] → ingest-dr (direct ${path.relative(process.cwd(), scriptsDir) || scriptsDir}) ...`);
 
@@ -514,7 +517,18 @@ async function recordHubspotSyncHistory(
   }
 }
 
-async function runHubspotSyncJob(): Promise<void> {
+function getCliArgValue(name: string): string | null {
+  const prefix = `${name}=`;
+  const inline = process.argv.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length).trim() || null;
+
+  const index = process.argv.indexOf(name);
+  if (index >= 0) return process.argv[index + 1]?.trim() || null;
+
+  return null;
+}
+
+async function runHubspotSyncJob(segmentIdOverride?: string | null): Promise<void> {
   if (hubspotSyncRunning) {
     console.warn("[cron] HubSpot sync skipped because a previous run is still active");
     return;
@@ -536,10 +550,17 @@ async function runHubspotSyncJob(): Promise<void> {
       );
     }
 
-    console.log(`[cron] -> hubspot-client-sync (${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon) ...`);
+    const args = [tsxCli, "preview-hubspot-subscribers.ts", "--apply"];
+    if (segmentIdOverride) {
+      args.push("--segment-id", segmentIdOverride);
+    }
+
+    console.log(
+      `[cron] -> hubspot-client-sync (${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon${segmentIdOverride ? `, segment ${segmentIdOverride}` : ""}) ...`,
+    );
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
-      [tsxCli, "preview-hubspot-subscribers.ts", "--apply"],
+      args,
       {
         cwd: scriptsDir,
         timeout: 15 * 60 * 1000,
@@ -751,11 +772,12 @@ async function runSendEmailsJob(): Promise<void> {
 
 const isOnce = process.argv.includes("--once");
 const isHubspotOnce = process.argv.includes("--hubspot-once");
+const hubspotSegmentIdOverride = getCliArgValue("--segment-id");
 
 if (isHubspotOnce) {
   console.log("[cron] Running HubSpot client sync once ...");
   try {
-    await runHubspotSyncJob();
+    await runHubspotSyncJob(hubspotSegmentIdOverride);
     console.log("[cron] HubSpot sync done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
