@@ -859,6 +859,9 @@ export function buildAnnouncementEmail(params: {
                 <span style="color:#d1d5db;"> | </span>
                 <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Website</span></a>
               </div>
+              <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
+                Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa através da <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" style="color:#9ca3af !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#9ca3af; text-decoration:underline;">hiperligação</a>.
+              </div>
             </td>
           </tr>
 
@@ -882,7 +885,11 @@ Dias restantes: ${remainingInfo.text}
 Referência: ${announcementNoStr}
 Link: ${originalUrl}`;
 
-  return { subject, html, text };
+  const textWithDisclaimer = `${text}
+
+Este e-mail e enviado automaticamente em virtude das opcoes ativas no momento da subscricao do servico. Caso pretenda alterar as suas preferencias contacte a nossa equipa atraves da hiperligacao: https://www.helpdeskpublico.pt/contactos`;
+
+  return { subject, html, text: textWithDisclaimer };
 }
 
 export function buildAnnouncementEmailOutlook(params: {

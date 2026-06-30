@@ -1,4 +1,5 @@
 import { config as loadDotenv } from "dotenv";
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -503,8 +504,27 @@ function sha256(input: string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
+function mojibakeScore(value: string): number {
+  return (value.match(/[ÃÂ�]|â[\u0080-\u00BF]?/g) ?? []).length;
+}
+
+function repairMojibake(value: string): string {
+  let current = value;
+
+  for (let i = 0; i < 2; i++) {
+    if (!/[ÃÂâ�]/.test(current)) break;
+
+    const repaired = Buffer.from(current, "latin1").toString("utf8");
+    if (mojibakeScore(repaired) >= mojibakeScore(current)) break;
+
+    current = repaired;
+  }
+
+  return current;
+}
+
 function normalizeSpace(v: string | null | undefined): string {
-  return (v ?? "").replace(/\s+/g, " ").trim();
+  return repairMojibake(v ?? "").replace(/\s+/g, " ").trim();
 }
 
 function mergeRawPayload(
@@ -561,6 +581,16 @@ function isGenericDrTitle(title: string | null | undefined): boolean {
   return /^an[uú]ncio de procedimento\s+n\.?\s*[ºo]?\s*\d+\/\d{4}$/i.test(normalized);
 }
 
+function isGenericDrTitleClean(title: string | null | undefined): boolean {
+  const normalized = stripDiacritics(normalizeSpace(title ?? ""))
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (!normalized) return true;
+
+  return /^anuncio de procedimento\s+n\.?\s*[\u00BAo]?\s*\d+\/\d{4}$/i.test(normalized);
+}
+
 function buildEffectiveTitle(
   title: string | null | undefined,
   description: string | null | undefined,
@@ -570,7 +600,7 @@ function buildEffectiveTitle(
   const safeDescription = normalizeSpace(description ?? "");
   const safeEntity = normalizeSpace(entityName ?? "");
 
-  if (!isGenericDrTitle(safeTitle)) {
+  if (!isGenericDrTitleClean(safeTitle)) {
     return safeTitle;
   }
 
@@ -607,6 +637,27 @@ function parsePrice(raw: string | null): number | null {
 
 function stripDiacritics(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function isAnuncioProcedimentoType(tipoDiploma: string): boolean {
+  const normalized = normalizeSpace(stripDiacritics(tipoDiploma))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+  if (!normalized) return false;
+
+  return normalized.includes("anuncio") && normalized.includes("procedimento");
+}
+
+function toAbsoluteDrUrl(value: string | null | undefined): string | null {
+  const raw = normalizeSpace(value ?? "");
+  if (!raw) return null;
+
+  if (/^https?:\/\//i.test(raw)) return raw;
+
+  const path = raw.startsWith("/") ? raw : `/${raw}`;
+  return new URL(path, "https://diariodarepublica.pt").toString();
 }
 
 function hasUsefulDrDetailText(text: string): boolean {
@@ -705,13 +756,25 @@ async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResu
 
   const partSelect = page.locator("#Dropdown");
   if ((await partSelect.count()) > 0) {
+    const partOptionValue = await partSelect.locator("option").evaluateAll((options) => {
+      const contractsOption = options.find((option) => {
+        const text = (option.textContent ?? "")
+          .trim()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+        return text.includes("contratos publicos");
+      });
+      return contractsOption?.getAttribute("value") ?? null;
+    });
+
     const filteredResponsePromise = waitForJsonResponse(
       page,
       "/Legislacao_Conteudos/Conteudo_Det_Diario/DataActionGetDadosAndApplicationSettings",
       timeoutMs,
     );
 
-    await partSelect.selectOption("7").catch(() => undefined);
+    await partSelect.selectOption(partOptionValue ?? "7").catch(() => undefined);
     const filteredResponse = await filteredResponsePromise;
     if (filteredResponse) response = filteredResponse;
   }
@@ -772,20 +835,24 @@ async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResu
       const title = normalizeSpace(String(row.Titulo ?? ""));
       const entityName = normalizeSpace(String(row.Emissor ?? "")) || null;
       const summary = normalizeSpace(String(row.Sumario ?? "")) || null;
-      const tipoDiploma = normalizeSpace(String(row.TipoDiploma ?? ""));
+      const tipoDiplomaRaw = normalizeSpace(String(row.TipoDiploma ?? ""));
       const contratoId = normalizeSpace(String(row.ContratoPublicoId ?? ""));
       const drNo = normalizeSpace(String(row.Numero ?? "")) || extractAnnouncementNo([title]);
 
       const numeroSlug = drNo ? drNo.replace("/", "-") : "";
-      const detailUrlFromRow = normalizeSpace(String(row.DetailUrl ?? ""));
+      const detailUrlFromRow = normalizeSpace(String(row.DetailUrl ?? row.LinkSitemap ?? ""));
+      const tipoDiplomaFromUrl = detailUrlFromRow
+        ? (detailUrlFromRow.match(/\/dr\/detalhe\/([^/]+)\//)?.[1] ?? "")
+        : "";
+      const tipoDiploma = tipoDiplomaRaw || normalizeSpace(tipoDiplomaFromUrl);
       const detailPath = !detailUrlFromRow && contratoId
         ? `/dr/detalhe/${tipoDiploma || "anuncio-procedimento"}/${numeroSlug ? `${numeroSlug}-` : ""}${contratoId}`
         : null;
-      const detailUrl = detailUrlFromRow
-        ? detailUrlFromRow
-        : detailPath
-        ? new URL(detailPath, "https://diariodarepublica.pt").toString()
-        : null;
+      const detailUrl = toAbsoluteDrUrl(detailUrlFromRow) ?? toAbsoluteDrUrl(detailPath);
+
+      if (!isAnuncioProcedimentoType(tipoDiploma)) {
+        continue;
+      }
 
       const candidate: DrContractCandidate = {
         base_announcement_id: contratoId || null,
@@ -795,7 +862,7 @@ async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResu
         dr_announcement_no: drNo,
         entity_name: entityName,
         entity_nif: null,
-        act_type: "Anúncio de procedimento",
+        act_type: "Anuncio de procedimento",
         contract_type: null,
         base_price: null,
         cpv_main: null,
