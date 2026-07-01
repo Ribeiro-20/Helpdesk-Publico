@@ -556,6 +556,29 @@ function toTitleCasePt(value: string): string {
     .join(" ");
 }
 
+function buildOpportunityUrl(params: {
+  announcementNo: string;
+  publicationDate?: string | null;
+}): string {
+  const baseUrl = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
+  const url = new URL(baseUrl);
+
+  if (params.announcementNo && params.announcementNo !== "-") {
+    url.searchParams.set("announcement_number", params.announcementNo);
+  }
+
+  if (params.publicationDate) {
+    const date = new Date(String(params.publicationDate));
+    if (!Number.isNaN(date.getTime())) {
+      const iso = date.toISOString().slice(0, 10);
+      url.searchParams.set("from_date", iso);
+      url.searchParams.set("to_date", iso);
+    }
+  }
+
+  return url.toString();
+}
+
 function buildAnnouncementEmailLegacy(params: {
   clientName: string;
   title: string;
@@ -643,11 +666,10 @@ export function buildAnnouncementEmail(params: {
     .replace(/^\s*\d{6,}\s*[-–—]\s*/, "")  // Remove prefixo de ID do anúncio (ex: "2526000345 - ")
     .replace(/\.{3}$/, "");  // Remove trailing ellipsis
   const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
-  const marketOpportunitiesUrl = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
-  const compactRedirectBaseUrl = "https://mercado.helpdeskpublico.pt/mp/o";
-  const originalUrl = announcementNoStr !== "-"
-    ? `${compactRedirectBaseUrl}/${encodeURIComponent(announcementNoStr)}`
-    : marketOpportunitiesUrl;
+  const originalUrl = buildOpportunityUrl({
+    announcementNo: announcementNoStr,
+    publicationDate: announcement?.publication_date ? String(announcement.publication_date) : null,
+  });
   const subject = `Helpdesk Público | Nova oportunidade: ${objectStr.slice(0, 70)}`;
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
 
