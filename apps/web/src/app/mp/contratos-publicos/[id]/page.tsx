@@ -22,13 +22,16 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function extractName(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? raw : raw.slice(idx + 3);
+  // Remove o NIF numérico no início; o alias (ex: CTT, CIVOPAL) fica como parte do nome
+  // "516165887-CTT - SOLUCOES EMPRESARIAIS, S.A." → "CTT - SOLUCOES EMPRESARIAIS, S.A."
+  // "516165887 - SOLUCOES EMPRESARIAIS, S.A." → "SOLUCOES EMPRESARIAIS, S.A."
+  const withoutNif = raw.replace(/^\d{5,12}/, "").replace(/^[-–\s]+/, "").trim();
+  return withoutNif || raw.replace(/^[-–\s]+/, "").trim() || "—";
 }
 
 function extractNif(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? "" : raw.slice(0, idx);
+  const match = raw.match(/^(\d{5,12})/);
+  return match ? match[1] : "";
 }
 
 /** Parse competitors field — handles JSON arrays, single-quote arrays, and plain text */
@@ -69,7 +72,11 @@ function parseCompetitors(raw: string): string[] {
     }
   }
 
-  // 4. Plain text — split on comma only when followed by new entry (uppercase/digit)
+  // 4. Comma-separated — só divide quando o segmento anterior está completo (sufixo legal)
+  // ou o seguinte começa com NIF — evita partir "Alfagene, Tecnologias das Ciências da Vida, Lda."
+  const PREV_SUFFIX = /\b(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)$/i;
+  const NEXT_SUFFIX = /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unip\b|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i;
+
   const entries: string[] = [];
   let current = "";
   for (let i = 0; i < trimmed.length; i++) {
@@ -81,15 +88,16 @@ function parseCompetitors(raw: string): string[] {
       /[A-Z0-9]/.test(trimmed[i + 2])
     ) {
       const next = trimmed.slice(i + 1).trimStart();
-      const isSuffix =
-        /^(S\.A\.|Lda\.|Unip\.|Lda|SA|Unipessoal|e\.V\.|Inc\.|Ltd\.)/i.test(
-          next,
-        );
-      if (!isSuffix) {
-        entries.push(current.trim());
-        current = "";
-        i++;
-        continue;
+      const isNextSuffix = NEXT_SUFFIX.test(next);
+      if (!isNextSuffix) {
+        const isPrevSuffix = PREV_SUFFIX.test(current.trim());
+        const isNextNif = /^\d{5,12}[-\s]/.test(next);
+        if (isPrevSuffix || isNextNif) {
+          entries.push(current.trim());
+          current = "";
+          i++;
+          continue;
+        }
       }
     }
     current += trimmed[i];
