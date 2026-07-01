@@ -350,37 +350,11 @@ Deno.serve(async (req: Request) => {
           },
         });
 
-          // Try to fetch the PDF version of the announcement and attach it
-          const attachments: Array<{ name: string; content: string; contentType?: string }> = [];
-          try {
-            const pdfUrl = `${appBaseUrl.replace(/\/$/,"")}/api/announcements/${notif.announcement_id}/pdf`;
-            const pdfRes = await fetch(pdfUrl);
-            if (pdfRes.ok) {
-              const arr = await pdfRes.arrayBuffer();
-              // convert ArrayBuffer to base64 (Deno-friendly)
-              const bytes = new Uint8Array(arr);
-              let binary = "";
-              const chunkSize = 0x8000; // 32KB chunks
-              for (let i = 0; i < bytes.length; i += chunkSize) {
-                const chunk = bytes.subarray(i, i + chunkSize);
-                binary += String.fromCharCode.apply(null, Array.from(chunk));
-              }
-              const b64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
-              const filename = `anuncio-${String(notif.announcement_id)}.pdf`;
-              attachments.push({ name: filename, content: b64, contentType: "application/pdf" });
-            } else {
-              console.warn(`[send-emails] could not fetch pdf (${pdfRes.status}) for announcement ${notif.announcement_id}`);
-            }
-          } catch (e) {
-            console.warn("[send-emails] error fetching announcement pdf:", e);
-          }
-
           const result = await emailProvider.send({
             to: client.email,
             subject,
             html,
             text,
-            ...(attachments.length > 0 ? { attachments } : {}),
           });
 
         if (result.success) {
