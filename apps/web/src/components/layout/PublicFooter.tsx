@@ -12,7 +12,13 @@ export default function PublicFooter() {
           
           {/* Coluna 1: Logo e Redes Sociais */}
           <div className="flex flex-col items-start gap-5">
-            <Link href="/" className="inline-block">
+            {/* Logo atualizado para abrir em novo separador (target="_blank") */}
+            <a 
+              href="https://www.helpdeskpublico.pt/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="inline-block"
+            >
               <Image
                 src="/logo-white.png"
                 alt="Helpdesk Público"
@@ -21,23 +27,53 @@ export default function PublicFooter() {
                 className="object-contain"
                 priority
               />
-            </Link>
+            </a>
             
-            {/* Ícones com recuo pl-6 para alinhar exatamente sob o escudo/bandeira */}
+            {/* Ícones atualizados para abrir em novo separador (target="_blank") */}
             <div className="flex items-center gap-4 pl-0 sm:pl-6 text-gray-500">
-              <Link href="https://linkedin.com/company/helpdeskpublico/" className="hover:text-white transition-colors" aria-label="LinkedIn">
+              <Link
+                href="https://linkedin.com/company/helpdeskpublico/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white transition-colors"
+                aria-label="LinkedIn"
+              >
                 <Linkedin className="w-5 h-5" />
               </Link>
-              <Link href="https://facebook.com/helpdeskpublico/" className="hover:text-white transition-colors" aria-label="Facebook">
+              <Link 
+                href="https://facebook.com/helpdeskpublico/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-white transition-colors" 
+                aria-label="Facebook"
+              >
                 <Facebook className="w-5 h-5" />
               </Link>
-              <Link href="https://instagram.com/helpdeskpublico/" className="hover:text-white transition-colors" aria-label="Instagram">
+              <Link 
+                href="https://instagram.com/helpdeskpublico/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-white transition-colors" 
+                aria-label="Instagram"
+              >
                 <Instagram className="w-5 h-5" />
               </Link>
-              <Link href="https://twitter.com/helpdeskpublico" className="hover:text-white transition-colors" aria-label="Twitter / X">
+              <Link 
+                href="https://twitter.com/helpdeskpublico" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-white transition-colors" 
+                aria-label="Twitter / X"
+              >
                 <Twitter className="w-5 h-5" />
               </Link>
-              <Link href="https://youtube.com/@helpdeskpublico/" className="hover:text-white transition-colors" aria-label="YouTube">
+              <Link 
+                href="https://youtube.com/@helpdeskpublico/" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="hover:text-white transition-colors" 
+                aria-label="YouTube"
+              >
                 <Youtube className="w-5 h-5" />
               </Link>
             </div>
@@ -50,27 +86,27 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px]">
               <li>
-                <Link href="https://helpdeskpublico.pt/adjudicantes" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/adjudicantes" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Serviços Adjudicantes
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/adjudicatarios" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/adjudicatarios" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Serviços Empresas e Adjudicatários
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/alerta-concursos-publicos" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/alerta-concursos-publicos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Alerta Concursos Públicos
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/market-intelligence" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/market-intelligence" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Market Intelligence
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/go-no-go-concursos-publicos" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Go / No-Go Concursos Públicos
                 </Link>
               </li>
@@ -84,23 +120,28 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px]">
               <li>
-                <Link href="https://helpdeskpublico.pt/identificacao-cpvs" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/identificacao-cpvs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Identificação CPV
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/observatorio" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/observatorio" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Observatório
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/blog" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/blog" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Blog
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/FAQs" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/FAQs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   FAQs
+                </Link>
+              </li>
+              <li>
+                <Link href="https://www.helpdeskpublico.pt/decisao-contratacao-publica" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                  Apoio à Decisão
                 </Link>
               </li>
             </ul>
@@ -113,23 +154,29 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px]">
               <li>
-                <Link href="https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Sobre Nós
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/contactos" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/contactos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Contactos
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/privacidade" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Política de Privacidade
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/esg-sustentabilidade" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/esg-sustentabilidade" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   ESG e Sustentabilidade
+                </Link>
+              </li>
+              {/* Novo Link adicionado na coluna Institucional */}
+              <li>
+                <Link href="https://www.helpdeskpublico.pt/rh" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                  Recursos Humanos
                 </Link>
               </li>
             </ul>
