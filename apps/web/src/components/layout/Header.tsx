@@ -42,8 +42,13 @@ export default function Header() {
       }}
     >
       <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-12 lg:py-0 lg:h-[104px]">
-        {/* ── Logo ── */}
-        <Link href="/" className="shrink-0">
+        {/* ── Logo atualizado para abrir link externo em nova aba ── */}
+        <a 
+          href="https://www.helpdeskpublico.pt/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="shrink-0"
+        >
           <Image
             src="/logo.png"
             alt="Helpdesk Público"
@@ -53,7 +58,7 @@ export default function Header() {
             style={{ width: "300px", maxWidth: "72vw", height: "auto" }}
             priority
           />
-        </Link>
+        </a>
 
         <div className="flex-1" />
 
