@@ -254,7 +254,7 @@ export default function OportunidadesResults({
               href={buildHref(page + 1, filters)}
               className="px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
             >
-              Proxima →
+              Próxima →
             </Link>
           )}
         </div>

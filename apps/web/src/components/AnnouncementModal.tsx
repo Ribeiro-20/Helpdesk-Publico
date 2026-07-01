@@ -87,7 +87,7 @@ function fmtDate(value: string | null): string {
   return parsed.toLocaleDateString("pt-PT");
 }
 
-function MissingValue({ label = "Dados em atualizacao" }: { label?: string }) {
+function MissingValue({ label = "Dados em atualização" }: { label?: string }) {
   return (
     <span className="group relative inline-flex w-fit items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-sm font-medium text-gray-500">
       <span>{label}</span>
@@ -362,12 +362,12 @@ export default function AnnouncementModal({
                       </span>
                     ) : (
                       <p className="text-sm">
-                        <MissingValue label="CPV em atualizacao" />
+                        <MissingValue label="CPV em atualização" />
                       </p>
                     )}
                   </InfoCard>
                   <InfoCard title="Referências">
-                    <Field label="Nº DR / Base" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
+                    <Field label="Nº DRE" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
                     {showSource && <Field label="Fonte" value={announcement.source} />}
                     <Field label="Versões" value={versions.length} />
                   </InfoCard>
