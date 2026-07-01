@@ -104,7 +104,7 @@ function MissingValue({ label = "Dados em atualização" }: { label?: string }) 
         <span className="absolute left-4 -top-1 h-2 w-2 rotate-45 border-l border-t border-gray-200 bg-white" />
         <span className="block text-[10px] font-bold uppercase text-gray-400">INFO</span>
         <span className="mt-1 block text-xs font-normal leading-5 text-gray-700 whitespace-normal break-words">
-          Dados em atualização, consulte novamente mais tarde.
+          Dados em atualização. Por favor, tente novamente mais tarde ou consulte o Diário da República 
         </span>
       </span>
     </span>

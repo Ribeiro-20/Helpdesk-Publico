@@ -68,7 +68,7 @@ function MissingInfo({
   return (
     <span className="inline-flex items-center justify-center text-xs text-gray-400">
       <InfoPopover
-        text="Dados em atualização, consulte novamente mais tarde."
+        text="Dados em atualização. Por favor, tente novamente mais tarde ou consulte o Diário da República "
         ariaLabel="Dados ainda nao disponiveis"
         placement={placement}
         side={side}
