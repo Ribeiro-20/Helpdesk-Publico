@@ -12,6 +12,12 @@ import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 
+export const metadata = {
+  title: "Market Intelligence em Contratação Pública | Helpdesk Público",
+  description:
+    "Identifique oportunidades na Contratação Pública. Consulte contratos em execução, potenciais clientes públicos e informação estruturada para apoiar a ação comercial.",
+};
+
 export const dynamic = "force-dynamic";
 
 type MercadoSearchParams = {

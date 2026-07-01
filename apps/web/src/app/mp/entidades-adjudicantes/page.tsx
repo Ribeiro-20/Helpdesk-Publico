@@ -5,6 +5,12 @@ import { BarChart2, Building2, ChevronDown, Filter, House, Search } from "lucide
 import BackButton from "@/components/BackButton";
 import PublicFooter from "@/components/layout/PublicFooter";
 
+export const metadata = {
+  title: "Entidades Adjudicantes | Helpdesk Público",
+  description:
+    "Consulte todas as Entidades Adjudicantes ativas. Analise Contratos Públicos, Adjudicatários, Fornecedores do Estado e a atividade de cada Entidade.",
+};
+
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;

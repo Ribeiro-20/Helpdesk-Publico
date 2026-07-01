@@ -11,6 +11,12 @@ import PublicFooter from "@/components/layout/PublicFooter";
 import { createAdminClient } from "@/lib/supabase/server";
 import type { ElementType } from "react";
 
+export const metadata = {
+  title: "Mercado Público e Contratação Pública | Helpdesk Público",
+  description:
+    "Consulte informação do Mercado Público e da Contratação Pública. Pesquise Contratos Públicos, Entidades Adjudicantes, Adjudicatários e Fornecedores do Estado.",
+};
+
 export const dynamic = "force-dynamic";
 
 const BODY_BG = "rgba(247, 250, 253, 1)";

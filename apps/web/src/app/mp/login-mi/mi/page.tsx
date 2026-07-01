@@ -2,6 +2,12 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
 
+export const metadata = {
+  title: "Market Intelligence em Contratação Pública | Helpdesk Público",
+  description:
+    "Identifique oportunidades na Contratação Pública. Consulte contratos em execução, potenciais clientes públicos e informação estruturada para apoiar a ação comercial.",
+};
+
 export const dynamic = "force-dynamic";
 
 const HIGHLIGHTS = [

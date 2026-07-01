@@ -11,6 +11,12 @@ import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import CurrencyValueField from "@/components/CurrencyValueField";
 import { FileText, Filter, House } from "lucide-react";
 
+export const metadata = {
+  title: "Oportunidades de Mercado | Helpdesk Público",
+  description:
+    "Descubra diariamente novos Concursos Públicos e oportunidades na Contratação Pública. Pesquise Entidades Adjudicantes, Contratos Públicos e Adjudicatários.",
+};
+
 export const dynamic = "force-dynamic";
 
 type OportunidadesSearchParams = {
