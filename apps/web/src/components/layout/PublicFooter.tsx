@@ -139,6 +139,11 @@ export default function PublicFooter() {
                   FAQs
                 </Link>
               </li>
+              <li>
+                <Link href="https://www.helpdeskpublico.pt/decisao-contratacao-publica" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                  Apoio à Decisão
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -166,6 +171,12 @@ export default function PublicFooter() {
               <li>
                 <Link href="https://www.helpdeskpublico.pt/esg-sustentabilidade" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   ESG e Sustentabilidade
+                </Link>
+              </li>
+              {/* Novo Link adicionado na coluna Institucional */}
+              <li>
+                <Link href="https://www.helpdeskpublico.pt/rh" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                  Recursos Humanos
                 </Link>
               </li>
             </ul>
