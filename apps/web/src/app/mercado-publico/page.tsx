@@ -13,6 +13,12 @@ import InfoPopover from "@/components/InfoPopover";
 import BackButton from "@/components/BackButton";
 import PriceInput from "@/components/PriceInput";
 
+export const metadata = {
+  title: "Contratos Públicos | Helpdesk Público",
+  description:
+    "Consulte todos os Contratos Públicos publicados. Pesquise Entidades Adjudicantes, Adjudicatários e o detalhe de cada contrato na Contratação Pública.",
+};
+
 export const dynamic = "force-dynamic";
 
 type MercadoSearchParams = {

@@ -5,6 +5,12 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, ChevronDown, Filter, House } from "lucide-react";
 import BackButton from "@/components/BackButton";
 
+export const metadata = {
+  title: "Adjudicatários e Fornecedores do Estado | Helpdesk Público",
+  description:
+    "Consulte Adjudicatários e Fornecedores do Estado. Analise Contratos Públicos, clientes públicos e a atividade das empresas ativas na Contratação Pública.",
+};
+
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
