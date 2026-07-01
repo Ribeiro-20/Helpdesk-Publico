@@ -12,8 +12,13 @@ export default function PublicFooter() {
           
           {/* Coluna 1: Logo e Redes Sociais */}
           <div className="flex flex-col items-start gap-5">
-            {/* Logo atualizado com o link externo */}
-            <a href="https://www.helpdeskpublico.pt/" className="inline-block">
+            {/* Logo atualizado para abrir em novo separador (target="_blank") */}
+            <a 
+              href="https://www.helpdeskpublico.pt/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="inline-block"
+            >
               <Image
                 src="/logo-white.png"
                 alt="Helpdesk Público"
