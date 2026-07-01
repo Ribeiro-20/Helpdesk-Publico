@@ -12,7 +12,8 @@ export default function PublicFooter() {
           
           {/* Coluna 1: Logo e Redes Sociais */}
           <div className="flex flex-col items-start gap-5">
-            <Link href="/" className="inline-block">
+            {/* Logo atualizado com o link externo */}
+            <a href="https://www.helpdeskpublico.pt/" className="inline-block">
               <Image
                 src="/logo-white.png"
                 alt="Helpdesk Público"
@@ -21,7 +22,7 @@ export default function PublicFooter() {
                 className="object-contain"
                 priority
               />
-            </Link>
+            </a>
             
             {/* Ícones atualizados para abrir em novo separador (target="_blank") */}
             <div className="flex items-center gap-4 pl-6 text-gray-500">
