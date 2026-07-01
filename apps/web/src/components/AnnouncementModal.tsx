@@ -87,76 +87,7 @@ function fmtDate(value: string | null): string {
   return parsed.toLocaleDateString("pt-PT");
 }
 
-const VERSION_FIELD_LABELS: Record<string, string> = {
-  title: "Objeto/título",
-  description: "Descrição",
-  entity_name: "Entidade adjudicante",
-  entity_nif: "NIPC",
-  procedure_type: "Tipo de procedimento",
-  act_type: "Tipo de ato",
-  contract_type: "Tipo de contrato",
-  publication_date: "Data de publicação",
-  proposal_deadline_days: "Prazo",
-  proposal_deadline_at: "Data limite",
-  base_price: "Preço base",
-  currency: "Moeda",
-  cpv_main: "CPV principal",
-  cpv_list: "Lista CPV",
-  status: "Estado",
-  detail_url: "Ligação DR",
-  procedure_pieces_url: "Peças do procedimento",
-};
-
-const VERSION_TECHNICAL_KEYS = new Set([
-  "id",
-  "reason",
-  "raw_hash",
-  "previous_hash",
-  "announcement_id",
-  "tenant_id",
-  "created_at",
-  "updated_at",
-]);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function versionChangedFields(summary: unknown): string[] {
-  if (!isRecord(summary)) return [];
-
-  return Object.keys(summary)
-    .filter((key) => !VERSION_TECHNICAL_KEYS.has(key))
-    .map((key) => VERSION_FIELD_LABELS[key] ?? key.replace(/_/g, " "))
-    .filter((label, index, labels) => labels.indexOf(label) === index)
-    .slice(0, 8);
-}
-
-function versionTitle(summary: unknown): string {
-  const fields = versionChangedFields(summary);
-  if (fields.length > 0) return "Campos atualizados";
-
-  if (isRecord(summary) && summary.reason === "changed") {
-    return "Alteração detetada na origem";
-  }
-
-  return "Atualização registada";
-}
-
-function versionDescription(summary: unknown): string {
-  const fields = versionChangedFields(summary);
-  if (fields.length > 0) {
-    return "Foram guardadas alterações nos dados principais do anúncio.";
-  }
-
-  if (isRecord(summary) && summary.reason === "changed") {
-    return "O conteúdo recebido da fonte externa mudou face à versão anterior.";
-  }
-
-  return "Foi guardada uma nova versão deste anúncio para consulta técnica.";
-}
-
-function MissingValue({ label = "Dados em atualização" }: { label?: string }) {
+function MissingValue({ label = "Dados em atualizacao" }: { label?: string }) {
   return (
     <span className="group relative inline-flex w-fit items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-sm font-medium text-gray-500">
       <span>{label}</span>
@@ -173,7 +104,7 @@ function MissingValue({ label = "Dados em atualização" }: { label?: string }) 
         <span className="absolute left-4 -top-1 h-2 w-2 rotate-45 border-l border-t border-gray-200 bg-white" />
         <span className="block text-[10px] font-bold uppercase text-gray-400">INFO</span>
         <span className="mt-1 block text-xs font-normal leading-5 text-gray-700 whitespace-normal break-words">
-          Dados em atualização. Por favor, tente novamente mais tarde ou consulte o Diário da República 
+          Dados em atualização, consulte novamente mais tarde.
         </span>
       </span>
     </span>
@@ -431,12 +362,12 @@ export default function AnnouncementModal({
                       </span>
                     ) : (
                       <p className="text-sm">
-                        <MissingValue label="CPV em atualização" />
+                        <MissingValue label="CPV em atualizacao" />
                       </p>
                     )}
                   </InfoCard>
                   <InfoCard title="Referências">
-                    <Field label="Nº DRE" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
+                    <Field label="Nº DR / Base" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
                     {showSource && <Field label="Fonte" value={announcement.source} />}
                     <Field label="Versões" value={versions.length} />
                   </InfoCard>
@@ -462,47 +393,21 @@ export default function AnnouncementModal({
               {versions.length > 0 && (
                 <InfoCard title={`Histórico de versões (${versions.length})`}>
                   <div className="space-y-3">
-                    {versions.map((version, index) => {
-                      const changedFields = versionChangedFields(version.change_summary);
-
-                      return (
-                        <div key={version.id} className="rounded-lg border border-surface-100 bg-white p-3">
-                          <div className="flex items-start gap-3">
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
-                              {index + 1}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                                <p className="text-sm font-semibold text-gray-800">
-                                  {versionTitle(version.change_summary)}
-                                </p>
-                                <span className="text-xs text-gray-400">
-                                  {new Date(version.changed_at).toLocaleString("pt-PT")}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-xs leading-5 text-gray-500">
-                                {versionDescription(version.change_summary)}
-                              </p>
-                              {changedFields.length > 0 && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {changedFields.map((field) => (
-                                    <span
-                                      key={field}
-                                      className="rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700"
-                                    >
-                                      {field}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                              <p className="mt-2 break-all font-mono text-[11px] text-gray-400">
-                                Ref. técnica: {(version.raw_hash as string).slice(0, 12)}...
-                              </p>
-                            </div>
-                          </div>
+                    {versions.map((version, index) => (
+                      <div key={version.id} className="border border-surface-100 rounded-lg p-3">
+                        <div className="flex items-center gap-3 mb-1.5">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
+                            {index + 1}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(version.changed_at).toLocaleString("pt-PT")}
+                          </span>
                         </div>
-                      );
-                    })}
+                        <p className="text-xs text-gray-500 font-mono break-all">
+                          {(version.raw_hash as string).slice(0, 12)}…
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </InfoCard>
               )}
@@ -526,7 +431,7 @@ export default function AnnouncementModal({
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100"
                     >
-                      Acesso peças de procedimento
+                      Aceda às peças de procedimento
                     </Link>
                   )}
                 </div>
