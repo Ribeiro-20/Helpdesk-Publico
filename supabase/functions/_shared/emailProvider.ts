@@ -812,14 +812,14 @@ export function buildAnnouncementEmail(params: {
                 <tr>
                   <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
                     <!--[if mso]>
-                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(originalUrl)}" style="height:48px;v-text-anchor:middle;width:300px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(originalUrl)}" style="height:48px;v-text-anchor:middle;width:340px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
                       <w:anchorlock/>
-                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:16px;font-weight:700;">Aceda ao procedimento</center>
+                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Aceda ao Procedimento</center>
                     </v:roundrect>
                     <![endif]-->
                     <!--[if !mso]><!-- -->
-                    <a href="${escapeEmailHtml(originalUrl)}" target="_blank" class="link-white" color="#ffffff" style="display:block; padding:15px 26px; font-size:16px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">
-                      <span color="#ffffff" style="color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff;">Aceda ao procedimento</span>
+                    <a href="${escapeEmailHtml(originalUrl)}" target="_blank" class="link-white" color="#ffffff" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
+                      <font color="#ffffff">Aceda ao Procedimento</font>
                     </a>
                     <!--<![endif]-->
                   </td>
