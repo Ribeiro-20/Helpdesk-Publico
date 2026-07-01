@@ -80,27 +80,27 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px]">
               <li>
-                <Link href="https://helpdeskpublico.pt/adjudicantes" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/adjudicantes" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Serviços Adjudicantes
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/adjudicatarios" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/adjudicatarios" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Serviços Empresas e Adjudicatários
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/alerta-concursos-publicos" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/alerta-concursos-publicos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Alerta Concursos Públicos
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/market-intelligence" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/market-intelligence" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Market Intelligence
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/go-no-go-concursos-publicos" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Go / No-Go Concursos Públicos
                 </Link>
               </li>
@@ -114,22 +114,22 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px]">
               <li>
-                <Link href="https://helpdeskpublico.pt/identificacao-cpvs" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/identificacao-cpvs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Identificação CPV
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/observatorio" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/observatorio" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Observatório
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/blog" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/blog" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Blog
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/FAQs" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/FAQs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   FAQs
                 </Link>
               </li>
@@ -143,22 +143,22 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px]">
               <li>
-                <Link href="https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Sobre Nós
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/contactos" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/contactos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Contactos
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/privacidade" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Política de Privacidade
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/esg-sustentabilidade" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/esg-sustentabilidade" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   ESG e Sustentabilidade
                 </Link>
               </li>
