@@ -307,9 +307,10 @@ export default async function OportunidadesPage({
         { count: "exact" },
       )
       .eq("tenant_id", tenantId);
-      // Mostrar apenas anúncios ativos (exclui expirados).
-      const todayIso = new Date().toISOString().slice(0, 10);
-      query = query.eq("status", "active").or(`proposal_deadline_at.is.null,proposal_deadline_at.gte.${todayIso}`);
+
+    // Mostrar anúncios ativos e expirados recentes. A limpeza automática remove
+    // os expirados apenas depois do período de retenção.
+    query = query.in("status", ["active", "expired"]);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) query = query.ilike("entity_name", `%${entity}%`);
@@ -411,7 +412,7 @@ export default async function OportunidadesPage({
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Oportunidades de Contratação Pública</h1>
                 <p className="text-gray-500 text-sm mt-0.5">
-                  {totalCount.toLocaleString("pt-PT")} anúncios ativos encontrados
+                  {totalCount.toLocaleString("pt-PT")} anúncios encontrados
                 </p>
               </div>
             </div>
