@@ -846,8 +846,8 @@ export default async function MercadoPublicoPage({
   if (sortField) qsParams.set("sort", sortField);
   if (PAGE_SIZE !== 25) qsParams.set("limit", PAGE_SIZE.toString());
   const buildQsBase = qsParams.toString()
-    ? `/mercado-publico?${qsParams.toString()}`
-    : "/mercado-publico";
+    ? `/mp/contratos-publicos?${qsParams.toString()}`
+    : "/mp/contratos-publicos";
 
   return (
     <div
@@ -864,7 +864,7 @@ export default async function MercadoPublicoPage({
             <FileText className="w-6 h-6 text-green-500 shrink-0" />
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
-                Estatísticas de Mercado
+                Contratos Públicos
               </h1>
               <p className="text-gray-500 text-sm">
                 {totalCount} contratos publicados
@@ -873,7 +873,7 @@ export default async function MercadoPublicoPage({
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <Link
-              href="/"
+              href="/mp"
               className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
             >
               <House className="h-4 w-4" />
@@ -1034,7 +1034,7 @@ export default async function MercadoPublicoPage({
             </button>
             {hasFilters && (
               <Link
-                href="/mercado-publico"
+                href="/mp/contratos-publicos"
                 className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar

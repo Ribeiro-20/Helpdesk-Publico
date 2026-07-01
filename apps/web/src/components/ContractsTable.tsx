@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import ContractModal from "./ContractModal";
@@ -139,6 +140,7 @@ export default function ContractsTable({
   page: number;
   buildQsBase: string;
 }) {
+  const pathname = usePathname();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [cpvDescriptions, setCpvDescriptions] = useState<
     Record<string, string>
@@ -187,7 +189,7 @@ export default function ContractsTable({
   function buildQs(p: number) {
     const url = new URL(buildQsBase, "http://x");
     url.searchParams.set("page", String(p));
-    return `/mercado-publico?${url.searchParams.toString()}`;
+    return `${pathname}?${url.searchParams.toString()}`;
   }
 
   const BTN =
@@ -214,7 +216,7 @@ export default function ContractsTable({
     <>
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[700px]">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-gray-500 text-xs uppercase tracking-wider">

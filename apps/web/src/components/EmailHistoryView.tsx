@@ -12,8 +12,18 @@ type Notification = {
   error: string | null;
   created_at: string;
   clients: { name: string; email: string } | null;
-  announcements: { title: string; publication_date: string; description?: string; detail_url?: string; raw_payload?: unknown } | null;
+  announcements: {
+    title: string;
+    publication_date: string;
+    description?: string;
+    detail_url?: string;
+    dr_announcement_no?: string | null;
+    base_announcement_id?: string | null;
+    raw_payload?: unknown;
+  } | null;
 };
+
+const PRODUCTION_OPPORTUNITIES_URL = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
 
 const STATUS_OPTIONS = ["", "PENDING", "SENT", "FAILED", "SKIPPED", "RATE_LIMITED"];
 
@@ -80,6 +90,15 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
       return [client, annTitle, annDesc, n.error ?? "", n.status].join(" ").toLowerCase().includes(low);
     });
   }, [initial, filter, fromDate, toDate, search]);
+
+  function getAnnouncementNumber(announcement: Notification["announcements"]): string | null {
+    if (!announcement) return null;
+    const drNo = announcement.dr_announcement_no?.trim();
+    if (drNo) return drNo;
+    const baseId = announcement.base_announcement_id?.trim();
+    if (baseId) return baseId;
+    return null;
+  }
 
   return (
     <div className="space-y-6">
@@ -164,9 +183,16 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
                     <div className="text-sm text-gray-700">{n.announcements.description}</div>
                   )}
 
-                  {n.announcements?.detail_url && (
-                    <a className="text-sm text-brand-600" href={n.announcements.detail_url} target="_blank" rel="noreferrer">Ver anúncio</a>
-                  )}
+                  {(() => {
+                    const announcementNumber = getAnnouncementNumber(n.announcements);
+                    if (!announcementNumber) return null;
+                    const href = `${PRODUCTION_OPPORTUNITIES_URL}?announcement_number=${encodeURIComponent(announcementNumber)}`;
+                    return (
+                      <a className="text-sm text-brand-600" href={href} target="_blank" rel="noreferrer">
+                        Ver anúncio
+                      </a>
+                    );
+                  })()}
                 </div>
 
                 <div className="text-xs bg-brand-50 border border-brand-200 text-brand-800 rounded-xl px-4 py-3 font-mono overflow-auto max-h-56 break-all whitespace-pre-wrap">

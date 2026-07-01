@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/layout/PageHeader";
 import SingleDatePicker from "@/components/SingleDatePicker";
 import Link from "next/link";
@@ -32,21 +32,6 @@ function formatDate(d: string | null): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-function discountBadge(base: number | null, contract: number | null) {
-  if (base == null || contract == null || base === 0) return null;
-  const pct = ((base - contract) / base) * 100;
-  if (Math.abs(pct) < 0.5) return null;
-  const isDiscount = pct > 0;
-  return (
-    <span
-      className={`inline-block text-xs px-1.5 py-0.5 rounded font-medium ${
-        isDiscount ? "bg-brand-50 text-brand-700" : "bg-red-50 text-red-700"
-      }`}
-    >
-      {isDiscount ? "-" : "+"}{Math.abs(pct).toFixed(0)}%
-    </span>
-  );
-}
 
 /** Extract display name from contract party payloads (string or object). */
 function decodeHtml(str: string): string {
@@ -125,10 +110,26 @@ export default async function ContractsPage({
   const sortField = params.sort ?? "signing_date";
 
   const supabase = await createClient();
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("tenant_id")
-    .maybeSingle();
+  const adminSupabase = await createAdminClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+
+  let tenantId = "00000000-0000-0000-0000-000000000000";
+
+  if (user?.id) {
+    const { data: appUser } = await adminSupabase
+      .from("app_users")
+      .select("tenant_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (appUser?.tenant_id) tenantId = appUser.tenant_id as string;
+  }
+
+  if (tenantId === "00000000-0000-0000-0000-000000000000") {
+    const { data: fallback } = await adminSupabase
+      .from("tenants").select("id").limit(1).maybeSingle();
+    if (fallback?.id) tenantId = fallback.id as string;
+  }
 
   const from = (page - 1) * PAGE_SIZE;
 
@@ -161,7 +162,7 @@ export default async function ContractsPage({
   let totalCount = 0;
 
   const { data: rpcResult } = await supabase.rpc("search_contracts", {
-    p_tenant_id: appUser?.tenant_id ?? "00000000-0000-0000-0000-000000000000",
+    p_tenant_id: tenantId,
     p_entity_nif: effectiveEntityNif,
     p_winner_nif: effectiveWinnerNif,
     p_cpv: cpvFilter || null,
@@ -191,7 +192,7 @@ export default async function ContractsPage({
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const cpvCodes = [...new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[])];
+  const cpvCodes = Array.from(new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[]));
   const cpvDescriptions: Record<string, string> = {};
   if (cpvCodes.length > 0) {
     const { data: cpvData } = await supabase

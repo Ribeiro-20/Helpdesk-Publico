@@ -194,20 +194,21 @@ export default async function PublicContractDetailPage({
     >
       {/* ── NAVBAR ── */}
       <header
-        className="flex items-center justify-between px-10 py-3 sticky top-0 z-50"
+        className="flex items-center justify-between px-4 md:px-10 py-3 sticky top-0 z-50"
         style={{ background: NAV_BG }}
       >
-        <Link href="/" className="shrink-0">
+        <Link href="/mp" className="shrink-0">
           <Image
             src="/logo-white.webp"
             alt="Helpdesk Público"
             width={200}
             height={66}
             className="object-contain"
+            style={{ maxWidth: "60vw", height: "auto" }}
             priority
           />
         </Link>
-        <div className="relative w-80 mx-8">
+        <div className="relative w-80 mx-8 hidden md:block">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           <input
             type="text"
@@ -222,11 +223,11 @@ export default async function PublicContractDetailPage({
       </header>
 
       {/* ── MAIN ── */}
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {/* Back + title */}
         <div className="flex items-start gap-4">
           <Link
-            href="/mercado-publico"
+            href="/mp/contratos-publicos"
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-700 mt-1 shrink-0 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />

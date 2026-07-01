@@ -12,7 +12,9 @@
  *   SUPABASE_SERVICE_ROLE_KEY
  *
  * Schedule:
+ *   - HubSpot client sync                               : daily at 07:00 and 21:00
  *   - ingest-base                                       : weekdays at 13:30 and 23:30
+ *   - send-emails                                       : daily at 08:30 (Europe/Lisbon)
  */
 
 import { config as loadDotenv } from "dotenv";
@@ -23,7 +25,7 @@ import { createClient } from "@supabase/supabase-js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,13 +35,17 @@ const dotenvCandidates = [
   resolve(__dirname, "../../.env"),
   resolve(process.cwd(), "../../.env"),
   resolve(process.cwd(), ".env"),
+  resolve(__dirname, "../functions/.env"),
+  resolve(process.cwd(), "../functions/.env"),
 ];
 
+const loadedEnvPaths = new Set<string>();
 for (const candidate of dotenvCandidates) {
+  if (loadedEnvPaths.has(candidate)) continue;
   const result = loadDotenv({ path: candidate, override: true });
   if (Object.keys(result.parsed ?? {}).length > 0) {
+    loadedEnvPaths.add(candidate);
     console.log(`[cron] Loaded env from ${candidate}`);
-    break;
   }
 }
 
@@ -51,6 +57,18 @@ const SUPABASE_URL =
   process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const FUNCTIONS_BASE = `${SUPABASE_URL}/functions/v1`;
+const HUBSPOT_SYNC_ENABLED = (process.env.HUBSPOT_SYNC_ENABLED ?? "true")
+  .trim()
+  .toLowerCase() === "true";
+const HUBSPOT_SYNC_SCHEDULE = process.env.HUBSPOT_SYNC_SCHEDULE?.trim() || "0 7,21 * * *";
+
+type FunctionResult = { ok: boolean; status: number; data: unknown };
+
+type TenantAlertConfig = {
+  tenantId: string | null;
+  tenantName: string | null;
+  systemAlertEmail: string | null;
+};
 
 if (!SERVICE_ROLE_KEY) {
   console.error(
@@ -143,6 +161,227 @@ function parseDrScrapeOutput(output: string) {
   };
 }
 
+function extractNumericValue(data: unknown, field: string): number {
+  if (!data || typeof data !== "object") return 0;
+  const value = (data as Record<string, unknown>)[field];
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function extractDrInsertedCount(data: unknown): number {
+  if (!data || typeof data !== "object") return 0;
+  const summary = typeof (data as Record<string, unknown>).summary === "string"
+    ? (data as Record<string, unknown>).summary as string
+    : "";
+  const match = summary.match(/inserted=(\d+)/);
+  if (!match) return 0;
+  const inserted = Number.parseInt(match[1], 10);
+  return Number.isFinite(inserted) ? inserted : 0;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function loadTenantAlertConfig(): Promise<TenantAlertConfig> {
+  const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  const { data, error } = await supabaseAdmin
+    .from("tenants")
+    .select("id, name, system_alert_email")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  return {
+    tenantId: data?.id ?? null,
+    tenantName: data?.name ?? null,
+    systemAlertEmail: data?.system_alert_email ?? null,
+  };
+}
+
+async function sendSystemEmail(to: string, subject: string, text: string) {
+  const provider = (process.env.EMAIL_PROVIDER ?? (process.env.BREVO_API_KEY ? "brevo" : "dev")).trim().toLowerCase();
+  const fromEmail = process.env.EMAIL_FROM ?? process.env.MAIL_FROM ?? "noreply@example.com";
+  const fromName = process.env.EMAIL_FROM_NAME ?? "BASE Monitor";
+  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;"><div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;"><h1 style="margin:0 0 16px;font-size:20px;">${escapeHtml(subject)}</h1><pre style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;font-size:13px;line-height:1.55;">${escapeHtml(text)}</pre></div></body></html>`;
+
+  if (provider === "brevo") {
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) throw new Error("EMAIL_PROVIDER=brevo but BREVO_API_KEY is not set");
+
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify({
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Brevo ${response.status}: ${await response.text()}`);
+    }
+
+    return;
+  }
+
+  if (provider === "mailpit") {
+    const mailpitUrl = process.env.MAILPIT_URL ?? "http://127.0.0.1:55324";
+    const response = await fetch(`${mailpitUrl}/api/v1/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        From: { Email: fromEmail, Name: fromName },
+        To: [{ Email: to }],
+        Subject: subject,
+        HTML: html,
+        Text: text,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Mailpit ${response.status}: ${await response.text()}`);
+    }
+
+    return;
+  }
+
+  if (provider === "sendgrid") {
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) throw new Error("EMAIL_PROVIDER=sendgrid but SENDGRID_API_KEY is not set");
+
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: fromEmail, name: fromName },
+        subject,
+        content: [
+          { type: "text/html", value: html },
+          { type: "text/plain", value: text },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`SendGrid ${response.status}: ${await response.text()}`);
+    }
+
+    return;
+  }
+
+  console.log("─────────────────────────────────────────");
+  console.log(`[SYSTEM ALERT] To      : ${to}`);
+  console.log(`[SYSTEM ALERT] Subject : ${subject}`);
+  console.log(`[SYSTEM ALERT] Body    :\n${text}`);
+  console.log("─────────────────────────────────────────");
+}
+
+async function notifySystemAlert(subject: string, payload: Record<string, unknown>) {
+  try {
+    const config = await loadTenantAlertConfig();
+    if (!config.systemAlertEmail) {
+      return;
+    }
+
+    const text = [
+      `Tenant: ${config.tenantName ?? config.tenantId ?? "—"}`,
+      `Assunto: ${subject}`,
+      "",
+      JSON.stringify(payload, null, 2),
+    ].join("\n");
+
+    await sendSystemEmail(config.systemAlertEmail, subject, text);
+    console.log(`[cron] system alert sent to ${config.systemAlertEmail}`);
+  } catch (error) {
+    console.error("[cron] failed to send system alert:", error);
+  }
+}
+
+async function recordAutomaticIngestionHistory(
+  body: Record<string, unknown>,
+  baseRes: FunctionResult,
+  drRes: FunctionResult,
+  mqRes: FunctionResult,
+) {
+  try {
+    const config = await loadTenantAlertConfig();
+    const steps = [
+      { fn: "ingest-base", label: "Anúncios BASE", category: "announcements", status: baseRes.ok ? "success" : "error", summary: baseRes.data ?? {}, payload: baseRes.data ?? {} },
+      { fn: "ingest-dr", label: "Anúncios DR", category: "announcements", status: drRes.ok ? "success" : "error", summary: drRes.data ?? {}, payload: drRes.data ?? {} },
+      { fn: "match-and-queue", label: "Correspondência CPV", category: "processing", status: mqRes.ok ? "success" : "error", summary: mqRes.data ?? {}, payload: mqRes.data ?? {} },
+    ];
+
+    const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { error: insertError } = await supabaseAdmin.from("ingestion_history").insert({
+      tenant_id: config.tenantId,
+      user_id: null,
+      title: "Ingestão automática",
+      category: "announcements",
+      status,
+      range: body,
+      steps,
+      note: null,
+    });
+
+    if (insertError) console.error("[cron] ingestion_history insert failed:", insertError.message);
+    else console.log("[cron] ingestion_history recorded");
+  } catch (err) {
+    console.error("[cron] error recording ingestion_history:", err);
+  }
+}
+
+async function maybeNotifyIngestionAlert(
+  body: Record<string, unknown>,
+  baseRes: FunctionResult,
+  drRes: FunctionResult,
+  mqRes: FunctionResult,
+) {
+  const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
+  const baseInserted = extractNumericValue(baseRes.data, "inserted");
+  const drInserted = extractDrInsertedCount(drRes.data);
+  const totalInserted = baseInserted + drInserted;
+
+  if (status === "error") {
+    await notifySystemAlert("Alerta do sistema: falha na ingestão automática", {
+      range: body,
+      base: baseRes.data,
+      ingest_dr: drRes.data,
+      match_and_queue: mqRes.data,
+    });
+    return;
+  }
+
+  if (totalInserted === 0) {
+    await notifySystemAlert("Alerta do sistema: ingestão automática sem novos registos", {
+      range: body,
+      base_inserted: baseInserted,
+      dr_inserted: drInserted,
+      base: baseRes.data,
+      ingest_dr: drRes.data,
+      match_and_queue: mqRes.data,
+    });
+  }
+}
+
 async function runDirectDrScrape(requestBody: Record<string, unknown>) {
   const scriptsDir = findScriptsDir();
 
@@ -175,7 +414,10 @@ async function runDirectDrScrape(requestBody: Record<string, unknown>) {
   const maxResults = typeof requestBody.max_results === "number" && Number.isFinite(requestBody.max_results)
     ? Math.floor(requestBody.max_results)
     : 500;
-  const waitMs = 12000;
+  const configuredWaitMs = Number.parseInt(process.env.DR_SCRAPE_WAIT_MS ?? "", 10);
+  const waitMs = Number.isFinite(configuredWaitMs) && configuredWaitMs > 0
+    ? configuredWaitMs
+    : 30000;
 
   console.log(`[cron] → ingest-dr (direct ${path.relative(process.cwd(), scriptsDir) || scriptsDir}) ...`);
 
@@ -232,13 +474,149 @@ async function runDirectDrScrape(requestBody: Record<string, unknown>) {
   }
 }
 
+let hubspotSyncRunning = false;
+
+async function recordHubspotSyncHistory(
+  status: "success" | "error",
+  startedAt: string,
+  summary: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const { data: tenantRow, error: tenantError } = await supabaseAdmin
+      .from("tenants")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (tenantError) throw tenantError;
+
+    const { error } = await supabaseAdmin.from("ingestion_history").insert({
+      tenant_id: tenantRow?.id ?? null,
+      user_id: null,
+      title: "Sincronizacao HubSpot",
+      category: "other",
+      status,
+      range: { started_at: startedAt, finished_at: new Date().toISOString() },
+      steps: [{
+        fn: "hubspot-client-sync",
+        label: "Clientes HubSpot",
+        category: "other",
+        status,
+        summary,
+        payload: summary,
+      }],
+      note: status === "error" ? String(summary.error ?? "HubSpot sync failed") : null,
+    });
+
+    if (error) throw error;
+    console.log("[cron] HubSpot sync history recorded");
+  } catch (error) {
+    console.error("[cron] HubSpot sync history insert failed:", error);
+  }
+}
+
+function getCliArgValue(name: string): string | null {
+  const prefix = `${name}=`;
+  const inline = process.argv.find((arg) => arg.startsWith(prefix));
+  if (inline) return inline.slice(prefix.length).trim() || null;
+
+  const index = process.argv.indexOf(name);
+  if (index >= 0) return process.argv[index + 1]?.trim() || null;
+
+  return null;
+}
+
+async function runHubspotSyncJob(segmentIdOverride?: string | null): Promise<void> {
+  if (hubspotSyncRunning) {
+    console.warn("[cron] HubSpot sync skipped because a previous run is still active");
+    return;
+  }
+
+  hubspotSyncRunning = true;
+  const startedAt = new Date().toISOString();
+  let status: "success" | "error" = "error";
+  let summary: Record<string, unknown> = {};
+
+  try {
+    const scriptsDir = findScriptsDir();
+    if (!scriptsDir) throw new Error("Could not locate the scripts directory for HubSpot sync");
+
+    const tsxCli = findTsxCli(scriptsDir);
+    if (!tsxCli) {
+      throw new Error(
+        `Could not locate tsx in ${scriptsDir}. Run 'npm install --prefix scripts' first.`,
+      );
+    }
+
+    const args = [tsxCli, "preview-hubspot-subscribers.ts", "--apply"];
+    if (segmentIdOverride) {
+      args.push("--segment-id", segmentIdOverride);
+    }
+
+    console.log(
+      `[cron] -> hubspot-client-sync (${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon${segmentIdOverride ? `, segment ${segmentIdOverride}` : ""}) ...`,
+    );
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      args,
+      {
+        cwd: scriptsDir,
+        timeout: 15 * 60 * 1000,
+        shell: false,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024 * 10,
+        env: {
+          ...process.env,
+          EMAIL_SEND_ENABLED: "false",
+        },
+      },
+    );
+
+    const output = `${stdout ?? ""}\n${stderr ?? ""}`;
+    const reportPath = path.join(scriptsDir, "output", "hubspot-subscribers-preview.json");
+    if (!existsSync(reportPath)) throw new Error("HubSpot sync report was not created");
+
+    const report = JSON.parse(readFileSync(reportPath, "utf8")) as Record<string, unknown>;
+    if (report.mode !== "apply") throw new Error("HubSpot sync did not run in apply mode");
+
+    summary = (report.stats ?? {}) as Record<string, unknown>;
+    status = "success";
+    console.log("[cron] HubSpot sync completed", JSON.stringify(summary));
+
+    const outputTail = output.trim().slice(-4000);
+    if (outputTail) console.log(`[cron] HubSpot sync output:\n${outputTail}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    summary = { error: message };
+    console.error("[cron] HubSpot sync failed:", message);
+    throw error;
+  } finally {
+    await recordHubspotSyncHistory(status, startedAt, summary);
+    if (status === "error") {
+      await notifySystemAlert("Alerta do sistema: falha na sincronização HubSpot", {
+        started_at: startedAt,
+        summary,
+      });
+    }
+    hubspotSyncRunning = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pipeline helpers
 // ---------------------------------------------------------------------------
 
 async function runIngestPipeline(): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10);
-  const body = { from_date: today, to_date: today };
+  const toDate = new Date();
+  const fromDate = new Date(toDate);
+  fromDate.setDate(fromDate.getDate() - 2);
+
+  const body = {
+    from_date: fromDate.toISOString().slice(0, 10),
+    to_date: toDate.toISOString().slice(0, 10),
+  };
 
   // 1) ingest-base
   const baseRes = await callFunction("ingest-base", body);
@@ -248,7 +626,7 @@ async function runIngestPipeline(): Promise<void> {
     : 0;
 
   if (fetched <= 0) {
-    // we scheduled daily single-day runs here, so canRunDrToday is true
+    // janela movel de 3 dias (hoje, ontem, anteontem)
     console.log("[cron] No new BASE announcements (fetched=0). Attempting DR and/or CPV processing.");
     // run DR scraper directly so we do not depend on browser auth or the Next middleware
     const drRes = await runDirectDrScrape(body);
@@ -257,37 +635,8 @@ async function runIngestPipeline(): Promise<void> {
     const pipelineResult = { base: baseRes, ingest_dr: drRes, match_and_queue: mqRes };
     console.log("[cron] Pipeline result", pipelineResult);
 
-    try {
-      const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
-
-      const { data: tenantRow } = await supabaseAdmin.from("tenants").select("id").limit(1).maybeSingle();
-      const tenantId = tenantRow?.id ?? null;
-
-      const steps = [
-        { fn: "ingest-base", label: "Anúncios BASE", category: "announcements", status: baseRes.ok ? "success" : "error", summary: baseRes.data ?? {}, payload: baseRes.data ?? {} },
-        { fn: "ingest-dr", label: "Anúncios DR", category: "announcements", status: drRes.ok ? "success" : "error", summary: drRes.data ?? {}, payload: drRes.data ?? {} },
-        { fn: "match-and-queue", label: "Correspondência CPV", category: "processing", status: mqRes.ok ? "success" : "error", summary: mqRes.data ?? {}, payload: mqRes.data ?? {} },
-      ];
-
-      const title = "Ingestão automática";
-      const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
-
-      const { error: insertError } = await supabaseAdmin.from("ingestion_history").insert({
-        tenant_id: tenantId,
-        user_id: null,
-        title,
-        category: "announcements",
-        status,
-        range: body,
-        steps,
-        note: null,
-      });
-
-      if (insertError) console.error("[cron] ingestion_history insert failed:", insertError.message);
-      else console.log("[cron] ingestion_history recorded");
-    } catch (err) {
-      console.error("[cron] error recording ingestion_history:", err);
-    }
+    await recordAutomaticIngestionHistory(body, baseRes, drRes, mqRes);
+    await maybeNotifyIngestionAlert(body, baseRes, drRes, mqRes);
 
     return;
   }
@@ -299,36 +648,121 @@ async function runIngestPipeline(): Promise<void> {
   const pipelineResult = { base: baseRes, ingest_dr: drRes, match_and_queue: mqRes };
   console.log("[cron] Pipeline result", pipelineResult);
 
-  try {
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+  await recordAutomaticIngestionHistory(body, baseRes, drRes, mqRes);
+  await maybeNotifyIngestionAlert(body, baseRes, drRes, mqRes);
+}
 
-    const { data: tenantRow } = await supabaseAdmin.from("tenants").select("id").limit(1).maybeSingle();
-    const tenantId = tenantRow?.id ?? null;
+async function runSendEmailsJob(): Promise<void> {
+  const startedAt = new Date().toISOString();
+  const batchSizeRaw = Number(process.env.SEND_EMAILS_BATCH_SIZE ?? "50");
+  const batchSize = Number.isFinite(batchSizeRaw) && batchSizeRaw > 0
+    ? Math.floor(batchSizeRaw)
+    : 50;
 
-    const steps = [
-      { fn: "ingest-base", label: "Anúncios BASE", category: "announcements", status: baseRes.ok ? "success" : "error", summary: baseRes.data ?? {}, payload: baseRes.data ?? {} },
-      { fn: "ingest-dr", label: "Anúncios DR", category: "announcements", status: drRes.ok ? "success" : "error", summary: drRes.data ?? {}, payload: drRes.data ?? {} },
-      { fn: "match-and-queue", label: "Correspondência CPV", category: "processing", status: mqRes.ok ? "success" : "error", summary: mqRes.data ?? {}, payload: mqRes.data ?? {} },
-    ];
+  console.log(`[cron] Starting send-emails job with batch_size=${batchSize}`);
 
-    const title = "Ingestão automática";
-    const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
+  let totalProcessed = 0;
+  let totalSent = 0;
+  let totalFailed = 0;
+  let totalSkipped = 0;
+  let totalRateLimited = 0;
+  let status: "success" | "error" = "success";
+  let errorMessage: string | null = null;
+  const batches: Array<Record<string, unknown>> = [];
 
-    const { error: insertError } = await supabaseAdmin.from("ingestion_history").insert({
-      tenant_id: tenantId,
-      user_id: null,
-      title,
-      category: "announcements",
-      status,
-      range: body,
-      steps,
-      note: null,
+  while (true) {
+    const res = await callFunction("send-emails", { batch_size: batchSize });
+    if (!res.ok) {
+      console.error("[cron] send-emails job failed:", res.data);
+      status = "error";
+      errorMessage = typeof res.data === "string"
+        ? res.data
+        : JSON.stringify(res.data ?? { status: res.status });
+      batches.push({
+        ok: false,
+        status: res.status,
+        data: res.data,
+      });
+      break;
+    }
+
+    const payload = (res.data ?? {}) as Record<string, unknown>;
+    const processed = Number(payload.processed ?? 0);
+    const sent = Number(payload.sent ?? 0);
+    const failed = Number(payload.failed ?? 0);
+    const skipped = Number(payload.skipped ?? 0);
+    const rateLimited = Number(payload.rate_limited ?? 0);
+
+    totalProcessed += Number.isFinite(processed) ? processed : 0;
+    totalSent += Number.isFinite(sent) ? sent : 0;
+    totalFailed += Number.isFinite(failed) ? failed : 0;
+    totalSkipped += Number.isFinite(skipped) ? skipped : 0;
+    totalRateLimited += Number.isFinite(rateLimited) ? rateLimited : 0;
+    batches.push({
+      ok: true,
+      processed,
+      sent,
+      failed,
+      skipped,
+      rate_limited: rateLimited,
+      payload,
     });
 
-    if (insertError) console.error("[cron] ingestion_history insert failed:", insertError.message);
-    else console.log("[cron] ingestion_history recorded");
-  } catch (err) {
-    console.error("[cron] error recording ingestion_history:", err);
+    if (!Number.isFinite(processed) || processed < batchSize || processed === 0) {
+      break;
+    }
+  }
+
+  console.log(
+    `[cron] send-emails job done: processed=${totalProcessed} sent=${totalSent} failed=${totalFailed} skipped=${totalSkipped} rate_limited=${totalRateLimited}`,
+  );
+
+  try {
+    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    const alertConfig = await loadTenantAlertConfig();
+    const tenantId = alertConfig.tenantId;
+
+    const summary = {
+      batch_size: batchSize,
+      processed: totalProcessed,
+      sent: totalSent,
+      failed: totalFailed,
+      skipped: totalSkipped,
+      rate_limited: totalRateLimited,
+      batches: batches.length,
+      error: errorMessage,
+    };
+
+    const { error } = await supabaseAdmin.from("ingestion_history").insert({
+      tenant_id: tenantId,
+      user_id: null,
+      title: "Envio automático de emails",
+      category: "processing",
+      status,
+      range: { started_at: startedAt, finished_at: new Date().toISOString() },
+      steps: [{
+        fn: "send-emails",
+        label: "Emails pendentes",
+        category: "processing",
+        status,
+        summary,
+        payload: { ...summary, batches },
+      }],
+      note: errorMessage,
+    });
+
+    if (error) throw error;
+    console.log("[cron] send-emails history recorded");
+
+    if (status === "error") {
+      await notifySystemAlert("Alerta do sistema: falha no envio automático de emails", {
+        started_at: startedAt,
+        summary,
+        batches,
+      });
+    }
+  } catch (error) {
+    console.error("[cron] send-emails history insert failed:", error);
   }
 }
 
@@ -337,28 +771,60 @@ async function runIngestPipeline(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const isOnce = process.argv.includes("--once");
+const isHubspotOnce = process.argv.includes("--hubspot-once");
+const hubspotSegmentIdOverride = getCliArgValue("--segment-id");
 
-if (isOnce) {
+if (isHubspotOnce) {
+  console.log("[cron] Running HubSpot client sync once ...");
+  try {
+    await runHubspotSyncJob(hubspotSegmentIdOverride);
+    console.log("[cron] HubSpot sync done.");
+  } catch (err) {
+    console.error("[cron] Fatal:", err);
+    process.exitCode = 1;
+  }
+} else if (isOnce) {
   console.log("[cron] Running pipeline once …");
   try {
     await runIngestPipeline();
     console.log("[cron] Done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
-    process.exit(1);
+    process.exitCode = 1;
   }
-  process.exit(0);
 } else {
   console.log("[cron] Starting daemon …");
 
 
   
+  if (HUBSPOT_SYNC_ENABLED) {
+    if (!cron.validate(HUBSPOT_SYNC_SCHEDULE)) {
+      throw new Error(`Invalid HUBSPOT_SYNC_SCHEDULE: ${HUBSPOT_SYNC_SCHEDULE}`);
+    }
+
+    cron.schedule(HUBSPOT_SYNC_SCHEDULE, () => {
+      console.log(`\n[cron] ${new Date().toISOString()} - sync HubSpot clients`);
+      runHubspotSyncJob().catch(console.error);
+    }, { timezone: "Europe/Lisbon" });
+  }
+
   cron.schedule("30 13,23 * * 1-5", () => {
     console.log(`\n[cron] ${new Date().toISOString()} – ingest announcements`);
     runIngestPipeline().catch(console.error);
-  });
+  }, { timezone: "Europe/Lisbon" });
+
+  cron.schedule("30 8 * * *", () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – send scheduled emails`);
+    runSendEmailsJob().catch(console.error);
+  }, { timezone: "Europe/Lisbon" });
 
   console.log("[cron] Scheduled:");
+  console.log(
+    HUBSPOT_SYNC_ENABLED
+      ? `  hubspot-client-sync                                -> ${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon`
+      : "  hubspot-client-sync                                -> disabled",
+  );
   console.log("  ingest-base                                       → weekdays at 13:30 and 23:30");
+  console.log("  send-emails                                       → daily at 08:30 Europe/Lisbon");
   console.log("[cron] Press Ctrl+C to stop.\n");
 }

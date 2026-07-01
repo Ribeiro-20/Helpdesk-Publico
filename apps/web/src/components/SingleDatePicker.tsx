@@ -44,6 +44,10 @@ export interface SingleDatePickerProps {
   placeholder?: string;
   /** Minimum ISO date allowed (yyyy-MM-dd) */
   min?: string;
+  /** Extra classes for the outer wrapper */
+  className?: string;
+  /** Extra classes for the trigger button */
+  buttonClassName?: string;
 }
 
 export default function SingleDatePicker({
@@ -53,6 +57,8 @@ export default function SingleDatePicker({
   onChange,
   placeholder = "Seleccionar data",
   min,
+  className = "",
+  buttonClassName = "",
 }: SingleDatePickerProps) {
   const isControlled = controlledValue !== undefined;
   const [internalIso, setInternalIso] = useState(defaultValue);
@@ -135,7 +141,7 @@ export default function SingleDatePicker({
   const triggerLabel = iso ? isoToDisplay(iso) : placeholder;
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div ref={ref} className={`relative inline-block ${className}`}>
       {/* Hidden input for native form submission */}
       {name && <input type="hidden" name={name} value={iso} />}
 
@@ -143,7 +149,7 @@ export default function SingleDatePicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all hover:border-brand-400 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+        className={`flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all hover:border-brand-400 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 ${buttonClassName}`}
       >
         <CalendarDays className="h-4 w-4 shrink-0 text-brand-700" />
         <span className={iso ? "" : "text-gray-400"}>{triggerLabel}</span>

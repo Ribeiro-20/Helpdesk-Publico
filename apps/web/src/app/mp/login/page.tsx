@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const supabase = createClient();
 
@@ -58,8 +60,8 @@ export default function LoginPage() {
               <Image
                 src="/logo.webp"
                 alt="Helpdesk Público"
-                width={64}
-                height={64}
+                width={160}
+                height={160}
                 className="rounded-lg"
               />
             </div>
@@ -88,15 +90,25 @@ export default function LoginPage() {
               <label className="block text-sm font-medium text-gray-600 mb-1.5">
                 Password
               </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-                className="w-full border border-surface-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
-                placeholder="********"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="w-full border border-surface-200 rounded-xl px-4 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+                  placeholder="********"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label={showPassword ? "Esconder palavra-passe" : "Mostrar palavra-passe"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -123,42 +135,14 @@ export default function LoginPage() {
             </button>
 
             <Link
-              href="/"
+              href="/mp"
               className="w-full inline-flex items-center justify-center border border-surface-200 bg-white hover:bg-surface-50 text-gray-700 font-medium py-2.5 rounded-xl transition-all text-sm"
             >
               Voltar à página principal
             </Link>
           </form>
 
-          <p className="text-center text-sm text-gray-400 mt-6">
-            {mode === "login" ? (
-              <>
-                Não tem conta?{" "}
-                <button
-                  onClick={() => {
-                    setMode("signup");
-                    setError(null);
-                  }}
-                  className="text-brand-600 hover:text-brand-700 font-medium transition-colors"
-                >
-                  Criar conta
-                </button>
-              </>
-            ) : (
-              <>
-                Já tem conta?{" "}
-                <button
-                  onClick={() => {
-                    setMode("login");
-                    setError(null);
-                  }}
-                  className="text-brand-600 hover:text-brand-700 font-medium transition-colors"
-                >
-                  Entrar
-                </button>
-              </>
-            )}
-          </p>
+
         </div>
 
         {/* Footer */}

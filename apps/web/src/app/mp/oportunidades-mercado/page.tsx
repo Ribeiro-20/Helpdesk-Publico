@@ -8,7 +8,7 @@ import InfoPopover from "@/components/InfoPopover";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
-import CurrencyValueField from "../../components/CurrencyValueField";
+import CurrencyValueField from "@/components/CurrencyValueField";
 import { FileText, Filter, House } from "lucide-react";
 
 export const metadata = {
@@ -313,15 +313,9 @@ export default async function OportunidadesPage({
         { count: "exact" },
       )
       .eq("tenant_id", tenantId);
-
-      // Keep expired opportunities visible for 30 days after their proposal deadline.
-      const expiryCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const expiryCutoffDate = `${expiryCutoff.getUTCFullYear()}-${String(
-        expiryCutoff.getUTCMonth() + 1,
-      ).padStart(2, "0")}-${String(expiryCutoff.getUTCDate()).padStart(2, "0")}`;
-
-      // Include rows where status == 'active' OR (status == 'expired' AND proposal_deadline_at >= cutoff).
-      query = query.or(`status.eq.active,and(status.eq.expired,proposal_deadline_at.gte.${expiryCutoffDate})`);
+      // Mostrar apenas anúncios ativos (exclui expirados).
+      const todayIso = new Date().toISOString().slice(0, 10);
+      query = query.eq("status", "active").or(`proposal_deadline_at.is.null,proposal_deadline_at.gte.${todayIso}`);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) query = query.ilike("entity_name", `%${entity}%`);
@@ -336,7 +330,7 @@ export default async function OportunidadesPage({
     }
     if (announcementNumber) {
       query = query.or(
-        `dr_announcement_no.ilike.%${announcementNumber}%,base_announcement_id.ilike.%${announcementNumber}%`,
+        `dr_announcement_no.ilike.${announcementNumber},base_announcement_id.ilike.${announcementNumber}`,
       );
     }
     if (minValue) query = query.gte("base_price", Number.parseFloat(minValue));
@@ -415,7 +409,7 @@ export default async function OportunidadesPage({
     >
       <Header />
 
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         <div className="space-y-6">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
@@ -430,7 +424,7 @@ export default async function OportunidadesPage({
 
             <div className="flex items-center gap-2">
               <Link
-                href="/"
+                href="/mp"
                 className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
               >
                 <House className="h-4 w-4" />
@@ -513,7 +507,7 @@ export default async function OportunidadesPage({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-stretch">
-              <div className="h-full rounded-xl border-2 border-gray-300 bg-white p-3">
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <div className="mb-2">
                   <label className="block text-xs text-gray-400">Ordenar valor por</label>
                 </div>
@@ -549,7 +543,7 @@ export default async function OportunidadesPage({
                 <MercadoDateDropdown name="to_date" defaultValue={toDate} />
               </div>
 
-              <div>
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <MercadoSingleSelect
                   name="limit"
                   label="Apresentar"
@@ -562,7 +556,7 @@ export default async function OportunidadesPage({
                 />
               </div>
 
-              <div>
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <MercadoSingleSelect
                   name="sort"
                   label="Ordenar Oportunidades por"
@@ -595,7 +589,7 @@ export default async function OportunidadesPage({
               <div className="flex justify-center md:justify-start">
                 {hasFilters && (
                   <Link
-                    href="/oportunidades"
+                    href="/mp/oportunidades-mercado"
                     className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-500 transition-all hover:bg-gray-50"
                   >
                     Limpar

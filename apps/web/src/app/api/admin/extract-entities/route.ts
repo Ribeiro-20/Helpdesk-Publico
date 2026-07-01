@@ -29,7 +29,7 @@ function mostFrequentLocation(locations: string[]): string | null {
     freq.set(key, (freq.get(key) ?? 0) + 1);
   }
   let best = ""; let bestCount = 0;
-  for (const [key, count] of freq) { if (count > bestCount) { best = key; bestCount = count; } }
+  for (const [key, count] of Array.from(freq.entries())) { if (count > bestCount) { best = key; bestCount = count; } }
   return best || null;
 }
 
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Load existing entities
     const existingEntities = new Map<string, { id: string; entity_type: string | null; location: string | null }>();
-    const nifArr = [...entityInfo.keys()];
+    const nifArr = Array.from(entityInfo.keys());
     for (let i = 0; i < nifArr.length; i += 500) {
       const { data } = await admin.from("entities").select("id, nif, entity_type, location").eq("tenant_id", tenantId).in("nif", nifArr.slice(i, i + 500));
       for (const row of (data ?? []) as Array<{ id: string; nif: string; entity_type: string | null; location: string | null }>) existingEntities.set(row.nif, row);
@@ -127,14 +127,14 @@ export async function POST(req: NextRequest) {
 
     // 4. Build & upsert rows
     const rows: Array<Record<string, unknown>> = [];
-    for (const [nif, info] of entityInfo) {
+    for (const [nif, info] of Array.from(entityInfo.entries())) {
       const cd = entityContracts.get(nif);
       const existing = existingEntities.get(nif);
       const inferredType = inferEntityType(info.name);
       const location = existing?.location ?? (cd ? mostFrequentLocation(cd.locations) : null);
       if (location && !existing?.location) stats.locations_set++;
-      const topCpvs = cd ? [...cd.cpvs.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([code, count]) => ({ code, count })) : [];
-      const topCompanies = cd ? [...cd.companies.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 10).map(([n, d]) => ({ nif: n, name: d.name, count: d.count, value: Math.round(d.value * 100) / 100 })) : [];
+      const topCpvs = cd ? Array.from(cd.cpvs.entries()).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([code, count]) => ({ code, count })) : [];
+      const topCompanies = cd ? Array.from(cd.companies.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 10).map(([n, d]) => ({ nif: n, name: d.name, count: d.count, value: Math.round(d.value * 100) / 100 })) : [];
       const totalContracts = cd?.count ?? 0;
       const totalValue = cd?.totalValue ?? 0;
       rows.push({ tenant_id: tenantId, nif, name: info.name, entity_type: existing?.entity_type ?? inferredType, location, total_announcements: entityAnnouncementCount.get(nif) ?? 0, total_contracts: totalContracts, total_value: totalValue, avg_contract_value: totalContracts > 0 ? Math.round((totalValue / totalContracts) * 100) / 100 : null, top_cpvs: topCpvs, top_companies: topCompanies, last_activity_at: cd?.lastDate ? new Date(cd.lastDate).toISOString() : null });

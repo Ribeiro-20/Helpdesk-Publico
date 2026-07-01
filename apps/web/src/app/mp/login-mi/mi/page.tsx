@@ -67,7 +67,7 @@ export default function LoginMiPage() {
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Link
-                  href="/login-mi"
+                  href="/mp/login-mi"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                 >
                   Entrar no serviço &gt;

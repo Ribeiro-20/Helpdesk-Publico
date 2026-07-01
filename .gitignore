@@ -32,6 +32,9 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Local HubSpot previews may contain client contact data
+scripts/output/hubspot-*-preview.json
+
 # Test coverage
 coverage/
 .nyc_output/

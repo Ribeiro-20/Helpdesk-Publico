@@ -58,6 +58,25 @@ function fmtMoney(value: number | null, currency: string | null): string {
   return `${amount} ${currency ?? "EUR"}`;
 }
 
+function MissingInfo({
+  placement = "bottom",
+  side = "right",
+}: {
+  placement?: "side" | "bottom";
+  side?: "left" | "right";
+}) {
+  return (
+    <span className="inline-flex items-center justify-center text-xs text-gray-400">
+      <InfoPopover
+        text="Dados em atualização, consulte novamente mais tarde."
+        ariaLabel="Dados ainda nao disponiveis"
+        placement={placement}
+        side={side}
+      />
+    </span>
+  );
+}
+
 function isNearDeadline(value: string | null, hours = 120): boolean {
   if (!value) return false;
   const deadline = new Date(value);
@@ -95,7 +114,7 @@ function buildHref(page: number, params: SearchParams): string {
   if (params.from_date) qp.set("from_date", params.from_date);
   if (params.to_date) qp.set("to_date", params.to_date);
   const query = qp.toString();
-  return `/oportunidades${query ? `?${query}` : ""}`;
+  return `/mp/oportunidades-mercado${query ? `?${query}` : ""}`;
 }
 
 export default function OportunidadesResults({
@@ -160,9 +179,11 @@ export default function OportunidadesResults({
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{op.procedure_type ?? "-"}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{entityName}</td>
-                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums align-top">{fmtDate(op.publication_date)}</td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums align-top">
+                      {op.publication_date ? fmtDate(op.publication_date) : <MissingInfo />}
+                    </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs tabular-nums align-top">
-                      <span>{fmtDate(op.proposal_deadline_at)}</span>
+                      {op.proposal_deadline_at ? <span>{fmtDate(op.proposal_deadline_at)}</span> : <MissingInfo placement="side" side="left" />}
                     </td>
                     <td className="px-4 py-3 align-top">
                       {op.cpv_main ? (
@@ -173,11 +194,15 @@ export default function OportunidadesResults({
                           {op.cpv_main}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <MissingInfo placement="side" side="left" />
                       )}
                     </td>
                     <td className="px-4 py-3 text-center whitespace-nowrap align-top">
-                      <span className="text-gray-900 font-medium text-xs">{fmtMoney(op.base_price, op.currency)}</span>
+                      {op.base_price == null ? (
+                        <MissingInfo placement="side" side="left" />
+                      ) : (
+                        <span className="text-gray-900 font-medium text-xs">{fmtMoney(op.base_price, op.currency)}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center align-top">
                       {nearDeadline ? (

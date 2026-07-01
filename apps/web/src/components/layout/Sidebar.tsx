@@ -119,9 +119,12 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
         <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
           Sessão ativa
         </p>
-        <p className="mb-2 truncate rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-700">
+        <Link
+          href="/settings/alertas-sistema"
+          className="mb-2 block truncate rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-700 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
+        >
           {userEmail}
-        </p>
+        </Link>
         <button
           onClick={handleLogout}
           className="flex items-center gap-2 px-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700"

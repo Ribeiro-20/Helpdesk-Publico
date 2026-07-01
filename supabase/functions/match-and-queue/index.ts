@@ -20,6 +20,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { matchClientsForAnnouncement } from "../_shared/cpvMatcher.ts";
 import type { CpvRule } from "../_shared/cpvMatcher.ts";
+import { getNextBusinessDay10am } from "../_shared/scheduling.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -449,6 +450,15 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const clientId of regionFilteredClientIds) {
+          // Check if auto-scheduling is disabled (for testing)
+          const autoScheduleEnabled = (Deno.env.get("QUEUE_AUTO_SCHEDULE") ?? "true")
+            .trim()
+            .toLowerCase() === "true";
+          
+          const scheduledFor = autoScheduleEnabled 
+            ? getNextBusinessDay10am()
+            : new Date().toISOString();
+          
           const { error: insertErr } = await supabase
             .from("notifications")
             .insert({
@@ -457,6 +467,7 @@ Deno.serve(async (req: Request) => {
               announcement_id: ann.id,
               channel: "email",
               status: "PENDING",
+              scheduled_for: scheduledFor,
             });
 
           if (insertErr) {
