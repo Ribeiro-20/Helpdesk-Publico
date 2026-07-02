@@ -257,8 +257,13 @@ export async function GET(req: NextRequest) {
       Buffer.from(XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }), "utf8"),
     ]);
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `anuncios-${timestamp}.csv`;
+    const selectedDateLabel =
+      fromDate && toDate
+        ? fromDate === toDate
+          ? fromDate
+          : `${fromDate}_a_${toDate}`
+        : fromDate || toDate || new Date().toISOString().slice(0, 10);
+    const filename = `anuncios-${selectedDateLabel}.csv`;
 
     return new NextResponse(fileBuffer, {
       status: 200,
