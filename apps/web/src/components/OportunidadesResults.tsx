@@ -265,6 +265,7 @@ export default function OportunidadesResults({
           announcementId={selectedAnnouncementId}
           onClose={() => setSelectedAnnouncementId(null)}
           showSource={false}
+          showVersionHistory={false}
         />
       )}
     </>

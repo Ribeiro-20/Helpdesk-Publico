@@ -1,6 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { extractProcedurePiecesUrl } from "@/lib/announcements";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 function normalizeCpvCode(raw: unknown): string | null {
   if (raw == null) return null;
@@ -15,23 +15,53 @@ function cpvCore8(value: string): string {
 }
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
   const supabase = await createAdminClient();
+  const includeVersions = req.nextUrl.searchParams.get("include_versions") === "true";
 
-  const [{ data: announcement }, { data: versions }] = await Promise.all([
-    supabase.from("announcements").select("*").eq("id", id).single(),
-    supabase
-      .from("announcement_versions")
-      .select("id, raw_hash, changed_at, change_summary")
-      .eq("announcement_id", id)
-      .order("changed_at", { ascending: false }),
-  ]);
+  const { data: announcement } = await supabase
+    .from("announcements")
+    .select("*")
+    .eq("id", id)
+    .single();
 
   if (!announcement) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  let versions: Array<{
+    id: string;
+    raw_hash: string;
+    changed_at: string;
+    change_summary: unknown;
+  }> = [];
+
+  if (includeVersions) {
+    const authClient = await createClient();
+    const {
+      data: { user },
+    } = await authClient.auth.getUser();
+
+    if (user) {
+      const { data: appUser } = await authClient
+        .from("app_users")
+        .select("tenant_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (appUser?.tenant_id === announcement.tenant_id) {
+        const { data } = await supabase
+          .from("announcement_versions")
+          .select("id, raw_hash, changed_at, change_summary")
+          .eq("announcement_id", id)
+          .order("changed_at", { ascending: false });
+
+        versions = data ?? [];
+      }
+    }
   }
 
   const cpvMainRaw = announcement.cpv_main ? String(announcement.cpv_main) : null;
@@ -90,7 +120,7 @@ export async function GET(
 
   return NextResponse.json({
     announcement,
-    versions: versions ?? [],
+    versions,
     cpv: { main: cpvMain, list: cpvList },
     procedure_pieces_url: extractProcedurePiecesUrl(announcement.raw_payload),
   });

@@ -137,11 +137,11 @@ export default async function SettingsPage() {
               {
                 fn: "delete-announcements",
                 label: "Apagar Anúncios (intervalo)",
-                variant: "secondary",
+                variant: "primary",
               },
               {
-                fn: "ingest-dr",
-                label: "Ingerir Anúncios DR",
+                fn: "delete-announcement-versions",
+                label: "Apagar histórico de versões",
                 variant: "primary",
               },
               {
@@ -149,23 +149,6 @@ export default async function SettingsPage() {
                 label: "Ingerir Contratos",
                 variant: "primary",
                 body: { dry_run: false },
-              },
-              {
-                fn: "ingest-base",
-                label: "Simular Anúncios",
-                variant: "secondary",
-                body: { dry_run: true },
-              },
-              {
-                fn: "ingest-contracts",
-                label: "Simular Contratos",
-                variant: "secondary",
-                body: { dry_run: true },
-              },
-              {
-                fn: "ingest-contract-mods",
-                label: "Ingerir Modificações",
-                variant: "secondary",
               },
               {
                 fn: "extract-entities",
@@ -180,12 +163,12 @@ export default async function SettingsPage() {
               {
                 fn: "match-and-queue",
                 label: "Processar Correspondência CPV",
-                variant: "secondary",
+                variant: "primary",
               },
               {
                 fn: "send-emails",
                 label: "Enviar Emails Pendentes",
-                variant: "secondary",
+                variant: "primary",
               },
             ]}
           />

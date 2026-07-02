@@ -114,7 +114,7 @@ function normalizeAnnouncementCpvs(ann: AnnouncementRow): string[] {
     out.push(code);
   }
 
-  return [...new Set(out)];
+  return Array.from(new Set(out));
 }
 
 function formatCpvsForExport(cpvCodes: string[], cpvDescriptions: Record<string, string>): string {

@@ -65,9 +65,15 @@ function groupActions(actions: Action[]): ActionGroup[] {
     { key: "ingestion", title: "Ingestão", actions: [] },
     { key: "extraction", title: "Extração", actions: [] },
     { key: "processing", title: "Processamento", actions: [] },
+    { key: "maintenance", title: "Manutenção", actions: [] },
   ];
 
   for (const action of actions) {
+    if (action.fn === "delete-announcement-versions") {
+      groups[3].actions.push(action);
+      continue;
+    }
+
     if (
       action.fn === "ingest-base" ||
       action.fn === "delete-announcements" ||
@@ -164,7 +170,12 @@ function compactValue(value: unknown, depth = 2): unknown {
 }
 
 function actionCategory(fn: string): HistoryCategory {
-  if (fn === "ingest-base" || fn === "ingest-dr" || fn === "delete-announcements") {
+  if (
+    fn === "ingest-base" ||
+    fn === "ingest-dr" ||
+    fn === "delete-announcements" ||
+    fn === "delete-announcement-versions"
+  ) {
     return "announcements";
   }
 
@@ -195,6 +206,7 @@ function summarizeHistoryPayload(fn: string, data: unknown): string[] {
     "extract-entities": ["nifs_found", "entities_created", "entities_updated", "locations_set", "stats_updated", "errors", "elapsed_ms"],
     "extract-companies": ["contracts_scanned", "nifs_found", "companies_created", "companies_updated", "winners_extracted", "competitors_extracted", "locations_set", "errors", "elapsed_ms"],
     "ingest-dr": ["fetched", "inserted", "updated", "errors", "elapsed_ms"],
+    "delete-announcement-versions": ["matched_versions", "deleted_versions", "dry_run"],
     "match-and-queue": ["queued", "inserted", "updated", "matched", "errors", "elapsed_ms"],
     "send-emails": ["sent", "failed", "pending", "errors", "elapsed_ms"],
   };
@@ -307,9 +319,9 @@ function getRangePolicy(fn: string, fromDate: string, toDate: string) {
 
 const BTN_BASE = "text-sm font-medium px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed";
 const BTN_STYLES: Record<string, string> = {
-  primary: `${BTN_BASE} bg-brand-600 hover:bg-brand-700 text-white shadow-sm hover:shadow-md`,
-  secondary: `${BTN_BASE} bg-white border border-surface-200 text-gray-700 hover:bg-surface-50 hover:border-gray-300 shadow-card`,
-  init: `${BTN_BASE} bg-brand-600 hover:bg-brand-700 text-white shadow-sm hover:shadow-md`,
+  primary: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
+  secondary: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
+  init: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
 };
 
 export default function AdminActions({
@@ -392,6 +404,8 @@ export default function AdminActions({
         return "Enviar Emails Pendentes";
       case "delete-announcements":
         return "Apagar Anúncios (intervalo)";
+      case "delete-announcement-versions":
+        return "Apagar histórico de versões";
       default:
         return fn;
     }
@@ -492,6 +506,42 @@ export default function AdminActions({
         const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         return { res, data };
       };
+
+      const runDeleteAnnouncementVersions = async (requestBody: Record<string, unknown>) => {
+        const res = await fetch("/api/admin/delete-announcement-versions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        return { res, data };
+      };
+
+      if (fn === "delete-announcement-versions") {
+        setInfo("A apagar histórico de versões dos anúncios...");
+        const { res, data } = await runDeleteAnnouncementVersions(body);
+        if (!res.ok) {
+          throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
+        }
+
+        const deleted = aggregateNumericField(data, "deleted_versions");
+        setInfo(
+          deleted > 0
+            ? `Histórico de versões apagado: ${deleted} registos removidos.`
+            : "Não havia histórico de versões para apagar.",
+        );
+        setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
+        await recordHistory({
+          title: actionLabel,
+          status: "success",
+          steps: [buildHistoryStep(fn, actionLabel, data, "success")],
+        });
+        router.refresh();
+        return;
+      }
 
       if (fn === "ingest-base") {
         const isDryRun = body.dry_run === true;
@@ -815,7 +865,7 @@ export default function AdminActions({
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {groupedActions.map((group) => (
           <div key={group.key} className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">{group.title}</h3>
@@ -850,6 +900,13 @@ export default function AdminActions({
                           `Tem a certeza que quer apagar anúncios entre ${fromDate} e ${toDate}?\n\nIsto também remove notificações e versões associadas a esses anúncios.`,
                         );
                         if (!confirmDelete) return;
+                      }
+
+                      if (fn === "delete-announcement-versions") {
+                        const confirmDeleteVersions = window.confirm(
+                          "Tem a certeza que quer apagar todo o histórico de versões guardado?\n\nOs anúncios ficam intactos, mas o histórico anterior deixa de aparecer no backoffice.",
+                        );
+                        if (!confirmDeleteVersions) return;
                       }
 
                       if (isInternalApiAction) {
