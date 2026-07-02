@@ -114,7 +114,7 @@ export default async function SettingsPage() {
                 href="/settings/historico-ingestao"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand-700 shadow-sm hover:shadow-md"
               >
-                Histórico de ingestão
+                Registo de Sistema
               </Link>
               <Link
                 href="/settings/alertas-sistema"
