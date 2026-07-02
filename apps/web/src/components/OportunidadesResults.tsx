@@ -68,7 +68,7 @@ function MissingInfo({
   return (
     <span className="inline-flex items-center justify-center text-xs text-gray-400">
       <InfoPopover
-        text="Dados em atualização, consulte novamente mais tarde."
+        text="Dados em atualização. Por favor, tente novamente mais tarde ou consulte o Diário da República "
         ariaLabel="Dados ainda nao disponiveis"
         placement={placement}
         side={side}
@@ -254,7 +254,7 @@ export default function OportunidadesResults({
               href={buildHref(page + 1, filters)}
               className="px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
             >
-              Proxima →
+              Próxima →
             </Link>
           )}
         </div>
@@ -265,6 +265,7 @@ export default function OportunidadesResults({
           announcementId={selectedAnnouncementId}
           onClose={() => setSelectedAnnouncementId(null)}
           showSource={false}
+          showVersionHistory={false}
         />
       )}
     </>

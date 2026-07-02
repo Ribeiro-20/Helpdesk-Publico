@@ -187,6 +187,114 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function boolLabel(value: unknown): string {
+  if (value === true) return "OK";
+  if (value === false) return "ERRO";
+  return "n/d";
+}
+
+function extractErrorMessage(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  const obj = asObject(value);
+  if (!obj) return null;
+
+  const directError = typeof obj.error === "string" ? obj.error.trim() : "";
+  if (directError) return directError;
+
+  const nestedDataError = asObject(obj.data)?.error;
+  if (typeof nestedDataError === "string" && nestedDataError.trim()) {
+    return nestedDataError.trim();
+  }
+
+  return null;
+}
+
+function buildSystemAlertReport(
+  subject: string,
+  payload: Record<string, unknown>,
+  tenantLabel: string,
+): string {
+  const lines: string[] = [];
+  const now = new Date();
+  const generatedAt = new Intl.DateTimeFormat("pt-PT", {
+    dateStyle: "short",
+    timeStyle: "medium",
+    timeZone: "Europe/Lisbon",
+  }).format(now);
+
+  lines.push("Relatório do alerta");
+  lines.push(`Tenant: ${tenantLabel}`);
+  lines.push(`Assunto: ${subject}`);
+  lines.push(`Gerado em: ${generatedAt} (Europe/Lisbon)`);
+
+  const range = asObject(payload.range);
+  if (range?.from_date || range?.to_date) {
+    lines.push(
+      `Janela analisada: ${String(range.from_date ?? "?")} até ${String(range.to_date ?? "?")}`,
+    );
+  }
+
+  const base = asObject(payload.base);
+  const dr = asObject(payload.ingest_dr);
+  const mq = asObject(payload.match_and_queue);
+  if (base || dr || mq) {
+    lines.push("Etapas:");
+    lines.push(`- ingest-base: ${boolLabel(base?.ok)}`);
+    lines.push(`- ingest-dr: ${boolLabel(dr?.ok)}`);
+    lines.push(`- match-and-queue: ${boolLabel(mq?.ok)}`);
+  }
+
+  const baseInserted = typeof payload.base_inserted === "number"
+    ? payload.base_inserted
+    : extractNumericValue(base, "inserted");
+  const drInserted = typeof payload.dr_inserted === "number"
+    ? payload.dr_inserted
+    : extractDrInsertedCount(dr);
+
+  if (Number.isFinite(baseInserted) || Number.isFinite(drInserted)) {
+    const totalInserted = (Number.isFinite(baseInserted) ? baseInserted : 0) +
+      (Number.isFinite(drInserted) ? drInserted : 0);
+    lines.push(
+      `Novos registos: BASE=${Number.isFinite(baseInserted) ? baseInserted : 0}, DR=${Number.isFinite(drInserted) ? drInserted : 0}, Total=${totalInserted}`,
+    );
+  }
+
+  const summary = asObject(payload.summary);
+  if (summary) {
+    const processed = summary.processed;
+    const sent = summary.sent;
+    const failed = summary.failed;
+    if (typeof processed === "number" || typeof sent === "number" || typeof failed === "number") {
+      lines.push(
+        `Resumo processamento: processados=${Number(processed ?? 0)}, enviados=${Number(sent ?? 0)}, falhas=${Number(failed ?? 0)}`,
+      );
+    }
+  }
+
+  const errorMessage =
+    extractErrorMessage(payload.summary) ??
+    extractErrorMessage(payload.base) ??
+    extractErrorMessage(payload.ingest_dr) ??
+    extractErrorMessage(payload.match_and_queue) ??
+    extractErrorMessage(payload);
+  if (errorMessage) {
+    lines.push(`Erro principal: ${errorMessage}`);
+  }
+
+  return [
+    ...lines,
+    "",
+    "Detalhe técnico (JSON):",
+    JSON.stringify(payload, null, 2),
+  ].join("\n");
+}
+
 async function loadTenantAlertConfig(): Promise<TenantAlertConfig> {
   const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   const { data, error } = await supabaseAdmin
@@ -301,12 +409,9 @@ async function notifySystemAlert(subject: string, payload: Record<string, unknow
       return;
     }
 
-    const text = [
-      `Tenant: ${config.tenantName ?? config.tenantId ?? "—"}`,
-      `Assunto: ${subject}`,
-      "",
-      JSON.stringify(payload, null, 2),
-    ].join("\n");
+    const tenantLabel = config.tenantName ?? config.tenantId ?? "—";
+
+    const text = buildSystemAlertReport(subject, payload, tenantLabel);
 
     await sendSystemEmail(config.systemAlertEmail, subject, text);
     console.log(`[cron] system alert sent to ${config.systemAlertEmail}`);

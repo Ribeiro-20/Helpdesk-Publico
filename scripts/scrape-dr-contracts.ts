@@ -555,6 +555,84 @@ function mergeRawPayload(
   } as JsonValue;
 }
 
+const DR_DETAIL_ENRICHED_FIELDS = [
+  "description",
+  "procedure_type",
+  "act_type",
+  "contract_type",
+  "base_price",
+  "currency",
+  "cpv_main",
+  "cpv_list",
+  "proposal_deadline_days",
+  "proposal_deadline_at",
+  "detail_url",
+  "entity_nif",
+] as const;
+
+function hasUsefulDbValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") {
+    const normalized = normalizeSpace(value);
+    return normalized.length > 0 && normalized !== "-" && normalized.toLowerCase() !== "sem valor";
+  }
+  if (Array.isArray(value)) return value.some((item) => hasUsefulDbValue(item));
+  return true;
+}
+
+function extractRawPayloadText(raw: unknown): string {
+  if (!raw || typeof raw !== "object") return "";
+
+  const root = raw as Record<string, unknown>;
+  const payload = root.payload && typeof root.payload === "object"
+    ? (root.payload as Record<string, unknown>)
+    : root;
+  const detail = payload.detalhe_conteudo && typeof payload.detalhe_conteudo === "object"
+    ? (payload.detalhe_conteudo as Record<string, unknown>)
+    : null;
+  const text = detail?.Texto ?? detail?.texto ?? payload.Texto ?? payload.texto;
+
+  return typeof text === "string" ? normalizeSpace(text) : "";
+}
+
+function hasDetailedRawPayload(raw: unknown): boolean {
+  return extractRawPayloadText(raw).length > 0;
+}
+
+function isDrDetailUrl(value: unknown): boolean {
+  return typeof value === "string" && value.includes("diariodarepublica.pt/dr/detalhe/");
+}
+
+function isExternalFileUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const lower = value.toLowerCase();
+  return lower.includes("files.diariodarepublica.pt") || lower.endsWith(".pdf");
+}
+
+function chooseDrUpdateValue(
+  existing: Record<string, unknown> | null | undefined,
+  incoming: Record<string, unknown>,
+  field: typeof DR_DETAIL_ENRICHED_FIELDS[number],
+  protectExistingDetail: boolean,
+): unknown {
+  const existingValue = existing?.[field];
+  const incomingValue = incoming[field];
+
+  if (!hasUsefulDbValue(incomingValue) && hasUsefulDbValue(existingValue)) {
+    return existingValue;
+  }
+
+  if (field === "detail_url" && isDrDetailUrl(existingValue) && isExternalFileUrl(incomingValue)) {
+    return existingValue;
+  }
+
+  if (protectExistingDetail && hasUsefulDbValue(existingValue)) {
+    return existingValue;
+  }
+
+  return incomingValue;
+}
+
 function parsePublicationDate(text: string): string | null {
   const m = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
   return m ? m[1] : null;
@@ -1359,7 +1437,7 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
       let existingQuery = supabase
         .from("announcements")
         .select(
-          "source, publication_date, title, description, entity_nif, contract_type, base_price, cpv_main, cpv_list, proposal_deadline_days, proposal_deadline_at, detail_url, raw_payload",
+          "source, publication_date, title, description, entity_nif, procedure_type, act_type, contract_type, base_price, currency, cpv_main, cpv_list, proposal_deadline_days, proposal_deadline_at, detail_url, raw_payload",
         )
         .eq("tenant_id", tenant_id);
 
@@ -1383,6 +1461,9 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
       const keepExistingTitle =
         !!existingTitle &&
         existing?.source === "BASE_API";
+      const incomingRecord = incoming as Record<string, unknown>;
+      const existingRecord = existing as Record<string, unknown> | null | undefined;
+      const protectExistingDetail = hasDetailedRawPayload(existing?.raw_payload) && !hasDetailedRawPayload(incoming.raw_payload);
 
       const updateFields = {
         // Keep canonical source (usually BASE_API) when it already exists.
@@ -1390,17 +1471,26 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
         publication_date: existing?.source === "BASE_API" ? existing?.publication_date : incoming.publication_date,
         // Preserve richer canonical fields from BASE ingest when present.
         title: keepExistingTitle ? existing?.title : incomingTitle,
-        description: existing?.description ?? incoming.description,
-        contract_type: existing?.contract_type ?? incoming.contract_type,
-        base_price: existing?.base_price ?? incoming.base_price,
-        cpv_main: hasExistingCpv ? existing?.cpv_main : incoming.cpv_main,
-        cpv_list: hasExistingCpv ? existing?.cpv_list : incoming.cpv_list,
-        proposal_deadline_days: existing?.proposal_deadline_days ?? incoming.proposal_deadline_days,
-        proposal_deadline_at: existing?.proposal_deadline_at ?? incoming.proposal_deadline_at,
-        detail_url: existing?.detail_url ?? incoming.detail_url,
+        description: chooseDrUpdateValue(existingRecord, incomingRecord, "description", protectExistingDetail),
+        procedure_type: chooseDrUpdateValue(existingRecord, incomingRecord, "procedure_type", protectExistingDetail),
+        act_type: chooseDrUpdateValue(existingRecord, incomingRecord, "act_type", protectExistingDetail),
+        contract_type: chooseDrUpdateValue(existingRecord, incomingRecord, "contract_type", protectExistingDetail),
+        base_price: chooseDrUpdateValue(existingRecord, incomingRecord, "base_price", protectExistingDetail),
+        currency: chooseDrUpdateValue(existingRecord, incomingRecord, "currency", protectExistingDetail),
+        cpv_main: hasExistingCpv
+          ? existing?.cpv_main
+          : chooseDrUpdateValue(existingRecord, incomingRecord, "cpv_main", protectExistingDetail),
+        cpv_list: hasExistingCpv
+          ? existing?.cpv_list
+          : chooseDrUpdateValue(existingRecord, incomingRecord, "cpv_list", protectExistingDetail),
+        proposal_deadline_days: chooseDrUpdateValue(existingRecord, incomingRecord, "proposal_deadline_days", protectExistingDetail),
+        proposal_deadline_at: chooseDrUpdateValue(existingRecord, incomingRecord, "proposal_deadline_at", protectExistingDetail),
+        detail_url: chooseDrUpdateValue(existingRecord, incomingRecord, "detail_url", protectExistingDetail),
         // Useful enrichment fields from DR details.
-        entity_nif: existing?.entity_nif ?? incoming.entity_nif,
-        raw_payload: mergeRawPayload(existing?.raw_payload, incoming.raw_payload),
+        entity_nif: chooseDrUpdateValue(existingRecord, incomingRecord, "entity_nif", protectExistingDetail),
+        raw_payload: protectExistingDetail
+          ? existing?.raw_payload
+          : mergeRawPayload(existing?.raw_payload, incoming.raw_payload),
         raw_hash,
       };
 
