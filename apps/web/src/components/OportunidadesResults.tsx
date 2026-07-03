@@ -13,8 +13,10 @@ export type OpportunityRow = {
   procedure_type: string | null;
   contract_type: string | null;
   publication_date: string | null;
+  proposal_deadline_days: number | null;
   proposal_deadline_at: string | null;
   cpv_main: string | null;
+  cpv_list: string[] | null;
   base_price: number | null;
   currency: string | null;
   status: string;
@@ -47,6 +49,12 @@ function fmtDate(value: string | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("pt-PT");
+}
+
+function fmtDeadline(value: string | null, days: number | null): string | null {
+  if (value) return fmtDate(value);
+  if (days != null) return `${days} dias`;
+  return null;
 }
 
 function fmtMoney(value: number | null, currency: string | null): string {
@@ -164,8 +172,10 @@ export default function OportunidadesResults({
                 const title = cleanAnnouncementText(op.title) || "Sem título";
                 const entityName = cleanAnnouncementText(op.entity_name) || "-";
                 const procedureType = cleanAnnouncementText(displayProcedureType(op.procedure_type)) || "-";
-                const cpvTitle = op.cpv_main
-                  ? cpvDescriptions[op.cpv_main] || "Descrição de CPV indisponível"
+                const displayDeadline = fmtDeadline(op.proposal_deadline_at, op.proposal_deadline_days);
+                const displayCpv = op.cpv_main || (Array.isArray(op.cpv_list) ? op.cpv_list[0] : null);
+                const cpvTitle = displayCpv
+                  ? cpvDescriptions[displayCpv] || "Descricao de CPV indisponivel"
                   : undefined;
 
                 return (
@@ -183,15 +193,15 @@ export default function OportunidadesResults({
                       {op.publication_date ? fmtDate(op.publication_date) : <MissingInfo />}
                     </td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap text-xs tabular-nums align-top">
-                      {op.proposal_deadline_at ? <span>{fmtDate(op.proposal_deadline_at)}</span> : <MissingInfo placement="side" side="left" />}
+                      {displayDeadline ? <span>{displayDeadline}</span> : <MissingInfo placement="side" side="left" />}
                     </td>
                     <td className="px-4 py-3 align-top">
-                      {op.cpv_main ? (
+                      {displayCpv ? (
                         <span
                           title={cpvTitle}
                           className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap"
                         >
-                          {op.cpv_main}
+                          {displayCpv}
                         </span>
                       ) : (
                         <MissingInfo placement="side" side="left" />

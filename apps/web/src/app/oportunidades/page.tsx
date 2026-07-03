@@ -44,8 +44,10 @@ type OpportunityRow = {
   procedure_type: string | null;
   contract_type: string | null;
   publication_date: string | null;
+  proposal_deadline_days: number | null;
   proposal_deadline_at: string | null;
   cpv_main: string | null;
+  cpv_list: string[] | null;
   base_price: number | null;
   currency: string | null;
   status: string;
@@ -303,7 +305,7 @@ export default async function OportunidadesPage({
     let query = supabase
       .from("announcements")
       .select(
-        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_at, cpv_main, base_price, currency, status",
+        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_days, proposal_deadline_at, cpv_main, cpv_list, base_price, currency, status",
         { count: "exact" },
       )
       .eq("tenant_id", tenantId);
@@ -369,7 +371,11 @@ export default async function OportunidadesPage({
     opportunities = (data ?? []) as OpportunityRow[];
 
     const cpvCodes = Array.from(
-      new Set(opportunities.map((op) => op.cpv_main).filter(Boolean) as string[]),
+      new Set(
+        opportunities
+          .flatMap((op) => [op.cpv_main, ...(Array.isArray(op.cpv_list) ? op.cpv_list : [])])
+          .filter(Boolean) as string[],
+      ),
     );
 
     if (cpvCodes.length > 0) {

@@ -563,13 +563,35 @@ export default function AdminActions({
             ? { from_date: body.from_date, to_date: body.to_date }
             : {};
 
-        setInfo(isDryRun ? "A testar ingestao de anuncios..." : "A executar pipeline de anuncios no servidor...");
-        const { res: pipelineRes, data: pipelineUnknown } = await runAnnouncementPipeline(body);
+        setInfo(isDryRun ? "A testar ingestao de anuncios..." : "A iniciar pipeline de anuncios no servidor...");
+        const pipelineRequestBody = isDryRun ? body : { ...body, async: true };
+        const { res: pipelineRes, data: pipelineUnknown } = await runAnnouncementPipeline(pipelineRequestBody);
         if (!pipelineRes.ok) {
           throw new Error((pipelineUnknown as Record<string, string>)?.error ?? `HTTP ${pipelineRes.status}`);
         }
 
         const pipelineData = pipelineUnknown as Record<string, unknown>;
+        if (pipelineData.queued === true) {
+          setInfo("Pipeline de anuncios iniciado no servidor. Acompanhe o progresso no historico e nos logs.");
+          setResults((prev) => [{ fn: "ingest-base (pipeline iniciado)", data: pipelineData }, ...prev.slice(0, 4)]);
+          await recordHistory({
+            title: actionLabel,
+            status: "success",
+            range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+            steps: [
+              buildHistoryStep(
+                "ingest-base",
+                "Pipeline de anuncios",
+                pipelineData,
+                "success",
+                "Job iniciado no servidor; o resultado final sera registado pelos logs/processamento.",
+              ),
+            ],
+          });
+          router.refresh();
+          return;
+        }
+
         const pipelineBaseData = pipelineData.ingest_base ?? {};
         const pipelineBaseError =
           typeof pipelineData.ingest_base_error === "string"

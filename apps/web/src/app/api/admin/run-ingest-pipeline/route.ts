@@ -102,9 +102,9 @@ async function callFunction(name: string, body: Record<string, unknown>): Promis
   return { ok: res.ok, status: res.status, data };
 }
 
-async function callInternalDr(req: NextRequest, body: Record<string, unknown>): Promise<FunctionResult> {
+async function callInternalDr(origin: string, body: Record<string, unknown>): Promise<FunctionResult> {
   const { serviceRoleKey } = getSupabaseAdminEnv("Run ingest pipeline");
-  const res = await fetch(new URL("/api/admin/ingest-dr", req.nextUrl.origin), {
+  const res = await fetch(new URL("/api/admin/ingest-dr", origin), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${serviceRoleKey}`,
@@ -117,6 +117,47 @@ async function callInternalDr(req: NextRequest, body: Record<string, unknown>): 
   return { ok: res.ok, status: res.status, data };
 }
 
+async function runPipeline(origin: string, fromDate: string, toDate: string, dryRun: boolean) {
+  const rangeBody = { from_date: fromDate, to_date: toDate };
+  const baseBody = dryRun ? { ...rangeBody, dry_run: true } : rangeBody;
+  const baseRes = await callFunction("ingest-base", baseBody);
+  const baseError = formatError(baseRes);
+
+  if (dryRun) {
+    return {
+      ok: baseRes.ok,
+      dry_run: true,
+      from_date: fromDate,
+      to_date: toDate,
+      ingest_base: baseRes.data,
+      ingest_base_error: baseError,
+    };
+  }
+
+  const fetched = baseRes.ok ? numericField(baseRes.data, "fetched") : 0;
+  const shouldRunDr = fetched > 0 || fromDate === todayIso() || toDate === todayIso() || !!baseError;
+  const drRes = shouldRunDr
+    ? await callInternalDr(origin, rangeBody)
+    : {
+        ok: true,
+        status: 200,
+        data: { skipped: true, reason: "no_new_base_announcements" },
+      };
+
+  const mqRes = await callFunction("match-and-queue", rangeBody);
+  const ok = drRes.ok && mqRes.ok;
+
+  return {
+    ok,
+    from_date: fromDate,
+    to_date: toDate,
+    ingest_base: baseRes.data,
+    ingest_base_error: baseError,
+    ingest_dr: drRes.data,
+    match_and_queue: mqRes.data,
+  };
+}
+
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin.ok) return admin.response;
@@ -127,6 +168,7 @@ export async function POST(req: NextRequest) {
     const fromDate = isIsoDate(parsedBody.from_date) ? parsedBody.from_date : defaults.fromDate;
     const toDate = isIsoDate(parsedBody.to_date) ? parsedBody.to_date : defaults.toDate;
     const dryRun = parsedBody.dry_run === true;
+    const asyncMode = parsedBody.async === true && !dryRun;
     const days = daysInclusive(fromDate, toDate);
 
     if (days <= 0) {
@@ -137,47 +179,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "So e possivel ingerir anuncios ate 31 dias por pedido." }, { status: 400 });
     }
 
-    const rangeBody = { from_date: fromDate, to_date: toDate };
-    const baseBody = dryRun ? { ...rangeBody, dry_run: true } : rangeBody;
-    const baseRes = await callFunction("ingest-base", baseBody);
-    const baseError = formatError(baseRes);
+    if (asyncMode) {
+      const origin = req.nextUrl.origin;
+      void runPipeline(origin, fromDate, toDate, false).catch((error) => {
+        console.error("[run-ingest-pipeline] background pipeline failed:", error);
+      });
 
-    if (dryRun) {
-      return NextResponse.json({
-        ok: baseRes.ok,
-        dry_run: true,
-        from_date: fromDate,
-        to_date: toDate,
-        ingest_base: baseRes.data,
-        ingest_base_error: baseError,
-      }, { status: baseRes.ok ? 200 : 502 });
+      return NextResponse.json(
+        {
+          ok: true,
+          queued: true,
+          from_date: fromDate,
+          to_date: toDate,
+          message: "Pipeline de anuncios iniciado no servidor.",
+        },
+        { status: 202 },
+      );
     }
 
-    const fetched = baseRes.ok ? numericField(baseRes.data, "fetched") : 0;
-    const shouldRunDr = fetched > 0 || fromDate === todayIso() || toDate === todayIso() || !!baseError;
-    const drRes = shouldRunDr
-      ? await callInternalDr(req, rangeBody)
-      : {
-          ok: true,
-          status: 200,
-          data: { skipped: true, reason: "no_new_base_announcements" },
-        };
-
-    const mqRes = await callFunction("match-and-queue", rangeBody);
-    const ok = drRes.ok && mqRes.ok;
-
-    return NextResponse.json(
-      {
-        ok,
-        from_date: fromDate,
-        to_date: toDate,
-        ingest_base: baseRes.data,
-        ingest_base_error: baseError,
-        ingest_dr: drRes.data,
-        match_and_queue: mqRes.data,
-      },
-      { status: ok ? 200 : 502 },
-    );
+    const result = await runPipeline(req.nextUrl.origin, fromDate, toDate, dryRun);
+    return NextResponse.json(result, { status: result.ok ? 200 : 502 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: `Falha a executar pipeline de anuncios: ${message}` }, { status: 500 });
