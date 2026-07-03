@@ -749,6 +749,11 @@ function hasUsefulDrDetailText(text: string): boolean {
   );
 }
 
+function describeIncompleteDetail(item: DrContractCandidate, text: string): string {
+  const id = item.dr_announcement_no ?? item.base_announcement_id ?? item.detail_url ?? item.description ?? "unknown";
+  return `${id} text_len=${text.trim().length}`;
+}
+
 async function waitForUsefulDrDetailText(page: Page, timeoutMs: number): Promise<void> {
   await page
     .waitForFunction(
@@ -1001,32 +1006,40 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
   let payloadTemplate: Record<string, any> | null = null;
   let endpoint = "";
 
-  const sampleUrl = candidates.find(c => c.detail_url)?.detail_url;
-  if (!sampleUrl) {
+  const sampleUrls = candidates
+    .map((c) => c.detail_url)
+    .filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+    .slice(0, 12);
+
+  if (sampleUrls.length === 0) {
     await context.close();
     await browser.close();
     return;
   }
 
-  const warmupPage = await context.newPage();
-  const reqPromise = warmupPage.waitForRequest(req => {
-    if (isDrDetailDataEndpoint(req.url()) && req.method() === 'POST') {
-      csrfToken = req.headers()['x-csrftoken'] ?? "";
-      try {
-        payloadTemplate = JSON.parse(req.postData() ?? "{}");
-        endpoint = req.url();
-      } catch {}
-      return true;
-    }
-    return false;
-  }, { timeout: timeoutMs }).catch(() => null);
+  for (const sampleUrl of sampleUrls) {
+    const warmupPage = await context.newPage();
+    const reqPromise = warmupPage.waitForRequest(req => {
+      if (isDrDetailDataEndpoint(req.url()) && req.method() === 'POST') {
+        csrfToken = req.headers()['x-csrftoken'] ?? "";
+        try {
+          payloadTemplate = JSON.parse(req.postData() ?? "{}");
+          endpoint = req.url();
+        } catch {}
+        return true;
+      }
+      return false;
+    }, { timeout: timeoutMs }).catch(() => null);
 
-  await warmupPage.goto(sampleUrl, { waitUntil: "domcontentloaded", timeout: 120000 }).catch(() => undefined);
-  await reqPromise;
-  await warmupPage.close();
+    await warmupPage.goto(sampleUrl, { waitUntil: "domcontentloaded", timeout: 120000 }).catch(() => undefined);
+    await reqPromise;
+    await warmupPage.close();
+
+    if (payloadTemplate && endpoint) break;
+  }
 
   if (!payloadTemplate || !endpoint) {
-    console.warn("[dr-scrape] Falling back to Playwright due to missing OutSystems template.");
+    console.warn(`[dr-scrape] Falling back to Playwright due to missing OutSystems template after ${sampleUrls.length} warmup attempt(s).`);
   }
 
   const CHUNK_SIZE = 20;
@@ -1123,7 +1136,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
           };
         } else {
           const visibleText = await page.locator("body").innerText().catch(() => "");
-          if (visibleText.trim()) {
+          if (visibleText.trim() && hasUsefulDrDetailText(visibleText)) {
             detalhe = {
               Id: fallbackDetalhe?.["Id"] ?? detalhe?.["Id"] ?? item.base_announcement_id,
               Numero: fallbackDetalhe?.["Numero"] ?? detalhe?.["Numero"] ?? item.dr_announcement_no,
@@ -1134,13 +1147,15 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
                 detalhe?.["DataPublicacao"] ??
                 parsePublicationDate(visibleText),
             };
+          } else if (visibleText.trim()) {
+            console.warn(`[dr-scrape] incomplete detail ignored: ${describeIncompleteDetail(item, visibleText)}`);
           }
         }
 
         await page.close();
       }
 
-      if (detalhe) {
+      if (detalhe && hasUsefulDrDetailText(String(detalhe["Texto"] ?? ""))) {
         const texto = String(detalhe["Texto"] ?? "");
         const sumario = normalizeSpace(String(detalhe["Sumario"] ?? ""));
 
@@ -1162,6 +1177,9 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
           ...(item.raw_payload as Record<string, JsonValue>),
           detalhe_conteudo: detalhe as JsonValue,
         };
+      } else if (detalhe) {
+        const texto = String(detalhe["Texto"] ?? "");
+        console.warn(`[dr-scrape] incomplete detail ignored: ${describeIncompleteDetail(item, texto)}`);
       }
     }));
   }
