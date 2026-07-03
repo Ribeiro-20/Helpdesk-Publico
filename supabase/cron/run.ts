@@ -168,14 +168,22 @@ function extractNumericValue(data: unknown, field: string): number {
 }
 
 function extractDrInsertedCount(data: unknown): number {
+  return extractDrSummaryCount(data, "inserted");
+}
+
+function extractDrUpdatedCount(data: unknown): number {
+  return extractDrSummaryCount(data, "updated");
+}
+
+function extractDrSummaryCount(data: unknown, field: "inserted" | "updated" | "skipped"): number {
   if (!data || typeof data !== "object") return 0;
   const summary = typeof (data as Record<string, unknown>).summary === "string"
     ? (data as Record<string, unknown>).summary as string
     : "";
-  const match = summary.match(/inserted=(\d+)/);
+  const match = summary.match(new RegExp(`${field}=(\\d+)`));
   if (!match) return 0;
-  const inserted = Number.parseInt(match[1], 10);
-  return Number.isFinite(inserted) ? inserted : 0;
+  const count = Number.parseInt(match[1], 10);
+  return Number.isFinite(count) ? count : 0;
 }
 
 function escapeHtml(value: string): string {
@@ -193,10 +201,14 @@ function asObject(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function boolLabel(value: unknown): string {
-  if (value === true) return "OK";
-  if (value === false) return "ERRO";
-  return "n/d";
+function stepStatusLabel(value: unknown): string {
+  const obj = asObject(value);
+  if (!obj) return "n/d";
+  if (obj.ok === true) return "OK";
+  if (obj.ok === false) return "ERRO";
+  if (extractErrorMessage(obj)) return "ERRO";
+  if (typeof obj.errors === "number" && obj.errors > 0) return "ERRO";
+  return "OK";
 }
 
 function extractErrorMessage(value: unknown): string | null {
@@ -245,9 +257,9 @@ function buildSystemAlertReport(
   const mq = asObject(payload.match_and_queue);
   if (base || dr || mq) {
     lines.push("Etapas:");
-    lines.push(`- ingest-base: ${boolLabel(base?.ok)}`);
-    lines.push(`- ingest-dr: ${boolLabel(dr?.ok)}`);
-    lines.push(`- match-and-queue: ${boolLabel(mq?.ok)}`);
+    lines.push(`- ingest-base: ${stepStatusLabel(base)}`);
+    lines.push(`- ingest-dr: ${stepStatusLabel(dr)}`);
+    lines.push(`- match-and-queue: ${stepStatusLabel(mq)}`);
   }
 
   const baseInserted = typeof payload.base_inserted === "number"
@@ -256,12 +268,23 @@ function buildSystemAlertReport(
   const drInserted = typeof payload.dr_inserted === "number"
     ? payload.dr_inserted
     : extractDrInsertedCount(dr);
+  const baseUpdated = typeof payload.base_updated === "number"
+    ? payload.base_updated
+    : extractNumericValue(base, "updated");
+  const drUpdated = typeof payload.dr_updated === "number"
+    ? payload.dr_updated
+    : extractDrUpdatedCount(dr);
 
   if (Number.isFinite(baseInserted) || Number.isFinite(drInserted)) {
     const totalInserted = (Number.isFinite(baseInserted) ? baseInserted : 0) +
       (Number.isFinite(drInserted) ? drInserted : 0);
+    const totalUpdated = (Number.isFinite(baseUpdated) ? baseUpdated : 0) +
+      (Number.isFinite(drUpdated) ? drUpdated : 0);
     lines.push(
       `Novos registos: BASE=${Number.isFinite(baseInserted) ? baseInserted : 0}, DR=${Number.isFinite(drInserted) ? drInserted : 0}, Total=${totalInserted}`,
+    );
+    lines.push(
+      `Registos atualizados: BASE=${Number.isFinite(baseUpdated) ? baseUpdated : 0}, DR=${Number.isFinite(drUpdated) ? drUpdated : 0}, Total=${totalUpdated}`,
     );
   }
 
@@ -463,7 +486,10 @@ async function maybeNotifyIngestionAlert(
   const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
   const baseInserted = extractNumericValue(baseRes.data, "inserted");
   const drInserted = extractDrInsertedCount(drRes.data);
+  const baseUpdated = extractNumericValue(baseRes.data, "updated");
+  const drUpdated = extractDrUpdatedCount(drRes.data);
   const totalInserted = baseInserted + drInserted;
+  const totalUpdated = baseUpdated + drUpdated;
 
   if (status === "error") {
     await notifySystemAlert("Alerta do sistema: falha na ingestão automática", {
@@ -475,11 +501,13 @@ async function maybeNotifyIngestionAlert(
     return;
   }
 
-  if (totalInserted === 0) {
+  if (totalInserted === 0 && totalUpdated === 0) {
     await notifySystemAlert("Alerta do sistema: ingestão automática sem novos registos", {
       range: body,
       base_inserted: baseInserted,
       dr_inserted: drInserted,
+      base_updated: baseUpdated,
+      dr_updated: drUpdated,
       base: baseRes.data,
       ingest_dr: drRes.data,
       match_and_queue: mqRes.data,
