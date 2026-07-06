@@ -130,6 +130,19 @@ function formatUnknownError(error: unknown) {
   }
 }
 
+function extractPayloadError(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const record = data as Record<string, unknown>;
+  const direct = record.error;
+  if (typeof direct === "string" && direct.trim()) return direct.trim();
+  const nested = record.data;
+  if (nested && typeof nested === "object") {
+    const nestedError = (nested as Record<string, unknown>).error;
+    if (typeof nestedError === "string" && nestedError.trim()) return nestedError.trim();
+  }
+  return null;
+}
+
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -205,7 +218,7 @@ function summarizeHistoryPayload(fn: string, data: unknown): string[] {
     "ingest-contracts": ["fetched", "inserted", "updated", "skipped", "linked_to_announcements", "entities_touched", "companies_touched", "errors", "dry_run", "elapsed_ms"],
     "extract-entities": ["nifs_found", "entities_created", "entities_updated", "locations_set", "stats_updated", "errors", "elapsed_ms"],
     "extract-companies": ["contracts_scanned", "nifs_found", "companies_created", "companies_updated", "winners_extracted", "competitors_extracted", "locations_set", "errors", "elapsed_ms"],
-    "ingest-dr": ["fetched", "inserted", "updated", "errors", "elapsed_ms"],
+    "ingest-dr": ["from_date", "to_date", "normalized_candidates", "summary", "inserted", "updated", "errors", "elapsed_ms"],
     "delete-announcement-versions": ["matched_versions", "deleted_versions", "dry_run"],
     "match-and-queue": ["queued", "inserted", "updated", "matched", "errors", "elapsed_ms"],
     "send-emails": ["sent", "failed", "pending", "errors", "elapsed_ms"],
@@ -564,13 +577,20 @@ export default function AdminActions({
             : {};
 
         setInfo(isDryRun ? "A testar ingestao de anuncios..." : "A iniciar pipeline de anuncios no servidor...");
-        const pipelineRequestBody = isDryRun ? body : { ...body, async: true };
-        const { res: pipelineRes, data: pipelineUnknown } = await runAnnouncementPipeline(pipelineRequestBody);
-        if (!pipelineRes.ok) {
+        const { res: pipelineRes, data: pipelineUnknown } = await runAnnouncementPipeline(body);
+        const pipelineData =
+          pipelineUnknown && typeof pipelineUnknown === "object"
+            ? (pipelineUnknown as Record<string, unknown>)
+            : ({ result: pipelineUnknown } as Record<string, unknown>);
+        const hasPipelineShape =
+          "ingest_base" in pipelineData ||
+          "ingest_dr" in pipelineData ||
+          "match_and_queue" in pipelineData;
+
+        if (!pipelineRes.ok && !hasPipelineShape) {
           throw new Error((pipelineUnknown as Record<string, string>)?.error ?? `HTTP ${pipelineRes.status}`);
         }
 
-        const pipelineData = pipelineUnknown as Record<string, unknown>;
         if (pipelineData.queued === true) {
           setInfo("Pipeline de anuncios iniciado no servidor. Acompanhe o progresso no historico e nos logs.");
           setResults((prev) => [{ fn: "ingest-base (pipeline iniciado)", data: pipelineData }, ...prev.slice(0, 4)]);
@@ -596,16 +616,22 @@ export default function AdminActions({
         const pipelineBaseError =
           typeof pipelineData.ingest_base_error === "string"
             ? pipelineData.ingest_base_error
-            : null;
+            : extractPayloadError(pipelineBaseData);
 
         if (isDryRun) {
-          setInfo("Dry run de anuncios concluido.");
+          const dryRunStatus = pipelineBaseError ? "error" : "success";
+          if (dryRunStatus === "error") {
+            setError(`ingest-base: ${pipelineBaseError}`);
+            setInfo("Dry run de anuncios concluiu com erro.");
+          } else {
+            setInfo("Dry run de anuncios concluido.");
+          }
           setResults((prev) => [{ fn, data: pipelineBaseData }, ...prev.slice(0, 4)]);
           await recordHistory({
             title: actionLabel,
-            status: "success",
+            status: dryRunStatus,
             range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
-            steps: [buildHistoryStep("ingest-base", "Anuncios BASE", pipelineBaseData, pipelineBaseError ? "error" : "success", pipelineBaseError ? `BASE: ${pipelineBaseError}` : undefined)],
+            steps: [buildHistoryStep("ingest-base", "Anuncios BASE", pipelineBaseData, dryRunStatus, pipelineBaseError ? `BASE: ${pipelineBaseError}` : undefined)],
           });
           router.refresh();
           return;
@@ -617,21 +643,53 @@ export default function AdminActions({
           !!pipelineDrData &&
           typeof pipelineDrData === "object" &&
           (pipelineDrData as Record<string, unknown>).skipped === true;
+        const pipelineDrError = drSkipped ? null : extractPayloadError(pipelineDrData);
+        const pipelineMqError = extractPayloadError(pipelineMqData);
 
-        setInfo(
-          pipelineBaseError
-            ? `A API BASE falhou (${pipelineBaseError}). Pipeline executado no servidor com DR + correspondencia CPV.`
-            : "Pipeline de anuncios concluido: BASE + DR + correspondencia CPV.",
-        );
+        const pipelineStatus =
+          pipelineBaseError || pipelineDrError || pipelineMqError || !pipelineRes.ok
+            ? "error"
+            : "success";
+
+        if (pipelineStatus === "error") {
+          const firstError = pipelineBaseError || pipelineDrError || pipelineMqError || `HTTP ${pipelineRes.status}`;
+          setError(`ingest-base: ${firstError}`);
+          setInfo("Pipeline de anuncios concluido com erros (ver Registo do Sistema)." );
+        } else {
+          setInfo("Pipeline de anuncios concluido: BASE + DR + correspondencia CPV.");
+        }
+
         setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
         await recordHistory({
           title: actionLabel,
-          status: "success",
+          status: pipelineStatus,
           range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
           steps: [
-            buildHistoryStep("ingest-base", "Anuncios BASE", pipelineBaseData, pipelineBaseError ? "error" : "success", pipelineBaseError ? `BASE: ${pipelineBaseError}` : undefined),
-            buildHistoryStep("ingest-dr", "Anuncios DR", pipelineDrData, "success", drSkipped ? "Sem novos anuncios BASE; DR ignorado para este intervalo." : undefined),
-            buildHistoryStep("match-and-queue", "Correspondencia CPV", pipelineMqData, "success"),
+            buildHistoryStep(
+              "ingest-base",
+              "Anuncios BASE",
+              pipelineBaseData,
+              pipelineBaseError ? "error" : "success",
+              pipelineBaseError ? `BASE: ${pipelineBaseError}` : undefined,
+            ),
+            buildHistoryStep(
+              "ingest-dr",
+              "Anuncios DR",
+              pipelineDrData,
+              pipelineDrError ? "error" : "success",
+              drSkipped
+                ? "Sem novos anuncios BASE; DR ignorado para este intervalo."
+                : pipelineDrError
+                ? `DR: ${pipelineDrError}`
+                : undefined,
+            ),
+            buildHistoryStep(
+              "match-and-queue",
+              "Correspondencia CPV",
+              pipelineMqData,
+              pipelineMqError ? "error" : "success",
+              pipelineMqError ? `CPV: ${pipelineMqError}` : undefined,
+            ),
           ],
         });
         router.refresh();
