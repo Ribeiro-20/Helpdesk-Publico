@@ -406,6 +406,21 @@ export default async function OportunidadesPage({
     Boolean(fromDate) ||
     Boolean(toDate);
 
+  const filtersResetKey = [
+    cpv,
+    entity,
+    announcementNumber,
+    actType,
+    modelType,
+    contractType,
+    minValue,
+    maxValue,
+    fromDate,
+    toDate,
+    String(PAGE_SIZE),
+    sort,
+  ].join("|");
+
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -438,7 +453,7 @@ export default async function OportunidadesPage({
             </div>
           </div>
 
-          <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+          <form key={filtersResetKey} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
               <MercadoCpvInput
                 defaultValue={cpv}
