@@ -41,15 +41,15 @@ export default function Header() {
         background: NAV_BG,
       }}
     >
-      <div className="max-w-screen-2xl mx-auto flex items-center px-12 py-0 h-[104px]">
+      <div className="max-w-screen-2xl mx-auto flex items-center px-4 sm:px-6 lg:px-12 py-0 h-[80px] sm:h-[92px] lg:h-[104px] min-w-0">
         {/* ── Logo ── */}
-        <Link href="/" className="shrink-0 mr-12">
+        <Link href="/" className="shrink-0 mr-3 sm:mr-8 lg:mr-12">
           <Image
             src="/logo.png"
             alt="Helpdesk Público"
             width={300}
             height={110}
-            className="object-contain"
+            className="h-auto w-[170px] sm:w-[220px] lg:w-[300px] object-contain"
             priority
           />
         </Link>
@@ -57,15 +57,15 @@ export default function Header() {
         <div className="flex-1" />
 
         {/* ── Right menu ── */}
-        <div className="shrink-0 ml-8" ref={menuRef}>
+        <div className="shrink-0 ml-2 sm:ml-4 lg:ml-8" ref={menuRef}>
           <button
             type="button"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((prev) => !prev)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
+            className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
           >
-            <span className="text-sm font-medium">Menu</span>
+            <span className="text-xs sm:text-sm font-medium">Menu</span>
             <ChevronDown
               className={`w-4 h-4 transition-transform ${menuOpen ? "rotate-180" : ""}`}
               strokeWidth={1.8}
