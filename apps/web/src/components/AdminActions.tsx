@@ -330,7 +330,7 @@ function getRangePolicy(fn: string, fromDate: string, toDate: string) {
   return { disabled: false, warning: null as string | null, error: null as string | null };
 }
 
-const BTN_BASE = "text-sm font-medium px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed";
+const BTN_BASE = "w-full text-sm font-medium px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed sm:w-auto";
 const BTN_STYLES: Record<string, string> = {
   primary: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
   secondary: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
@@ -1015,7 +1015,7 @@ export default function AdminActions({
         {groupedActions.map((group) => (
           <div key={group.key} className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
             <h3 className="mb-4 text-sm font-semibold text-gray-900">{group.title}</h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
               {group.actions.map(({ fn, label, variant, body }) => {
                 const needsDates =
                   fn === "ingest-base" ||

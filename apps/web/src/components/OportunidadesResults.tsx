@@ -145,7 +145,92 @@ export default function OportunidadesResults({
   return (
     <>
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="space-y-2 p-2 lg:hidden">
+          {opportunities.map((op) => {
+            const displayStatus = effectiveStatus(op);
+            const statusLabel = STATUS_LABEL[displayStatus] ?? displayStatus;
+            const statusClass = STATUS_BADGE[displayStatus] ?? "bg-gray-100 text-gray-600";
+            const nearDeadline = isNearDeadline(op.proposal_deadline_at);
+            const title = cleanAnnouncementText(op.title) || "Sem título";
+            const entityName = cleanAnnouncementText(op.entity_name) || "-";
+            const procedureType = cleanAnnouncementText(displayProcedureType(op.procedure_type)) || "-";
+            const cpvTitle = op.cpv_main
+              ? cpvDescriptions[op.cpv_main] || "Descrição de CPV indisponível"
+              : undefined;
+
+            return (
+              <button
+                key={op.id}
+                type="button"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-3 text-left shadow-sm transition-colors hover:bg-green-50/40"
+                onClick={() => setSelectedAnnouncementId(op.id)}
+              >
+                <div className="mb-1 flex items-start justify-between gap-3">
+                  <p className="text-sm font-semibold text-green-700 line-clamp-2">{title}</p>
+                  {nearDeadline ? (
+                    <span className="inline-block shrink-0 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
+                      Próx. fim
+                    </span>
+                  ) : (
+                    <span className={`inline-block shrink-0 text-xs px-2 py-0.5 rounded-full font-medium ${statusClass}`}>
+                      {statusLabel}
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-xs text-gray-500 line-clamp-1">{procedureType}</p>
+                <p className="mt-0.5 text-xs text-gray-600 line-clamp-1">{entityName}</p>
+
+                <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Publicação</p>
+                    <p className="mt-0.5 text-gray-700">
+                      {op.publication_date ? fmtDate(op.publication_date) : <MissingInfo placement="bottom" side="left" />}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Data limite</p>
+                    <p className="mt-0.5 text-gray-700">
+                      {op.proposal_deadline_at ? fmtDate(op.proposal_deadline_at) : <MissingInfo placement="bottom" side="left" />}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400">CPV</p>
+                    <p className="mt-0.5">
+                      {op.cpv_main ? (
+                        <span
+                          title={cpvTitle}
+                          className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded font-mono whitespace-nowrap"
+                        >
+                          {op.cpv_main}
+                        </span>
+                      ) : (
+                        <MissingInfo placement="bottom" side="left" />
+                      )}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-gray-400">Valor</p>
+                    <p className="mt-0.5 font-medium text-gray-900">
+                      {op.base_price == null ? <MissingInfo placement="bottom" side="left" /> : fmtMoney(op.base_price, op.currency)}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+
+          {opportunities.length === 0 && (
+            <div className="px-4 py-14 text-center text-gray-400 text-sm">
+              Sem oportunidades para os filtros selecionados.
+            </div>
+          )}
+        </div>
+
+        <div className="hidden overflow-x-auto lg:block">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -242,18 +327,18 @@ export default function OportunidadesResults({
       </div>
 
       {totalPages > 1 && (
-        <div className="flex justify-center items-center gap-1 flex-wrap pb-4">
+        <div className="flex justify-center items-center gap-1.5 flex-wrap pb-4 px-1">
           {page > 1 && (
             <Link
               href={buildHref(page - 1, filters)}
-              className="px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+              className="px-3 py-2 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
             >
               ← Anterior
             </Link>
           )}
 
           <span
-            className="px-3 py-1.5 text-sm font-medium rounded-xl text-gray-900"
+            className="px-3 py-2 text-sm font-medium rounded-xl text-gray-900"
             style={{ background: "rgba(74, 222, 128, 1)" }}
           >
             {page} / {totalPages}
@@ -262,7 +347,7 @@ export default function OportunidadesResults({
           {page < totalPages && (
             <Link
               href={buildHref(page + 1, filters)}
-              className="px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+              className="px-3 py-2 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
             >
               Próxima →
             </Link>

@@ -28,13 +28,13 @@ export default function PageHeader({
 }: PageHeaderProps) {
   const titleClassName =
     size === "detail"
-      ? "text-xl font-bold text-brand-700 leading-tight"
-      : "text-2xl font-bold text-brand-700 leading-tight";
+      ? "text-lg font-bold text-brand-700 leading-tight sm:text-xl"
+      : "text-xl font-bold text-brand-700 leading-tight sm:text-2xl";
   const iconClassName = size === "detail" ? "mt-1 h-5 w-5 shrink-0 text-brand-700" : "mt-1 h-5 w-5 shrink-0 text-brand-700";
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           {backHref && (
             <Link
@@ -55,7 +55,7 @@ export default function PageHeader({
           </div>
         </div>
 
-        {badge && <div className="mt-1 shrink-0">{badge}</div>}
+        {badge && <div className="mt-1 shrink-0 self-start sm:self-auto">{badge}</div>}
       </div>
     </div>
   );
