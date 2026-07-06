@@ -208,14 +208,14 @@ export default async function ContractsPage({
 
       {/* Active NIF filter banner */}
       {(entityNifFilter || winnerNifFilter) && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between">
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-blue-700">
             {entityNifFilter && <>A filtrar por entidade NIF <span className="font-mono font-medium">{entityNifFilter}</span></>}
             {entityNifFilter && winnerNifFilter && <> &middot; </>}
             {winnerNifFilter && <>A filtrar por vencedor NIF <span className="font-mono font-medium">{winnerNifFilter}</span></>}
             {" "}&mdash; {totalCount} resultado{totalCount !== 1 ? "s" : ""}
           </p>
-          <Link href="/contracts" className="text-blue-600 hover:underline text-sm font-medium">
+          <Link href="/contracts" className="self-start text-blue-600 hover:underline text-sm font-medium sm:self-auto">
             Limpar filtro
           </Link>
         </div>

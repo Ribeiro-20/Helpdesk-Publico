@@ -125,12 +125,12 @@ export default async function EntitiesPage({
             name="name"
             defaultValue={nameFilter}
             placeholder="Nome ou NIPC..."
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-52"
+            className="w-full sm:w-52 border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
           <select
             name="type"
             defaultValue={typeFilter}
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
+            className="w-full sm:w-auto border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
           >
             <option value="">Todos os tipos</option>
             {Object.entries(TYPE_LABEL).map(([key, label]) => (
@@ -141,12 +141,12 @@ export default async function EntitiesPage({
             name="location"
             defaultValue={locationFilter}
             placeholder="Localização..."
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-44"
+            className="w-full sm:w-44 border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
           <select
             name="sort"
             defaultValue={sortField}
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
+            className="w-full sm:w-auto border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
           >
             <option value="total_value">Maior valor</option>
             <option value="total_contracts">Mais contratos</option>
@@ -155,14 +155,14 @@ export default async function EntitiesPage({
           </select>
           <button
             type="submit"
-            className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
+            className="w-full sm:w-auto bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
           >
             Filtrar
           </button>
           {hasFilters && (
             <Link
               href="/entities"
-              className="text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
+              className="w-full sm:w-auto text-center text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
             >
               Limpar
             </Link>
