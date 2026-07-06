@@ -280,6 +280,8 @@ export default async function OportunidadesPage({
 
   const fromDate = toIsoFromParts(fromDay, fromMonth, fromYear);
   const toDate = toIsoFromParts(toDay, toMonth, toYear);
+  const publicationFromDate = fromDate;
+  const publicationToDate = toDate || (fromDate ? fromDate : "");
 
   const supabase = await createAdminClient();
 
@@ -332,8 +334,9 @@ export default async function OportunidadesPage({
     }
     if (minValue) query = query.gte("base_price", Number.parseFloat(minValue));
     if (maxValue) query = query.lte("base_price", Number.parseFloat(maxValue));
-    if (fromDate) query = query.gte("publication_date", fromDate);
-    if (toDate) query = query.lte("publication_date", toDate);
+    // If only one publication date is selected, treat it as an exact-day filter.
+    if (publicationFromDate) query = query.gte("publication_date", publicationFromDate);
+    if (publicationToDate) query = query.lte("publication_date", publicationToDate);
 
     if (sort === "publication_date_asc") {
       query = query

@@ -69,6 +69,13 @@ export default function SingleDatePicker({
 
   const iso = isControlled ? (controlledValue ?? "") : internalIso;
 
+  // Keep uncontrolled state in sync when parent resets defaultValue (e.g. clear filters).
+  useEffect(() => {
+    if (!isControlled) {
+      setInternalIso(defaultValue || "");
+    }
+  }, [defaultValue, isControlled]);
+
   // Sync the text input when popover opens
   useEffect(() => {
     if (open) {
