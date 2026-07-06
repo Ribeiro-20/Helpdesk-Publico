@@ -35,6 +35,11 @@ type AnnouncementRow = {
   dr_announcement_no: string | null;
 };
 
+type CpvCatalogRow = {
+  id: string;
+  descricao: string | null;
+};
+
 function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -93,6 +98,32 @@ function extractProcedurePiecesUrl(rawPayload: unknown): string {
   const detail = asRecord(root.detalhe_conteudo);
   const detailText = typeof detail?.Texto === "string" ? detail.Texto : "";
   return extractProcedurePiecesFromText(detailText) ?? "";
+}
+
+function normalizeAnnouncementCpvs(ann: AnnouncementRow): string[] {
+  const rawList = Array.isArray(ann.cpv_list)
+    ? ann.cpv_list
+    : ann.cpv_main
+    ? [ann.cpv_main]
+    : [];
+
+  const out: string[] = [];
+  for (const item of rawList) {
+    const code = String(item ?? "").trim();
+    if (!code) continue;
+    out.push(code);
+  }
+
+  return Array.from(new Set(out));
+}
+
+function formatCpvsForExport(cpvCodes: string[], cpvDescriptions: Record<string, string>): string {
+  return cpvCodes
+    .map((code) => {
+      const description = (cpvDescriptions[code] ?? "").trim();
+      return description ? `${code}, ${description}` : code;
+    })
+    .join("; ");
 }
 
 function applyFilters(
@@ -197,7 +228,34 @@ export async function GET(req: NextRequest) {
       if (chunk.length < CHUNK_SIZE) break;
       offset += CHUNK_SIZE;
     }
-    const now = new Date();
+    const cpvCodes = Array.from(
+      new Set(rows.flatMap((row) => normalizeAnnouncementCpvs(row))),
+    );
+
+    let cpvDescriptions: Record<string, string> = {};
+    if (cpvCodes.length > 0) {
+      const CPV_CHUNK_SIZE = 500;
+      const cpvRows: CpvCatalogRow[] = [];
+
+      for (let i = 0; i < cpvCodes.length; i += CPV_CHUNK_SIZE) {
+        const chunk = cpvCodes.slice(i, i + CPV_CHUNK_SIZE);
+        const { data, error } = await supabase
+          .from("cpv_codes")
+          .select("id, descricao")
+          .in("id", chunk);
+
+        if (error) {
+          return NextResponse.json({ error: error.message }, { status: 500 });
+        }
+
+        cpvRows.push(...((data ?? []) as CpvCatalogRow[]));
+      }
+
+      cpvDescriptions = Object.fromEntries(
+        cpvRows.map((row) => [row.id, row.descricao ?? ""]),
+      );
+    }
+
     const worksheetRows = rows.map((ann) => {
       // Entidade(s): "Nome (NIF)" ou só o nome se não houver NIF
       const entidade = ann.entity_name
@@ -212,10 +270,11 @@ export async function GET(req: NextRequest) {
           ? `${Number(ann.base_price).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
           : "";
 
-      // CPVs: lista separada por vírgula se houver vários
-      const cpvList = Array.isArray(ann.cpv_list) && ann.cpv_list.length > 0
-        ? (ann.cpv_list as string[]).join(", ")
-        : ann.cpv_main ?? "";
+      // CPVs: formato "cpv, descrição; cpv, descrição"
+      const cpvList = formatCpvsForExport(
+        normalizeAnnouncementCpvs(ann),
+        cpvDescriptions,
+      );
       const procedurePiecesUrl = extractProcedurePiecesUrl(ann.raw_payload);
 
       return {
@@ -257,8 +316,13 @@ export async function GET(req: NextRequest) {
       Buffer.from(XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }), "utf8"),
     ]);
 
-    const timestamp = new Date().toISOString().slice(0, 10);
-    const filename = `anuncios-${timestamp}.csv`;
+    const selectedDateLabel =
+      fromDate && toDate
+        ? fromDate === toDate
+          ? fromDate
+          : `${fromDate}_a_${toDate}`
+        : fromDate || toDate || new Date().toISOString().slice(0, 10);
+    const filename = `anuncios-${selectedDateLabel}.csv`;
 
     return new NextResponse(fileBuffer, {
       status: 200,

@@ -22,12 +22,229 @@ type ExistingAnnouncement = {
   raw_hash: string;
   base_announcement_id: string | null;
   dr_announcement_no: string | null;
+  [key: string]: unknown;
 };
 
 type MappedAnnouncement = {
   ann: ReturnType<typeof mapToAnnouncement>;
   hash: string;
 };
+
+const EXISTING_ANNOUNCEMENT_SELECT = [
+  "id",
+  "base_announcement_id",
+  "dr_announcement_no",
+  "raw_hash",
+  "publication_date",
+  "title",
+  "description",
+  "entity_name",
+  "entity_nif",
+  "procedure_type",
+  "act_type",
+  "contract_type",
+  "base_price",
+  "currency",
+  "cpv_main",
+  "cpv_list",
+  "proposal_deadline_days",
+  "proposal_deadline_at",
+  "detail_url",
+  "raw_payload",
+].join(", ");
+
+const VERSION_CHANGE_FIELDS = [
+  "title",
+  "description",
+  "entity_name",
+  "entity_nif",
+  "procedure_type",
+  "act_type",
+  "contract_type",
+  "publication_date",
+  "proposal_deadline_days",
+  "proposal_deadline_at",
+  "base_price",
+  "currency",
+  "cpv_main",
+  "cpv_list",
+  "detail_url",
+] as const;
+
+type AnnouncementRecord = ReturnType<typeof mapToAnnouncement>;
+type VersionField = typeof VERSION_CHANGE_FIELDS[number];
+
+const CASE_INSENSITIVE_VERSION_FIELDS = new Set<VersionField>([
+  "procedure_type",
+  "act_type",
+  "contract_type",
+]);
+
+const DETAIL_ENRICHED_FIELDS = [
+  "description",
+  "procedure_type",
+  "act_type",
+  "contract_type",
+  "base_price",
+  "currency",
+  "cpv_main",
+  "cpv_list",
+  "proposal_deadline_days",
+  "proposal_deadline_at",
+  "detail_url",
+] as const;
+
+const IDENTITY_FIELDS = [
+  "base_announcement_id",
+  "dr_announcement_no",
+  "publication_date",
+  "title",
+  "entity_name",
+  "entity_nif",
+] as const;
+
+function normalizeComparableValue(value: unknown, field?: VersionField): unknown {
+  if (value === undefined || value === "") return null;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => normalizeComparableValue(item, field))
+      .filter((item) => item !== null)
+      .sort((a, b) => String(a).localeCompare(String(b)));
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Number(value.toFixed(2)) : null;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim().replace(/\s+/g, " ");
+    if (!trimmed) return null;
+    if (field === "publication_date") return trimmed.slice(0, 10);
+    if (field === "proposal_deadline_at") {
+      const parsed = new Date(trimmed);
+      return Number.isNaN(parsed.getTime()) ? trimmed : parsed.toISOString().slice(0, 10);
+    }
+    if (field && CASE_INSENSITIVE_VERSION_FIELDS.has(field)) {
+      return trimmed.toLocaleLowerCase("pt-PT");
+    }
+    return trimmed;
+  }
+  return value ?? null;
+}
+
+function valuesChanged(field: VersionField, before: unknown, after: unknown): boolean {
+  return JSON.stringify(normalizeComparableValue(before, field)) !== JSON.stringify(normalizeComparableValue(after, field));
+}
+
+function summarizeVersionValue(value: unknown, field?: VersionField): unknown {
+  const normalized = normalizeComparableValue(value, field);
+  if (typeof normalized === "string" && normalized.length > 240) {
+    return `${normalized.slice(0, 237)}...`;
+  }
+  if (Array.isArray(normalized)) return normalized.slice(0, 12);
+  return normalized;
+}
+
+function hasUsefulValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) return value.some((item) => hasUsefulValue(item));
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number") return Number.isFinite(value);
+  return true;
+}
+
+function rawPayloadDetailText(row: Record<string, unknown>): string {
+  const rawPayload = row.raw_payload as Record<string, unknown> | null | undefined;
+  const detail = rawPayload?.detalhe_conteudo as Record<string, unknown> | null | undefined;
+  const text = detail?.Texto ?? detail?.texto ?? rawPayload?.Texto ?? rawPayload?.texto;
+  return typeof text === "string" ? text.trim() : "";
+}
+
+function hasDetailedRawPayload(row: Record<string, unknown>): boolean {
+  return rawPayloadDetailText(row).length > 0;
+}
+
+function isDrDetailUrl(value: unknown): boolean {
+  return typeof value === "string" && value.includes("diariodarepublica.pt/dr/detalhe/");
+}
+
+function isExternalFileUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  return value.includes("files.diariodarepublica.pt") || value.toLowerCase().endsWith(".pdf");
+}
+
+function chooseUpdateValue(
+  previous: ExistingAnnouncement,
+  incoming: AnnouncementRecord,
+  field: (typeof DETAIL_ENRICHED_FIELDS)[number],
+  protectPreviousDetail: boolean,
+): unknown {
+  const previousValue = previous[field];
+  const incomingValue = (incoming as Record<string, unknown>)[field];
+
+  if (!hasUsefulValue(incomingValue) && hasUsefulValue(previousValue)) return previousValue;
+  if (field === "detail_url" && isDrDetailUrl(previousValue) && isExternalFileUrl(incomingValue)) return previousValue;
+  if (protectPreviousDetail && hasUsefulValue(previousValue)) return previousValue;
+
+  return incomingValue;
+}
+
+function mergeAnnouncementForUpdate(
+  previous: ExistingAnnouncement,
+  incoming: AnnouncementRecord,
+  hash: string,
+  existingId: string,
+): ExistingAnnouncement {
+  const merged: ExistingAnnouncement = {
+    id: existingId,
+    raw_hash: hash,
+    ...incoming,
+  };
+  const incomingRecord = incoming as Record<string, unknown>;
+  const protectPreviousDetail = hasDetailedRawPayload(previous) && !hasDetailedRawPayload(incomingRecord);
+
+  for (const field of DETAIL_ENRICHED_FIELDS) {
+    merged[field] = chooseUpdateValue(previous, incoming, field, protectPreviousDetail);
+  }
+
+  for (const field of IDENTITY_FIELDS) {
+    if (!hasUsefulValue(merged[field]) && hasUsefulValue(previous[field])) {
+      merged[field] = previous[field];
+    }
+  }
+
+  if (protectPreviousDetail && hasUsefulValue(previous.raw_payload)) {
+    merged.raw_payload = previous.raw_payload;
+  }
+
+  return merged;
+}
+
+function buildVersionChangeSummary(
+  previous: ExistingAnnouncement,
+  next: ExistingAnnouncement | AnnouncementRecord,
+  previousHash: string,
+) {
+  const previousRecord = previous as Record<string, unknown>;
+  const nextRecord = next as Record<string, unknown>;
+
+  const changes = VERSION_CHANGE_FIELDS.flatMap((field) => {
+    const before = previousRecord[field];
+    const after = nextRecord[field];
+    if (!valuesChanged(field, before, after)) return [];
+
+    return [{
+      field,
+      from: summarizeVersionValue(before, field),
+      to: summarizeVersionValue(after, field),
+    }];
+  });
+
+  return {
+    previous_hash: previousHash,
+    reason: "changed",
+    changed_fields: changes.map((change) => change.field),
+    changes,
+  };
+}
 
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -277,7 +494,7 @@ Deno.serve(async (req) => {
           const chunk = baseIdsToFetch.slice(i, i + 500);
           const { data } = await supabase
             .from("announcements")
-            .select("id, base_announcement_id, dr_announcement_no, raw_hash")
+            .select(EXISTING_ANNOUNCEMENT_SELECT)
             .eq("tenant_id", tenantId)
             .in("base_announcement_id", chunk);
           (data ?? []).forEach((row: ExistingAnnouncement) => {
@@ -290,7 +507,7 @@ Deno.serve(async (req) => {
           const chunk = drNosToFetch.slice(i, i + 500);
           const { data } = await supabase
             .from("announcements")
-            .select("id, base_announcement_id, dr_announcement_no, raw_hash")
+            .select(EXISTING_ANNOUNCEMENT_SELECT)
             .eq("tenant_id", tenantId)
             .in("dr_announcement_no", chunk);
           (data ?? []).forEach((row: ExistingAnnouncement) => {
@@ -300,7 +517,11 @@ Deno.serve(async (req) => {
         }
 
         const toInsert: MappedAnnouncement[] = [];
-        const toUpdate: Array<MappedAnnouncement & { existingId: string; previousHash: string }> = [];
+        const toUpdate: Array<MappedAnnouncement & {
+          existingId: string;
+          previousHash: string;
+          previousRow: ExistingAnnouncement;
+        }> = [];
 
         for (const item of mapped) {
           let existingByBase = item.ann.base_announcement_id
@@ -323,7 +544,12 @@ Deno.serve(async (req) => {
           if (!existing) {
             toInsert.push(item);
           } else if (existing.raw_hash !== item.hash) {
-            toUpdate.push({ ...item, existingId: existing.id, previousHash: existing.raw_hash });
+            toUpdate.push({
+              ...item,
+              existingId: existing.id,
+              previousHash: existing.raw_hash,
+              previousRow: existing,
+            });
           } else {
             stats.skipped++;
           }
@@ -376,27 +602,29 @@ Deno.serve(async (req) => {
             }
           }
 
-          for (const { ann, hash, existingId, previousHash } of toUpdate) {
+          for (const { ann, hash, existingId, previousHash, previousRow } of toUpdate) {
+            const mergedAnn = mergeAnnouncementForUpdate(previousRow, ann, hash, existingId);
             const { error } = await supabase
               .from("announcements")
               .update({
-                base_announcement_id: ann.base_announcement_id,
-                dr_announcement_no: ann.dr_announcement_no,
-                publication_date: ann.publication_date,
-                title: ann.title,
-                description: ann.description,
-                entity_name: ann.entity_name,
-                entity_nif: ann.entity_nif,
-                procedure_type: ann.procedure_type,
-                act_type: ann.act_type,
-                contract_type: ann.contract_type,
-                base_price: ann.base_price,
-                cpv_main: ann.cpv_main,
-                cpv_list: ann.cpv_list,
-                proposal_deadline_days: ann.proposal_deadline_days,
-                proposal_deadline_at: ann.proposal_deadline_at,
-                detail_url: ann.detail_url,
-                raw_payload: ann.raw_payload,
+                base_announcement_id: mergedAnn.base_announcement_id,
+                dr_announcement_no: mergedAnn.dr_announcement_no,
+                publication_date: mergedAnn.publication_date,
+                title: mergedAnn.title,
+                description: mergedAnn.description,
+                entity_name: mergedAnn.entity_name,
+                entity_nif: mergedAnn.entity_nif,
+                procedure_type: mergedAnn.procedure_type,
+                act_type: mergedAnn.act_type,
+                contract_type: mergedAnn.contract_type,
+                base_price: mergedAnn.base_price,
+                currency: mergedAnn.currency,
+                cpv_main: mergedAnn.cpv_main,
+                cpv_list: mergedAnn.cpv_list,
+                proposal_deadline_days: mergedAnn.proposal_deadline_days,
+                proposal_deadline_at: mergedAnn.proposal_deadline_at,
+                detail_url: mergedAnn.detail_url,
+                raw_payload: mergedAnn.raw_payload,
                 raw_hash: hash,
               })
               .eq("id", existingId);
@@ -405,21 +633,22 @@ Deno.serve(async (req) => {
               console.error("[ingest-base] update error:", error.message, existingId);
               stats.errors++;
             } else {
-              await supabase.from("announcement_versions").insert({
-                tenant_id: tenantId,
-                announcement_id: existingId,
-                raw_payload: ann.raw_payload,
-                raw_hash: hash,
-                change_summary: { previous_hash: previousHash, reason: "changed" },
-              });
-              stats.updated++;
+              const changeSummary = buildVersionChangeSummary(previousRow, mergedAnn, previousHash);
+              if (changeSummary.changes.length > 0) {
+                const { error: versionError } = await supabase.from("announcement_versions").insert({
+                  tenant_id: tenantId,
+                  announcement_id: existingId,
+                  raw_payload: mergedAnn.raw_payload,
+                  raw_hash: hash,
+                  change_summary: changeSummary,
+                });
 
-              const updatedRow: ExistingAnnouncement = {
-                id: existingId,
-                raw_hash: hash,
-                base_announcement_id: ann.base_announcement_id,
-                dr_announcement_no: ann.dr_announcement_no,
-              };
+                if (versionError) {
+                  console.error("[ingest-base] version insert error:", versionError.message, existingId);
+                }
+              }
+              stats.updated++;
+              const updatedRow = mergedAnn;
               if (updatedRow.base_announcement_id) existingByBaseId.set(updatedRow.base_announcement_id, updatedRow);
               if (updatedRow.dr_announcement_no) existingByDrNo.set(updatedRow.dr_announcement_no, updatedRow);
             }

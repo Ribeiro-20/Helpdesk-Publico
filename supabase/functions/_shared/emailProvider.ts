@@ -60,7 +60,7 @@ class MailpitEmailProvider implements EmailProvider {
 
   constructor() {
     this.apiUrl = Deno.env.get("MAILPIT_URL") ?? "http://127.0.0.1:55324";
-    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@localhost";
+    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "alertas@helpdeskpublico.pt";
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
@@ -109,7 +109,7 @@ class SendGridEmailProvider implements EmailProvider {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@example.com";
+    this.from = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "alertas@helpdeskpublico.pt";
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
@@ -153,7 +153,7 @@ class BrevoEmailProvider implements EmailProvider {
 
   constructor(apiKey: string) {
     this.apiKey = apiKey;
-    this.fromEmail = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "noreply@example.com";
+    this.fromEmail = Deno.env.get("EMAIL_FROM") ?? Deno.env.get("MAIL_FROM") ?? "alertas@helpdeskpublico.pt";
     this.fromName = Deno.env.get("EMAIL_FROM_NAME") ?? "BASE Monitor";
   }
 
@@ -556,6 +556,29 @@ function toTitleCasePt(value: string): string {
     .join(" ");
 }
 
+function buildOpportunityUrl(params: {
+  announcementNo: string;
+  publicationDate?: string | null;
+}): string {
+  const baseUrl = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
+  const url = new URL(baseUrl);
+
+  if (params.announcementNo && params.announcementNo !== "-") {
+    url.searchParams.set("announcement_number", params.announcementNo);
+  }
+
+  if (params.publicationDate) {
+    const date = new Date(String(params.publicationDate));
+    if (!Number.isNaN(date.getTime())) {
+      const iso = date.toISOString().slice(0, 10);
+      url.searchParams.set("from_date", iso);
+      url.searchParams.set("to_date", iso);
+    }
+  }
+
+  return url.toString();
+}
+
 function buildAnnouncementEmailLegacy(params: {
   clientName: string;
   title: string;
@@ -643,11 +666,10 @@ export function buildAnnouncementEmail(params: {
     .replace(/^\s*\d{6,}\s*[-–—]\s*/, "")  // Remove prefixo de ID do anúncio (ex: "2526000345 - ")
     .replace(/\.{3}$/, "");  // Remove trailing ellipsis
   const announcementNoStr = firstEmailText(announcement?.dr_announcement_no, announcement?.base_announcement_id);
-  const marketOpportunitiesUrl = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
-  const compactRedirectBaseUrl = "https://mercado.helpdeskpublico.pt/mp/o";
-  const originalUrl = announcementNoStr !== "-"
-    ? `${compactRedirectBaseUrl}/${encodeURIComponent(announcementNoStr)}`
-    : marketOpportunitiesUrl;
+  const originalUrl = buildOpportunityUrl({
+    announcementNo: announcementNoStr,
+    publicationDate: announcement?.publication_date ? String(announcement.publication_date) : null,
+  });
   const subject = `Helpdesk Público | Nova oportunidade: ${objectStr.slice(0, 70)}`;
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
 
@@ -789,9 +811,17 @@ export function buildAnnouncementEmail(params: {
               <table border="0" cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
                   <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
-                    <a href="${escapeEmailHtml(originalUrl)}" target="_blank" class="link-white" style="display:block; padding:15px 26px; font-size:16px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; white-space:nowrap; font-family:Arial, Helvetica, sans-serif;">
-                      <span style="color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff;">Aceda ao Procedimento</span>
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(originalUrl)}" style="height:48px;v-text-anchor:middle;width:340px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
+                      <w:anchorlock/>
+                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Aceda ao Procedimento</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-- -->
+                    <a href="${escapeEmailHtml(originalUrl)}" target="_blank" class="link-white" color="#ffffff" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
+                      <font color="#ffffff">Aceda ao Procedimento</font>
                     </a>
+                    <!--<![endif]-->
                   </td>
                 </tr>
               </table>
@@ -825,7 +855,7 @@ export function buildAnnouncementEmail(params: {
                     <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
                       <tr>
                         <td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
-                          <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" class="link-black" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Go / No-Go<br>Concursos Públicos</span></a>
+                          <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" class="link-black" color="#111111" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Go / No-Go<br>Concursos Públicos</span></font></a>
                         </td>
                       </tr>
                     </table>
@@ -837,7 +867,7 @@ export function buildAnnouncementEmail(params: {
                     <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
                       <tr>
                         <td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
-                          <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" class="link-black" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Plataforma de Suporte<br>Contratação Pública</span></a>
+                          <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" class="link-black" color="#111111" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Plataforma de Suporte<br>Contratação Pública</span></font></a>
                         </td>
                       </tr>
                     </table>
@@ -853,14 +883,14 @@ export function buildAnnouncementEmail(params: {
             <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
               <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
               <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
-                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-black" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Contactos</span></a>
+                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Contactos</span></font></a>
                 <span style="color:#d1d5db;"> | </span>
-                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" class="link-black" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Política de Privacidade</span></a>
+                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Política de Privacidade</span></font></a>
                 <span style="color:#d1d5db;"> | </span>
-                <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Website</span></a>
+                <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Website</span></font></a>
               </div>
               <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
-                Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa através da <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" style="color:#9ca3af !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#9ca3af; text-decoration:underline;">hiperligação</a>.
+                Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa através da <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-muted" color="#9ca3af" style="color:#9ca3af !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#9ca3af; text-decoration:underline;"><font color="#9ca3af">hiperligação</font></a>.
               </div>
             </td>
           </tr>

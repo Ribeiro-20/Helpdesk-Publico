@@ -44,8 +44,10 @@ type OpportunityRow = {
   procedure_type: string | null;
   contract_type: string | null;
   publication_date: string | null;
+  proposal_deadline_days: number | null;
   proposal_deadline_at: string | null;
   cpv_main: string | null;
+  cpv_list: string[] | null;
   base_price: number | null;
   currency: string | null;
   status: string;
@@ -278,6 +280,8 @@ export default async function OportunidadesPage({
 
   const fromDate = toIsoFromParts(fromDay, fromMonth, fromYear);
   const toDate = toIsoFromParts(toDay, toMonth, toYear);
+  const publicationFromDate = fromDate;
+  const publicationToDate = toDate || (fromDate ? fromDate : "");
 
   const supabase = await createAdminClient();
 
@@ -303,13 +307,14 @@ export default async function OportunidadesPage({
     let query = supabase
       .from("announcements")
       .select(
-        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_at, cpv_main, base_price, currency, status",
+        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_days, proposal_deadline_at, cpv_main, cpv_list, base_price, currency, status",
         { count: "exact" },
       )
       .eq("tenant_id", tenantId);
-      // Mostrar apenas anúncios ativos (exclui expirados).
-      const todayIso = new Date().toISOString().slice(0, 10);
-      query = query.eq("status", "active").or(`proposal_deadline_at.is.null,proposal_deadline_at.gte.${todayIso}`);
+
+    // Mostrar anúncios ativos e expirados recentes. A limpeza automática remove
+    // os expirados apenas depois do período de retenção.
+    query = query.in("status", ["active", "expired"]);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) query = query.ilike("entity_name", `%${entity}%`);
@@ -329,8 +334,9 @@ export default async function OportunidadesPage({
     }
     if (minValue) query = query.gte("base_price", Number.parseFloat(minValue));
     if (maxValue) query = query.lte("base_price", Number.parseFloat(maxValue));
-    if (fromDate) query = query.gte("publication_date", fromDate);
-    if (toDate) query = query.lte("publication_date", toDate);
+    // If only one publication date is selected, treat it as an exact-day filter.
+    if (publicationFromDate) query = query.gte("publication_date", publicationFromDate);
+    if (publicationToDate) query = query.lte("publication_date", publicationToDate);
 
     if (sort === "publication_date_asc") {
       query = query
@@ -368,7 +374,11 @@ export default async function OportunidadesPage({
     opportunities = (data ?? []) as OpportunityRow[];
 
     const cpvCodes = Array.from(
-      new Set(opportunities.map((op) => op.cpv_main).filter(Boolean) as string[]),
+      new Set(
+        opportunities
+          .flatMap((op) => [op.cpv_main, ...(Array.isArray(op.cpv_list) ? op.cpv_list : [])])
+          .filter(Boolean) as string[],
+      ),
     );
 
     if (cpvCodes.length > 0) {
@@ -396,6 +406,21 @@ export default async function OportunidadesPage({
     Boolean(fromDate) ||
     Boolean(toDate);
 
+  const filtersResetKey = [
+    cpv,
+    entity,
+    announcementNumber,
+    actType,
+    modelType,
+    contractType,
+    minValue,
+    maxValue,
+    fromDate,
+    toDate,
+    String(PAGE_SIZE),
+    sort,
+  ].join("|");
+
   return (
     <div
       className="min-h-screen flex flex-col overflow-x-hidden"
@@ -411,7 +436,7 @@ export default async function OportunidadesPage({
               <div>
                 <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Oportunidades de Contratação Pública</h1>
                 <p className="text-gray-500 text-sm mt-0.5">
-                  {totalCount.toLocaleString("pt-PT")} anúncios ativos encontrados
+                  {totalCount.toLocaleString("pt-PT")} anúncios encontrados
                 </p>
               </div>
             </div>
@@ -428,7 +453,7 @@ export default async function OportunidadesPage({
             </div>
           </div>
 
-          <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+          <form key={filtersResetKey} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <MercadoCpvInput
                 defaultValue={cpv}
