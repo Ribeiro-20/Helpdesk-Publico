@@ -473,24 +473,26 @@ export default async function AnnouncementsPage({
       />
 
       <form className="bg-white border border-surface-200 rounded-xl p-4 shadow-card space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[repeat(14,minmax(0,1fr))] gap-3 items-start">
+          <div className="xl:col-span-2">
             <CpvMultiSearchInput
               name="cpv"
               defaultValue={cpvFilter}
               label="CPV"
               placeholder="Pesquisar CPV (ex: sementes, 7124...)"
+              compact
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <NipcMultiInput
               name="nipc"
               defaultValue={nipcFilter}
               label="NIPC"
               placeholder="Inserir NIPC e Enter"
+              compact
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <label className="block text-xs text-gray-400 mb-1">Entidade</label>
             <input
               name="entity"
@@ -499,7 +501,7 @@ export default async function AnnouncementsPage({
               className="h-10 w-full border border-surface-200 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <label className="block text-xs text-gray-400 mb-1">Nº de Anúncio</label>
             <input
               name="announcement_number"
@@ -508,7 +510,7 @@ export default async function AnnouncementsPage({
               className="h-10 w-full border border-surface-200 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <MercadoSingleSelect
               name="act_type"
               label="Tipo de ato"
@@ -519,7 +521,7 @@ export default async function AnnouncementsPage({
               ]}
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <MercadoSingleSelect
               name="contract_type"
               label="Tipo de contrato"
@@ -530,7 +532,7 @@ export default async function AnnouncementsPage({
               ]}
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <MercadoSingleSelect
               name="procedure_type"
               label="Tipo de modelo"
@@ -543,16 +545,28 @@ export default async function AnnouncementsPage({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-          <div className="rounded-xl border border-surface-200 bg-white p-3">
-            <label className="block text-xs text-gray-400 mb-2">De Data</label>
-            <SingleDatePicker name="from_date" defaultValue={dateFrom} placeholder="Data início" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[repeat(14,minmax(0,1fr))] gap-3 items-start">
+          <div className="xl:col-span-2">
+            <label className="block text-xs text-gray-400 mb-1">De Data</label>
+            <SingleDatePicker
+              name="from_date"
+              defaultValue={dateFrom}
+              placeholder="Data início"
+              className="w-full"
+              buttonClassName="h-10 w-full justify-start"
+            />
           </div>
-          <div className="rounded-xl border border-surface-200 bg-white p-3">
-            <label className="block text-xs text-gray-400 mb-2">Até data</label>
-            <SingleDatePicker name="to_date" defaultValue={dateTo} placeholder="Data fim" />
+          <div className="xl:col-span-2">
+            <label className="block text-xs text-gray-400 mb-1">Até data</label>
+            <SingleDatePicker
+              name="to_date"
+              defaultValue={dateTo}
+              placeholder="Data fim"
+              className="w-full"
+              buttonClassName="h-10 w-full justify-start"
+            />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <MercadoSingleSelect
               name="source"
               label="Fonte"
@@ -564,7 +578,7 @@ export default async function AnnouncementsPage({
               ]}
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <MercadoSingleSelect
               name="status"
               label="Estado"
@@ -578,7 +592,7 @@ export default async function AnnouncementsPage({
               ]}
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <MercadoSingleSelect
               name="limit"
               label="Apresentar"
@@ -590,7 +604,7 @@ export default async function AnnouncementsPage({
               ]}
             />
           </div>
-          <div>
+          <div className="xl:col-span-2">
             <MercadoSingleSelect
               name="sort"
               label="Ordenar"

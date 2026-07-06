@@ -20,11 +20,13 @@ export default function CpvMultiSearchInput({
   defaultValue = "",
   label = "CPV",
   placeholder = "Pesquisar CPV (ex: sementes, 7124...)",
+  compact = false,
 }: {
   name?: string;
   defaultValue?: string;
   label?: string;
   placeholder?: string;
+  compact?: boolean;
 }) {
   const [selected, setSelected] = useState<CpvCode[]>(() => parseDefaultValues(defaultValue));
   const [query, setQuery] = useState("");
@@ -117,8 +119,9 @@ export default function CpvMultiSearchInput({
     <div ref={wrapperRef} className="relative">
       <label className="block text-xs text-gray-400 mb-1">{label}</label>
 
-      <div className="rounded-xl border border-surface-200 bg-white px-3 py-2.5 shadow-sm focus-within:ring-2 focus-within:ring-brand-500/30 focus-within:border-brand-500 transition-all">
-        <div className="flex flex-wrap gap-1.5 min-h-[28px]">
+      <div className={`rounded-xl border border-surface-200 bg-white px-3 ${compact ? "py-2" : "py-2.5"} shadow-sm focus-within:ring-2 focus-within:ring-brand-500/30 focus-within:border-brand-500 transition-all`}>
+        {(!compact || selected.length > 0) && (
+          <div className={`flex flex-wrap gap-1.5 ${compact ? "" : "min-h-[28px]"}`}>
           {selected.map((cpv) => (
             <span
               key={cpv.id}
@@ -145,9 +148,10 @@ export default function CpvMultiSearchInput({
               </button>
             </span>
           ))}
-        </div>
+          </div>
+        )}
 
-        <div className="relative mt-2">
+        <div className={`relative ${compact ? "" : "mt-2"}`}>
           <input
             type="text"
             value={query}
