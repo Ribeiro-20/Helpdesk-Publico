@@ -7,6 +7,7 @@ type InfoPopoverProps = {
   ariaLabel?: string;
   placement?: "side" | "bottom";
   side?: "left" | "right";
+  triggerAs?: "button" | "span";
 };
 
 export default function InfoPopover({
@@ -14,6 +15,7 @@ export default function InfoPopover({
   ariaLabel = "INFO",
   placement = "side",
   side = "right",
+  triggerAs = "button",
 }: InfoPopoverProps) {
   const tooltipPositionClass =
     placement === "bottom"
@@ -31,13 +33,22 @@ export default function InfoPopover({
 
   return (
     <div className="relative inline-flex group">
-      <button
-        type="button"
-        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
-        aria-label={ariaLabel}
-      >
-        <Info className="w-3 h-3" />
-      </button>
+      {triggerAs === "button" ? (
+        <button
+          type="button"
+          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+          aria-label={ariaLabel}
+        >
+          <Info className="w-3 h-3" />
+        </button>
+      ) : (
+        <span
+          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-500"
+          aria-label={ariaLabel}
+        >
+          <Info className="w-3 h-3" />
+        </span>
+      )}
 
       <div
         role="tooltip"
