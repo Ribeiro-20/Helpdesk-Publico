@@ -412,9 +412,11 @@ export default async function EstatisticasPrivadoPage({
                       <p className="text-gray-900 font-medium leading-tight">
                         {row.name}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {row.nif}
-                      </p>
+                      {nifDigits && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {nifDigits}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <a
