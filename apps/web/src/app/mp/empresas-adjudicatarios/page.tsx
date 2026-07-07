@@ -395,9 +395,8 @@ export default async function EstatisticasPrivadoPage({
 
             <tbody className="divide-y divide-gray-100">
               {companies.map((row) => {
-                let contractsHref = `/mp/contratos-publicos?winner=${encodeURIComponent(
-                  row.nif,
-                )}`;
+                const winnerParam = /^\d+$/.test(row.nif) ? row.nif : row.name;
+                let contractsHref = `/mp/contratos-publicos?winner=${encodeURIComponent(winnerParam)}`;
 
                 if (yearFilter) {
                   contractsHref += `&from_date=${yearFilter}-01-01&to_date=${yearFilter}-12-31`;
