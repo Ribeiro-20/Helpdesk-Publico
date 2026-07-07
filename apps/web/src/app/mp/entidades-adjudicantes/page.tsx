@@ -453,9 +453,9 @@ export default async function EstatisticasPublicoPage({
 
             <tbody className="divide-y divide-gray-100">
               {entities.map((row) => {
-                let contractsHref = `/mp/contratos-publicos?entity=${encodeURIComponent(
-                  row.nif,
-                )}`;
+                const nifDigits = row.nif.match(/^(\d+)/)?.[1] ?? "";
+                const entityParam = nifDigits || row.name;
+                let contractsHref = `/mp/contratos-publicos?entity=${encodeURIComponent(entityParam)}`;
 
                 if (yearFilter) {
                   contractsHref += `&from_date=${yearFilter}-01-01&to_date=${yearFilter}-12-31`;
