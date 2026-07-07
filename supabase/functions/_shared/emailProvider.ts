@@ -847,7 +847,7 @@ export function buildAnnouncementEmail(params: {
           <!-- SUPORTE -->
           <tr>
             <td style="padding:20px 18px; background-color:#edf3e6; border-top:1px solid #d7e3c8;">
-              <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px;">Precisa de apoio para decidir ou preparar a sua proposta?</div>
+              <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px; text-align:center;">Precisa de apoio para decidir ou preparar a sua proposta?</div>
               <div style="text-align:center; font-size:0;">
                 <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="49%" valign="top"><![endif]-->
                 <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
