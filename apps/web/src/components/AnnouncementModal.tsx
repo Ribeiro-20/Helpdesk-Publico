@@ -442,7 +442,7 @@ export default function AnnouncementModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-white px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain bg-white px-6 py-5 space-y-6">
           {loading && (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
