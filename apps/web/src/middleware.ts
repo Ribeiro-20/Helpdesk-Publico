@@ -22,10 +22,22 @@ const PUBLIC_PATHS = [
   "/api/mi-login",
   "/api/mi-verify",
   "/api/announcements",
+  "/api/cpv-search",
 ];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+function isPublicAnnouncementDetailPath(pathname: string): boolean {
+  const parts = pathname.split("/").filter(Boolean);
+  return (
+    ((parts.length === 3) ||
+      (parts.length === 4 && parts[3] === "pdf")) &&
+    parts[0] === "api" &&
+    parts[1] === "announcements" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[2])
+  );
 }
 
 function isPrefetchRequest(request: NextRequest): boolean {
@@ -102,7 +114,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Skip auth check entirely for public pages — no Supabase call needed
-  if (isPublicPath(pathname)) {
+  if (isPublicPath(pathname) || isPublicAnnouncementDetailPath(pathname)) {
     return NextResponse.next({ request });
   }
 

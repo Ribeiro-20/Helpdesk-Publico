@@ -18,12 +18,7 @@ interface ActionGroup {
   actions: Action[];
 }
 
-type HistoryCategory =
-  | "announcements"
-  | "contracts"
-  | "extraction"
-  | "processing"
-  | "other";
+type HistoryCategory = "announcements" | "contracts" | "extraction" | "processing" | "other";
 
 type HistoryFilter = HistoryCategory | "all";
 
@@ -51,8 +46,8 @@ type HistoryEntry = {
 const ANN_WARNING_DAYS = 16;
 const ANN_MAX_DAYS = 31;
 const CONTRACT_WARNING_DAYS = 8;
-const CONTRACT_MAX_DAYS = 31;
-const MIN_INGEST_DATE = "1900-01-01";
+const CONTRACT_MAX_DAYS = 15;
+const MIN_INGEST_DATE = "2026-01-01";
 
 function isoDate(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -70,9 +65,15 @@ function groupActions(actions: Action[]): ActionGroup[] {
     { key: "ingestion", title: "Ingestão", actions: [] },
     { key: "extraction", title: "Extração", actions: [] },
     { key: "processing", title: "Processamento", actions: [] },
+    { key: "maintenance", title: "Manutenção", actions: [] },
   ];
 
   for (const action of actions) {
+    if (action.fn === "delete-announcement-versions") {
+      groups[3].actions.push(action);
+      continue;
+    }
+
     if (
       action.fn === "ingest-base" ||
       action.fn === "delete-announcements" ||
@@ -149,9 +150,7 @@ function compactValue(value: unknown, depth = 2): unknown {
   }
 
   if (Array.isArray(value)) {
-    const slice = value
-      .slice(0, 10)
-      .map((item) => compactValue(item, depth - 1));
+    const slice = value.slice(0, 10).map((item) => compactValue(item, depth - 1));
     if (value.length > 10) slice.push(`… +${value.length - 10} itens`);
     return slice;
   }
@@ -166,10 +165,7 @@ function compactValue(value: unknown, depth = 2): unknown {
   const record = value as Record<string, unknown>;
   const entries = Object.entries(record)
     .slice(0, 18)
-    .map(
-      ([key, entryValue]) =>
-        [key, compactValue(entryValue, depth - 1)] as const,
-    );
+    .map(([key, entryValue]) => [key, compactValue(entryValue, depth - 1)] as const);
   return Object.fromEntries(entries);
 }
 
@@ -177,7 +173,8 @@ function actionCategory(fn: string): HistoryCategory {
   if (
     fn === "ingest-base" ||
     fn === "ingest-dr" ||
-    fn === "delete-announcements"
+    fn === "delete-announcements" ||
+    fn === "delete-announcement-versions"
   ) {
     return "announcements";
   }
@@ -204,63 +201,17 @@ function summarizeHistoryPayload(fn: string, data: unknown): string[] {
 
   const record = data as Record<string, unknown>;
   const preferredKeysByFn: Record<string, string[]> = {
-    "ingest-base": [
-      "fetched",
-      "inserted",
-      "updated",
-      "skipped",
-      "reconciled",
-      "errors",
-      "dry_run",
-      "elapsed_ms",
-    ],
-    "ingest-contracts": [
-      "fetched",
-      "inserted",
-      "updated",
-      "skipped",
-      "linked_to_announcements",
-      "entities_touched",
-      "companies_touched",
-      "errors",
-      "dry_run",
-      "elapsed_ms",
-    ],
-    "extract-entities": [
-      "nifs_found",
-      "entities_created",
-      "entities_updated",
-      "locations_set",
-      "stats_updated",
-      "errors",
-      "elapsed_ms",
-    ],
-    "extract-companies": [
-      "contracts_scanned",
-      "nifs_found",
-      "companies_created",
-      "companies_updated",
-      "winners_extracted",
-      "competitors_extracted",
-      "locations_set",
-      "errors",
-      "elapsed_ms",
-    ],
+    "ingest-base": ["fetched", "inserted", "updated", "skipped", "reconciled", "errors", "dry_run", "elapsed_ms"],
+    "ingest-contracts": ["fetched", "inserted", "updated", "skipped", "linked_to_announcements", "entities_touched", "companies_touched", "errors", "dry_run", "elapsed_ms"],
+    "extract-entities": ["nifs_found", "entities_created", "entities_updated", "locations_set", "stats_updated", "errors", "elapsed_ms"],
+    "extract-companies": ["contracts_scanned", "nifs_found", "companies_created", "companies_updated", "winners_extracted", "competitors_extracted", "locations_set", "errors", "elapsed_ms"],
     "ingest-dr": ["fetched", "inserted", "updated", "errors", "elapsed_ms"],
-    "match-and-queue": [
-      "queued",
-      "inserted",
-      "updated",
-      "matched",
-      "errors",
-      "elapsed_ms",
-    ],
+    "delete-announcement-versions": ["matched_versions", "deleted_versions", "dry_run"],
+    "match-and-queue": ["queued", "inserted", "updated", "matched", "errors", "elapsed_ms"],
     "send-emails": ["sent", "failed", "pending", "errors", "elapsed_ms"],
   };
 
-  const keys =
-    preferredKeysByFn[fn] ??
-    Object.keys(record).filter((key) => typeof record[key] === "number");
+  const keys = preferredKeysByFn[fn] ?? Object.keys(record).filter((key) => typeof record[key] === "number");
   const summary = keys
     .filter((key) => key in record)
     .map((key) => `${key}: ${String(record[key])}`)
@@ -270,19 +221,10 @@ function summarizeHistoryPayload(fn: string, data: unknown): string[] {
 
   return Object.entries(record)
     .slice(0, 6)
-    .map(
-      ([key, value]) =>
-        `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`,
-    );
+    .map(([key, value]) => `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`);
 }
 
-function buildHistoryStep(
-  fn: string,
-  label: string,
-  data: unknown,
-  status: "success" | "error",
-  note?: string,
-): HistoryStep {
+function buildHistoryStep(fn: string, label: string, data: unknown, status: "success" | "error", note?: string): HistoryStep {
   const category = actionCategory(fn);
   const summary = summarizeHistoryPayload(fn, data);
 
@@ -308,10 +250,7 @@ function buildHistoryEntry(params: {
   range?: { fromDate?: string; toDate?: string } | null;
   note?: string;
 }): HistoryEntry {
-  const category =
-    params.steps.find((step) => step.category !== "other")?.category ??
-    params.steps[0]?.category ??
-    "other";
+  const category = params.steps.find((step) => step.category !== "other")?.category ?? params.steps[0]?.category ?? "other";
 
   return {
     id: createHistoryId(),
@@ -331,23 +270,17 @@ function validateBaseRange(fromDate: string, toDate: string) {
   if (fromDate < MIN_INGEST_DATE || toDate < MIN_INGEST_DATE) {
     return `A ingestao manual so permite datas a partir de ${MIN_INGEST_DATE}.`;
   }
-  if (fromDate > toDate)
-    return "A data inicial tem de ser anterior ou igual a data final.";
+  if (fromDate > toDate) return "A data inicial tem de ser anterior ou igual a data final.";
   return null;
 }
 
 function getRangePolicy(fn: string, fromDate: string, toDate: string) {
   const baseError = validateBaseRange(fromDate, toDate);
-  if (baseError)
-    return { disabled: true, warning: null as string | null, error: baseError };
+  if (baseError) return { disabled: true, warning: null as string | null, error: baseError };
 
   const days = diffDaysInclusive(fromDate, toDate);
 
-  if (
-    fn === "ingest-base" ||
-    fn === "ingest-dr" ||
-    fn === "delete-announcements"
-  ) {
+  if (fn === "ingest-base" || fn === "ingest-dr" || fn === "delete-announcements") {
     if (days > ANN_MAX_DAYS) {
       return {
         disabled: true,
@@ -375,25 +308,20 @@ function getRangePolicy(fn: string, fromDate: string, toDate: string) {
     if (days > CONTRACT_WARNING_DAYS) {
       return {
         disabled: false,
-        warning: `Contratos: ${days} dias pode demorar. Prefira blocos mais pequenos quando possivel.`,
+        warning: `Contratos: ${days} dias tem risco elevado de demorar. Prefira blocos semanais.`,
         error: null,
       };
     }
   }
 
-  return {
-    disabled: false,
-    warning: null as string | null,
-    error: null as string | null,
-  };
+  return { disabled: false, warning: null as string | null, error: null as string | null };
 }
 
-const BTN_BASE =
-  "text-sm font-medium px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed";
+const BTN_BASE = "text-sm font-medium px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed";
 const BTN_STYLES: Record<string, string> = {
-  primary: `${BTN_BASE} bg-brand-600 hover:bg-brand-700 text-white shadow-sm hover:shadow-md`,
-  secondary: `${BTN_BASE} bg-white border border-surface-200 text-gray-700 hover:bg-surface-50 hover:border-gray-300 shadow-card`,
-  init: `${BTN_BASE} bg-brand-600 hover:bg-brand-700 text-white shadow-sm hover:shadow-md`,
+  primary: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
+  secondary: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
+  init: `${BTN_BASE} bg-white border border-surface-200 text-black hover:bg-surface-50 hover:border-gray-300 shadow-card`,
 };
 
 export default function AdminActions({
@@ -404,9 +332,7 @@ export default function AdminActions({
   isInitialised: boolean;
 }) {
   const [loading, setLoading] = useState<string | null>(null);
-  const [results, setResults] = useState<Array<{ fn: string; data: unknown }>>(
-    [],
-  );
+  const [results, setResults] = useState<Array<{ fn: string; data: unknown }>>([]);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [historyUserId, setHistoryUserId] = useState<string | null>(null);
@@ -421,27 +347,11 @@ export default function AdminActions({
   const supabase = useMemo(() => createClient(), []);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 
-  const globalDateError = useMemo(
-    () => validateBaseRange(fromDate, toDate),
-    [fromDate, toDate],
-  );
-  const announcementsPolicy = useMemo(
-    () => getRangePolicy("ingest-base", fromDate, toDate),
-    [fromDate, toDate],
-  );
-  const contractsPolicy = useMemo(
-    () => getRangePolicy("ingest-contracts", fromDate, toDate),
-    [fromDate, toDate],
-  );
-  const drPolicy = useMemo(
-    () => getRangePolicy("ingest-dr", fromDate, toDate),
-    [fromDate, toDate],
-  );
-  const deleteAnnouncementsPolicy = useMemo(
-    () => getRangePolicy("delete-announcements", fromDate, toDate),
-    [fromDate, toDate],
-  );
-
+  const globalDateError = useMemo(() => validateBaseRange(fromDate, toDate), [fromDate, toDate]);
+  const announcementsPolicy = useMemo(() => getRangePolicy("ingest-base", fromDate, toDate), [fromDate, toDate]);
+  const contractsPolicy = useMemo(() => getRangePolicy("ingest-contracts", fromDate, toDate), [fromDate, toDate]);
+  const drPolicy = useMemo(() => getRangePolicy("ingest-dr", fromDate, toDate), [fromDate, toDate]);
+  const deleteAnnouncementsPolicy = useMemo(() => getRangePolicy("delete-announcements", fromDate, toDate), [fromDate, toDate]);
   useEffect(() => {
     let active = true;
 
@@ -458,11 +368,7 @@ export default function AdminActions({
         return;
       }
 
-      const { data: appUser } = await supabase
-        .from("app_users")
-        .select("tenant_id")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: appUser } = await supabase.from("app_users").select("tenant_id").eq("id", user.id).maybeSingle();
 
       if (!active) return;
 
@@ -478,9 +384,7 @@ export default function AdminActions({
   }, [supabase]);
 
   function labelFromFn(fn: string) {
-    const matched = groupedActions
-      .flatMap((group) => group.actions)
-      .find((action) => action.fn === fn);
+    const matched = groupedActions.flatMap((group) => group.actions).find((action) => action.fn === fn);
     if (matched) return matched.label;
 
     switch (fn) {
@@ -500,6 +404,8 @@ export default function AdminActions({
         return "Enviar Emails Pendentes";
       case "delete-announcements":
         return "Apagar Anúncios (intervalo)";
+      case "delete-announcement-versions":
+        return "Apagar histórico de versões";
       default:
         return fn;
     }
@@ -523,18 +429,16 @@ export default function AdminActions({
       note: params.note,
     });
 
-    const { error: insertError } = await supabase
-      .from("ingestion_history")
-      .insert({
-        tenant_id: historyTenantId,
-        user_id: historyUserId,
-        title: entry.title,
-        status: entry.status,
-        category: entry.category,
-        range: entry.range ?? {},
-        steps: entry.steps,
-        note: entry.note ?? null,
-      });
+    const { error: insertError } = await supabase.from("ingestion_history").insert({
+      tenant_id: historyTenantId,
+      user_id: historyUserId,
+      title: entry.title,
+      status: entry.status,
+      category: entry.category,
+      range: entry.range ?? {},
+      steps: entry.steps,
+      note: entry.note ?? null,
+    });
 
     if (insertError) {
       console.error("[ingestion_history] insert failed:", insertError.message);
@@ -554,52 +458,27 @@ export default function AdminActions({
       const token = session?.access_token ?? "";
       const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-      const runCall = async (
-        targetFn: string,
-        requestBody: Record<string, unknown>,
-      ) => {
-        const url = `${supabaseUrl}/functions/v1/${targetFn}`;
+      const runCall = async (targetFn: string, requestBody: Record<string, unknown>) => {
+        const res = await fetch(`${supabaseUrl}/functions/v1/${targetFn}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            apikey: anonKey,
+          },
+          body: JSON.stringify(requestBody),
+        });
 
-        const callOnce = async (u: string) => {
-          const r = await fetch(u, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-              apikey: anonKey,
-            },
-            body: JSON.stringify(requestBody),
-          });
+        const text = await res.text();
+        let data: unknown;
 
-          const text = await r.text();
-          let d: unknown;
-          try {
-            d = JSON.parse(text);
-          } catch {
-            d = { raw: text.slice(0, 500) };
-          }
-          return { res: r, data: d };
-        };
-
-        const primary = await callOnce(url);
-
-        // Kong may return 503 when the local edge runtime isn't available in the Docker network.
-        // Try a direct fallback to the locally served functions runtime commonly used in dev
-        // (supabase functions serve prints a port like 55321). This helps when the user
-        // ran `supabase functions serve` locally instead of a runtime container.
-        if (primary.res.status === 503) {
-          try {
-            const fallbackHost = "http://127.0.0.1:55321";
-            const fallback = await callOnce(
-              `${fallbackHost}/functions/v1/${targetFn}`,
-            );
-            return fallback;
-          } catch (e) {
-            return primary;
-          }
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = { raw: text.slice(0, 500) };
         }
 
-        return primary;
+        return { res, data };
       };
 
       const runDrIngest = async (requestBody: Record<string, unknown>) => {
@@ -611,36 +490,71 @@ export default function AdminActions({
           body: JSON.stringify(requestBody),
         });
 
-        const data = await res
-          .json()
-          .catch(() => ({ error: `HTTP ${res.status}` }));
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         return { res, data };
       };
 
-      const runContractsIngest = async (
-        requestBody: Record<string, unknown>,
-      ) => {
+      const runAnnouncementPipeline = async (requestBody: Record<string, unknown>) => {
+        const res = await fetch("/api/admin/run-ingest-pipeline", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        return { res, data };
+      };
+
+      const runContractsIngest = async (requestBody: Record<string, unknown>) => {
         const res = await fetch("/api/admin/ingest-contracts", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(requestBody),
         });
+
         const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         return { res, data };
       };
 
-      const runAdminApi = async (
-        endpoint: string,
-        requestBody: Record<string, unknown>,
-      ) => {
-        const res = await fetch(`/api/admin/${endpoint}`, {
+      const runDeleteAnnouncementVersions = async (requestBody: Record<string, unknown>) => {
+        const res = await fetch("/api/admin/delete-announcement-versions", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify(requestBody),
         });
+
         const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
         return { res, data };
       };
+
+      if (fn === "delete-announcement-versions") {
+        setInfo("A apagar histórico de versões dos anúncios...");
+        const { res, data } = await runDeleteAnnouncementVersions(body);
+        if (!res.ok) {
+          throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
+        }
+
+        const deleted = aggregateNumericField(data, "deleted_versions");
+        setInfo(
+          deleted > 0
+            ? `Histórico de versões apagado: ${deleted} registos removidos.`
+            : "Não havia histórico de versões para apagar.",
+        );
+        setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
+        await recordHistory({
+          title: actionLabel,
+          status: "success",
+          steps: [buildHistoryStep(fn, actionLabel, data, "success")],
+        });
+        router.refresh();
+        return;
+      }
 
       if (fn === "ingest-base") {
         const isDryRun = body.dry_run === true;
@@ -649,16 +563,61 @@ export default function AdminActions({
             ? { from_date: body.from_date, to_date: body.to_date }
             : {};
 
-        setInfo("A ingerir anúncios BASE...");
-        const { res: baseRes, data: baseData } = await runCall(
-          "ingest-base",
-          body,
+        setInfo(isDryRun ? "A testar ingestao de anuncios..." : "A executar pipeline de anuncios no servidor...");
+        const { res: pipelineRes, data: pipelineUnknown } = await runAnnouncementPipeline(body);
+        if (!pipelineRes.ok) {
+          throw new Error((pipelineUnknown as Record<string, string>)?.error ?? `HTTP ${pipelineRes.status}`);
+        }
+
+        const pipelineData = pipelineUnknown as Record<string, unknown>;
+        const pipelineBaseData = pipelineData.ingest_base ?? {};
+        const pipelineBaseError =
+          typeof pipelineData.ingest_base_error === "string"
+            ? pipelineData.ingest_base_error
+            : null;
+
+        if (isDryRun) {
+          setInfo("Dry run de anuncios concluido.");
+          setResults((prev) => [{ fn, data: pipelineBaseData }, ...prev.slice(0, 4)]);
+          await recordHistory({
+            title: actionLabel,
+            status: "success",
+            range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+            steps: [buildHistoryStep("ingest-base", "Anuncios BASE", pipelineBaseData, pipelineBaseError ? "error" : "success", pipelineBaseError ? `BASE: ${pipelineBaseError}` : undefined)],
+          });
+          router.refresh();
+          return;
+        }
+
+        const pipelineDrData = pipelineData.ingest_dr ?? {};
+        const pipelineMqData = pipelineData.match_and_queue ?? {};
+        const drSkipped =
+          !!pipelineDrData &&
+          typeof pipelineDrData === "object" &&
+          (pipelineDrData as Record<string, unknown>).skipped === true;
+
+        setInfo(
+          pipelineBaseError
+            ? `A API BASE falhou (${pipelineBaseError}). Pipeline executado no servidor com DR + correspondencia CPV.`
+            : "Pipeline de anuncios concluido: BASE + DR + correspondencia CPV.",
         );
-        const baseError = baseRes.ok
-          ? null
-          : formatUnknownError(
-              (baseData as any)?.error ?? `HTTP ${baseRes.status}`,
-            );
+        setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
+        await recordHistory({
+          title: actionLabel,
+          status: "success",
+          range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+          steps: [
+            buildHistoryStep("ingest-base", "Anuncios BASE", pipelineBaseData, pipelineBaseError ? "error" : "success", pipelineBaseError ? `BASE: ${pipelineBaseError}` : undefined),
+            buildHistoryStep("ingest-dr", "Anuncios DR", pipelineDrData, "success", drSkipped ? "Sem novos anuncios BASE; DR ignorado para este intervalo." : undefined),
+            buildHistoryStep("match-and-queue", "Correspondencia CPV", pipelineMqData, "success"),
+          ],
+        });
+        router.refresh();
+        return;
+
+        {
+        const { res: baseRes, data: baseData } = await runCall("ingest-base", body);
+        const baseError = baseRes.ok ? null : (baseData as Record<string, string>)?.error ?? `HTTP ${baseRes.status}`;
 
         if (isDryRun) {
           setInfo("Dry run de anúncios concluído.");
@@ -667,22 +626,13 @@ export default function AdminActions({
             title: actionLabel,
             status: "success",
             range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
-            steps: [
-              buildHistoryStep(
-                "ingest-base",
-                "Anúncios BASE",
-                baseData,
-                "success",
-              ),
-            ],
+            steps: [buildHistoryStep("ingest-base", "Anúncios BASE", baseData, "success")],
           });
           router.refresh();
           return;
         }
 
-        const fetched = baseRes.ok
-          ? aggregateNumericField(baseData, "fetched")
-          : 0;
+        const fetched = baseRes.ok ? aggregateNumericField(baseData, "fetched") : 0;
         if (fetched <= 0) {
           const canRunDrToday =
             typeof body.from_date === "string" &&
@@ -691,37 +641,20 @@ export default function AdminActions({
             body.to_date === todayIso();
 
           if (baseError) {
-            setInfo(
-              `A API BASE falhou (${baseError}). A tentar ingestão DR na mesma...`,
-            );
+            setInfo(`A API BASE falhou (${baseError}). A tentar ingestão DR na mesma...`);
           }
 
           if (canRunDrToday) {
-            setInfo(
-              baseError
-                ? `A API BASE falhou (${baseError}). A tentar ingestão DR de hoje...`
-                : "Sem novos anúncios BASE. A tentar ingestão DR de hoje...",
-            );
+            setInfo(baseError ? `A API BASE falhou (${baseError}). A tentar ingestão DR de hoje...` : "Sem novos anúncios BASE. A tentar ingestão DR de hoje...");
             const { res: drRes, data: drData } = await runDrIngest(rangeBody);
             if (!drRes.ok) {
-              throw new Error(
-                (drData as Record<string, string>)?.error ??
-                  `HTTP ${drRes.status}`,
-              );
+              throw new Error((drData as Record<string, string>)?.error ?? `HTTP ${drRes.status}`);
             }
 
-            setInfo(
-              "Sem novos anúncios BASE. A processar correspondência CPV...",
-            );
-            const { res: mqRes, data: mqData } = await runCall(
-              "match-and-queue",
-              rangeBody,
-            );
+            setInfo("Sem novos anúncios BASE. A processar correspondência CPV...");
+            const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
             if (!mqRes.ok) {
-              throw new Error(
-                (mqData as Record<string, string>)?.error ??
-                  `HTTP ${mqRes.status}`,
-              );
+              throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
             }
 
             const pipelineData = {
@@ -730,35 +663,16 @@ export default function AdminActions({
               match_and_queue: mqData,
             };
 
-            setInfo(
-              "Sem novos anúncios BASE. DR de hoje e correspondência CPV concluídos.",
-            );
-            setResults((prev) => [
-              { fn: "ingest-base (base=0, dr-hoje + cpv)", data: pipelineData },
-              ...prev.slice(0, 4),
-            ]);
+            setInfo("Sem novos anúncios BASE. DR de hoje e correspondência CPV concluídos.");
+            setResults((prev) => [{ fn: "ingest-base (base=0, dr-hoje + cpv)", data: pipelineData }, ...prev.slice(0, 4)]);
             await recordHistory({
               title: actionLabel,
               status: "success",
-              range: {
-                fromDate: rangeBody.from_date,
-                toDate: rangeBody.to_date,
-              },
+              range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
               steps: [
-                buildHistoryStep(
-                  "ingest-base",
-                  "Anúncios BASE",
-                  baseData,
-                  "success",
-                  "Sem novos anúncios BASE.",
-                ),
+                buildHistoryStep("ingest-base", "Anúncios BASE", baseData, "success", "Sem novos anúncios BASE."),
                 buildHistoryStep("ingest-dr", "Anúncios DR", drData, "success"),
-                buildHistoryStep(
-                  "match-and-queue",
-                  "Correspondência CPV",
-                  mqData,
-                  "success",
-                ),
+                buildHistoryStep("match-and-queue", "Correspondência CPV", mqData, "success"),
               ],
             });
             router.refresh();
@@ -770,15 +684,9 @@ export default function AdminActions({
               ? `A API BASE falhou (${baseError}). A processar correspondência CPV nos anúncios já existentes do intervalo...`
               : "Sem novos anúncios BASE. A processar correspondência CPV nos anúncios já existentes do intervalo...",
           );
-          const { res: mqRes, data: mqData } = await runCall(
-            "match-and-queue",
-            rangeBody,
-          );
+          const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
           if (!mqRes.ok) {
-            throw new Error(
-              (mqData as Record<string, string>)?.error ??
-                `HTTP ${mqRes.status}`,
-            );
+            throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
           }
 
           const pipelineData = {
@@ -793,28 +701,14 @@ export default function AdminActions({
               ? `A API BASE falhou (${baseError}). Correspondência CPV executada nos anúncios existentes.`
               : "Sem novos anúncios BASE. Correspondência CPV executada nos anúncios existentes.",
           );
-          setResults((prev) => [
-            { fn: "ingest-base (base=0, cpv executado)", data: pipelineData },
-            ...prev.slice(0, 4),
-          ]);
+          setResults((prev) => [{ fn: "ingest-base (base=0, cpv executado)", data: pipelineData }, ...prev.slice(0, 4)]);
           await recordHistory({
             title: actionLabel,
             status: "success",
             range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
             steps: [
-              buildHistoryStep(
-                "ingest-base",
-                "Anúncios BASE",
-                baseData,
-                baseError ? "error" : "success",
-                baseError ? `BASE: ${baseError}` : "Sem novos anúncios BASE.",
-              ),
-              buildHistoryStep(
-                "match-and-queue",
-                "Correspondência CPV",
-                mqData,
-                "success",
-              ),
+              buildHistoryStep("ingest-base", "Anúncios BASE", baseData, baseError ? "error" : "success", baseError ? `BASE: ${baseError}` : "Sem novos anúncios BASE."),
+              buildHistoryStep("match-and-queue", "Correspondência CPV", mqData, "success"),
             ],
           });
           router.refresh();
@@ -822,32 +716,19 @@ export default function AdminActions({
         }
 
         if (baseError) {
-          setInfo(
-            `A API BASE falhou (${baseError}). A enriquecer anúncios com detalhe DR...`,
-          );
+          setInfo(`A API BASE falhou (${baseError}). A enriquecer anúncios com detalhe DR...`);
         } else {
           setInfo("A enriquecer anúncios com detalhe DR...");
         }
         const { res: drRes, data: drData } = await runDrIngest(rangeBody);
         if (!drRes.ok) {
-          throw new Error(
-            formatUnknownError(
-              (drData as any)?.error ?? `HTTP ${drRes.status}`,
-            ),
-          );
+          throw new Error((drData as Record<string, string>)?.error ?? `HTTP ${drRes.status}`);
         }
 
         setInfo("A processar correspondência CPV...");
-        const { res: mqRes, data: mqData } = await runCall(
-          "match-and-queue",
-          rangeBody,
-        );
+        const { res: mqRes, data: mqData } = await runCall("match-and-queue", rangeBody);
         if (!mqRes.ok) {
-          throw new Error(
-            formatUnknownError(
-              (mqData as any)?.error ?? `HTTP ${mqRes.status}`,
-            ),
-          );
+          throw new Error((mqData as Record<string, string>)?.error ?? `HTTP ${mqRes.status}`);
         }
 
         const pipelineData = {
@@ -862,33 +743,20 @@ export default function AdminActions({
             ? `A API BASE falhou (${baseError}). DR + correspondência CPV concluídos.`
             : "Pipeline de anúncios concluído: BASE + DR + correspondência CPV.",
         );
-        setResults((prev) => [
-          { fn: "ingest-base (pipeline)", data: pipelineData },
-          ...prev.slice(0, 4),
-        ]);
+        setResults((prev) => [{ fn: "ingest-base (pipeline)", data: pipelineData }, ...prev.slice(0, 4)]);
         await recordHistory({
           title: actionLabel,
           status: "success",
           range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
           steps: [
-            buildHistoryStep(
-              "ingest-base",
-              "Anúncios BASE",
-              baseData,
-              baseError ? "error" : "success",
-              baseError ? `BASE: ${baseError}` : undefined,
-            ),
+            buildHistoryStep("ingest-base", "Anúncios BASE", baseData, baseError ? "error" : "success", baseError ? `BASE: ${baseError}` : undefined),
             buildHistoryStep("ingest-dr", "Anúncios DR", drData, "success"),
-            buildHistoryStep(
-              "match-and-queue",
-              "Correspondência CPV",
-              mqData,
-              "success",
-            ),
+            buildHistoryStep("match-and-queue", "Correspondência CPV", mqData, "success"),
           ],
         });
         router.refresh();
         return;
+        }
       }
 
       if (
@@ -896,45 +764,19 @@ export default function AdminActions({
         typeof body.from_date === "string" &&
         typeof body.to_date === "string"
       ) {
-        setInfo(
-          `A ingerir contratos de ${body.from_date} até ${body.to_date}...`,
-        );
+        setInfo(`A ingerir contratos de ${body.from_date} até ${body.to_date}...`);
         const { res, data } = await runContractsIngest(body);
         if (!res.ok) {
-          throw new Error(
-            (data as Record<string, string>)?.error ?? `HTTP ${res.status}`,
-          );
+          throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
         }
 
-        setInfo(
-          `Contratos ingeridos com sucesso para o intervalo ${body.from_date}..${body.to_date}.`,
-        );
+        setInfo(`Contratos ingeridos com sucesso para o intervalo ${body.from_date}..${body.to_date}.`);
         setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
         await recordHistory({
           title: actionLabel,
           status: "success",
           range: { fromDate: body.from_date, toDate: body.to_date },
-          steps: [
-            buildHistoryStep("ingest-contracts", "Contratos", data, "success"),
-          ],
-        });
-        router.refresh();
-        return;
-      }
-
-      if (fn === "extract-entities" || fn === "extract-companies") {
-        setInfo(`A executar ${labelFromFn(fn)}...`);
-        const { res: adminRes, data: adminData } = await runAdminApi(fn, body);
-        if (!adminRes.ok) {
-          throw new Error(
-            (adminData as Record<string, string>)?.error ?? `HTTP ${adminRes.status}`,
-          );
-        }
-        setResults((prev) => [{ fn, data: adminData }, ...prev.slice(0, 4)]);
-        await recordHistory({
-          title: actionLabel,
-          status: "success",
-          steps: [buildHistoryStep(fn, actionLabel, adminData, "success")],
+          steps: [buildHistoryStep("ingest-contracts", "Contratos", data, "success")],
         });
         router.refresh();
         return;
@@ -945,37 +787,20 @@ export default function AdminActions({
         res.status === 546 ||
         (typeof data === "object" &&
           data !== null &&
-          String(
-            (data as { message?: string; error?: string }).message ??
-              (data as { message?: string; error?: string }).error ??
-              "",
-          ).includes("WORKER_LIMIT"));
+          String((data as { message?: string; error?: string }).message ?? (data as { message?: string; error?: string }).error ?? "").includes("WORKER_LIMIT"));
 
       if (!res.ok && fn === "ingest-contracts" && isWorkerLimitError) {
         await new Promise((resolve) => setTimeout(resolve, 1200));
         ({ res, data } = await runCall(fn, body));
       }
 
-      if (!res.ok)
-        throw new Error(
-          (data as Record<string, string>)?.error ?? `HTTP ${res.status}`,
-        );
+      if (!res.ok) throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
       await recordHistory({
         title: actionLabel,
         status: "success",
-        range:
-          typeof body.from_date === "string" || typeof body.to_date === "string"
-            ? {
-                fromDate:
-                  typeof body.from_date === "string"
-                    ? body.from_date
-                    : undefined,
-                toDate:
-                  typeof body.to_date === "string" ? body.to_date : undefined,
-              }
-            : null,
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
         steps: [buildHistoryStep(fn, actionLabel, data, "success")],
       });
       router.refresh();
@@ -986,26 +811,8 @@ export default function AdminActions({
       await recordHistory({
         title: actionLabel,
         status: "error",
-        range:
-          typeof body.from_date === "string" || typeof body.to_date === "string"
-            ? {
-                fromDate:
-                  typeof body.from_date === "string"
-                    ? body.from_date
-                    : undefined,
-                toDate:
-                  typeof body.to_date === "string" ? body.to_date : undefined,
-              }
-            : null,
-        steps: [
-          buildHistoryStep(
-            fn,
-            actionLabel,
-            { error: message },
-            "error",
-            message,
-          ),
-        ],
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
+        steps: [buildHistoryStep(fn, actionLabel, { error: message }, "error", message)],
         note: message,
       });
     } finally {
@@ -1013,10 +820,7 @@ export default function AdminActions({
     }
   }
 
-  async function callInternalApi(
-    fn: string,
-    body: Record<string, unknown> = {},
-  ) {
+  async function callInternalApi(fn: string, body: Record<string, unknown> = {}) {
     setLoading(fn);
     setError(null);
     setInfo(null);
@@ -1030,41 +834,23 @@ export default function AdminActions({
         body: JSON.stringify(body),
       });
 
-      const data = await res
-        .json()
-        .catch(() => ({ error: `HTTP ${res.status}` }));
-      if (!res.ok)
-        throw new Error(
-          (data as Record<string, string>)?.error ?? `HTTP ${res.status}`,
-        );
+      const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+      if (!res.ok) throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
 
       if (
         fn === "ingest-dr" &&
         typeof data === "object" &&
         data !== null &&
-        (data as { normalized_candidates?: unknown }).normalized_candidates ===
-          0
+        (data as { normalized_candidates?: unknown }).normalized_candidates === 0
       ) {
-        setInfo(
-          "Não foram encontrados anúncios DR para o intervalo selecionado.",
-        );
+        setInfo("Não foram encontrados anúncios DR para o intervalo selecionado.");
       }
 
       setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
       await recordHistory({
         title: labelFromFn(fn),
         status: "success",
-        range:
-          typeof body.from_date === "string" || typeof body.to_date === "string"
-            ? {
-                fromDate:
-                  typeof body.from_date === "string"
-                    ? body.from_date
-                    : undefined,
-                toDate:
-                  typeof body.to_date === "string" ? body.to_date : undefined,
-              }
-            : null,
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
         steps: [buildHistoryStep(fn, labelFromFn(fn), data, "success")],
       });
       router.refresh();
@@ -1074,26 +860,8 @@ export default function AdminActions({
       await recordHistory({
         title: labelFromFn(fn),
         status: "error",
-        range:
-          typeof body.from_date === "string" || typeof body.to_date === "string"
-            ? {
-                fromDate:
-                  typeof body.from_date === "string"
-                    ? body.from_date
-                    : undefined,
-                toDate:
-                  typeof body.to_date === "string" ? body.to_date : undefined,
-              }
-            : null,
-        steps: [
-          buildHistoryStep(
-            fn,
-            labelFromFn(fn),
-            { error: message },
-            "error",
-            message,
-          ),
-        ],
+        range: typeof body.from_date === "string" || typeof body.to_date === "string" ? { fromDate: typeof body.from_date === "string" ? body.from_date : undefined, toDate: typeof body.to_date === "string" ? body.to_date : undefined } : null,
+        steps: [buildHistoryStep(fn, labelFromFn(fn), { error: message }, "error", message)],
         note: message,
       });
     } finally {
@@ -1111,21 +879,11 @@ export default function AdminActions({
           <div className="flex flex-wrap items-end gap-3">
             <div>
               <p className="mb-1 text-xs text-gray-400">De</p>
-              <SingleDatePicker
-                value={fromDate}
-                onChange={setFromDate}
-                placeholder="Data início"
-                min={MIN_INGEST_DATE}
-              />
+              <SingleDatePicker value={fromDate} onChange={setFromDate} placeholder="Data início" min={MIN_INGEST_DATE} />
             </div>
             <div>
               <p className="mb-1 text-xs text-gray-400">Até</p>
-              <SingleDatePicker
-                value={toDate}
-                onChange={setToDate}
-                placeholder="Data fim"
-                min={MIN_INGEST_DATE}
-              />
+              <SingleDatePicker value={toDate} onChange={setToDate} placeholder="Data fim" min={MIN_INGEST_DATE} />
             </div>
           </div>
 
@@ -1135,33 +893,28 @@ export default function AdminActions({
             </div>
           )}
 
-          {!globalDateError &&
-            (announcementsPolicy.warning ||
-              contractsPolicy.warning ||
-              drPolicy.warning) && (
-              <div className="space-y-2">
-                {announcementsPolicy.warning && (
-                  <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
-                    {announcementsPolicy.warning}
-                  </div>
-                )}
-                {contractsPolicy.warning && (
-                  <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
-                    {contractsPolicy.warning}
-                  </div>
-                )}
-                {drPolicy.warning && !announcementsPolicy.warning && (
-                  <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
-                    {drPolicy.warning}
-                  </div>
-                )}
-              </div>
-            )}
+          {!globalDateError && (announcementsPolicy.warning || contractsPolicy.warning || drPolicy.warning) && (
+            <div className="space-y-2">
+              {announcementsPolicy.warning && (
+                <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
+                  {announcementsPolicy.warning}
+                </div>
+              )}
+              {contractsPolicy.warning && (
+                <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
+                  {contractsPolicy.warning}
+                </div>
+              )}
+              {drPolicy.warning && !announcementsPolicy.warning && (
+                <div className="text-sm bg-amber-50 border border-amber-200 text-amber-800 rounded-xl px-4 py-3">
+                  {drPolicy.warning}
+                </div>
+              )}
+            </div>
+          )}
 
           <p className="text-xs text-gray-500">
-            Limites: anuncios ate {ANN_MAX_DAYS} dias e contratos ate{" "}
-            {CONTRACT_MAX_DAYS} dias, devido a quantidade de dados processados
-            pela API BASE em cada pedido.
+            Limites: anuncios ate {ANN_MAX_DAYS} dias e contratos ate {CONTRACT_MAX_DAYS} dias, devido a quantidade de dados processados pela API BASE em cada pedido.
           </p>
         </div>
       )}
@@ -1173,22 +926,15 @@ export default function AdminActions({
             disabled={!!loading}
             className={BTN_STYLES.init}
           >
-            {loading === "admin-seed"
-              ? "A inicializar..."
-              : "Inicializar Sistema"}
+            {loading === "admin-seed" ? "A inicializar..." : "Inicializar Sistema"}
           </button>
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 lg:grid-cols-3 xl:grid-cols-4">
         {groupedActions.map((group) => (
-          <div
-            key={group.key}
-            className="rounded-xl border border-surface-200 bg-white p-4 shadow-card"
-          >
-            <h3 className="mb-4 text-sm font-semibold text-gray-900">
-              {group.title}
-            </h3>
+          <div key={group.key} className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+            <h3 className="mb-4 text-sm font-semibold text-gray-900">{group.title}</h3>
             <div className="flex flex-wrap gap-2">
               {group.actions.map(({ fn, label, variant, body }) => {
                 const needsDates =
@@ -1197,23 +943,16 @@ export default function AdminActions({
                   fn === "ingest-contracts" ||
                   fn === "match-and-queue" ||
                   fn === "ingest-dr";
-                const policy =
-                  fn === "ingest-base"
-                    ? announcementsPolicy
-                    : fn === "delete-announcements"
-                      ? deleteAnnouncementsPolicy
-                      : fn === "ingest-contracts"
-                        ? contractsPolicy
-                        : fn === "ingest-dr"
-                          ? drPolicy
-                          : {
-                              disabled: !!globalDateError,
-                              warning: null,
-                              error: globalDateError,
-                            };
-                const effectiveBody = needsDates
-                  ? { ...body, from_date: fromDate, to_date: toDate }
-                  : (body ?? {});
+                const policy = fn === "ingest-base"
+                  ? announcementsPolicy
+                  : fn === "delete-announcements"
+                  ? deleteAnnouncementsPolicy
+                  : fn === "ingest-contracts"
+                  ? contractsPolicy
+                  : fn === "ingest-dr"
+                  ? drPolicy
+                  : { disabled: !!globalDateError, warning: null, error: globalDateError };
+                const effectiveBody = needsDates ? { ...body, from_date: fromDate, to_date: toDate } : body ?? {};
                 const isInternalApiAction = fn === "ingest-dr";
                 const disabled = !!loading || (needsDates && policy.disabled);
                 const title = policy.error ?? undefined;
@@ -1227,6 +966,13 @@ export default function AdminActions({
                           `Tem a certeza que quer apagar anúncios entre ${fromDate} e ${toDate}?\n\nIsto também remove notificações e versões associadas a esses anúncios.`,
                         );
                         if (!confirmDelete) return;
+                      }
+
+                      if (fn === "delete-announcement-versions") {
+                        const confirmDeleteVersions = window.confirm(
+                          "Tem a certeza que quer apagar todo o histórico de versões guardado?\n\nOs anúncios ficam intactos, mas o histórico anterior deixa de aparecer no backoffice.",
+                        );
+                        if (!confirmDeleteVersions) return;
                       }
 
                       if (isInternalApiAction) {
@@ -1262,29 +1008,11 @@ export default function AdminActions({
 
       {loading && (
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-xl px-4 py-3 text-sm">
-          <svg
-            className="animate-spin h-4 w-4 flex-shrink-0"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
+          <svg className="animate-spin h-4 w-4 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <span>
-            A executar <strong>{loading}</strong>... isto pode demorar alguns
-            minutos.
-          </span>
+          <span>A executar <strong>{loading}</strong>... isto pode demorar alguns minutos.</span>
         </div>
       )}
 

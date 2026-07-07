@@ -168,14 +168,22 @@ function extractNumericValue(data: unknown, field: string): number {
 }
 
 function extractDrInsertedCount(data: unknown): number {
+  return extractDrSummaryCount(data, "inserted");
+}
+
+function extractDrUpdatedCount(data: unknown): number {
+  return extractDrSummaryCount(data, "updated");
+}
+
+function extractDrSummaryCount(data: unknown, field: "inserted" | "updated" | "skipped"): number {
   if (!data || typeof data !== "object") return 0;
   const summary = typeof (data as Record<string, unknown>).summary === "string"
     ? (data as Record<string, unknown>).summary as string
     : "";
-  const match = summary.match(/inserted=(\d+)/);
+  const match = summary.match(new RegExp(`${field}=(\\d+)`));
   if (!match) return 0;
-  const inserted = Number.parseInt(match[1], 10);
-  return Number.isFinite(inserted) ? inserted : 0;
+  const count = Number.parseInt(match[1], 10);
+  return Number.isFinite(count) ? count : 0;
 }
 
 function escapeHtml(value: string): string {
@@ -185,6 +193,129 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function asObject(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function stepStatusLabel(value: unknown): string {
+  const obj = asObject(value);
+  if (!obj) return "n/d";
+  if (obj.ok === true) return "OK";
+  if (obj.ok === false) return "ERRO";
+  if (extractErrorMessage(obj)) return "ERRO";
+  if (typeof obj.errors === "number" && obj.errors > 0) return "ERRO";
+  return "OK";
+}
+
+function extractErrorMessage(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim();
+  const obj = asObject(value);
+  if (!obj) return null;
+
+  const directError = typeof obj.error === "string" ? obj.error.trim() : "";
+  if (directError) return directError;
+
+  const nestedDataError = asObject(obj.data)?.error;
+  if (typeof nestedDataError === "string" && nestedDataError.trim()) {
+    return nestedDataError.trim();
+  }
+
+  return null;
+}
+
+function buildSystemAlertReport(
+  subject: string,
+  payload: Record<string, unknown>,
+  tenantLabel: string,
+): string {
+  const lines: string[] = [];
+  const now = new Date();
+  const generatedAt = new Intl.DateTimeFormat("pt-PT", {
+    dateStyle: "short",
+    timeStyle: "medium",
+    timeZone: "Europe/Lisbon",
+  }).format(now);
+
+  lines.push("Relatório do alerta");
+  lines.push(`Tenant: ${tenantLabel}`);
+  lines.push(`Assunto: ${subject}`);
+  lines.push(`Gerado em: ${generatedAt} (Europe/Lisbon)`);
+
+  const range = asObject(payload.range);
+  if (range?.from_date || range?.to_date) {
+    lines.push(
+      `Janela analisada: ${String(range.from_date ?? "?")} até ${String(range.to_date ?? "?")}`,
+    );
+  }
+
+  const base = asObject(payload.base);
+  const dr = asObject(payload.ingest_dr);
+  const mq = asObject(payload.match_and_queue);
+  if (base || dr || mq) {
+    lines.push("Etapas:");
+    lines.push(`- ingest-base: ${stepStatusLabel(base)}`);
+    lines.push(`- ingest-dr: ${stepStatusLabel(dr)}`);
+    lines.push(`- match-and-queue: ${stepStatusLabel(mq)}`);
+  }
+
+  const baseInserted = typeof payload.base_inserted === "number"
+    ? payload.base_inserted
+    : extractNumericValue(base, "inserted");
+  const drInserted = typeof payload.dr_inserted === "number"
+    ? payload.dr_inserted
+    : extractDrInsertedCount(dr);
+  const baseUpdated = typeof payload.base_updated === "number"
+    ? payload.base_updated
+    : extractNumericValue(base, "updated");
+  const drUpdated = typeof payload.dr_updated === "number"
+    ? payload.dr_updated
+    : extractDrUpdatedCount(dr);
+
+  if (Number.isFinite(baseInserted) || Number.isFinite(drInserted)) {
+    const totalInserted = (Number.isFinite(baseInserted) ? baseInserted : 0) +
+      (Number.isFinite(drInserted) ? drInserted : 0);
+    const totalUpdated = (Number.isFinite(baseUpdated) ? baseUpdated : 0) +
+      (Number.isFinite(drUpdated) ? drUpdated : 0);
+    lines.push(
+      `Novos registos: BASE=${Number.isFinite(baseInserted) ? baseInserted : 0}, DR=${Number.isFinite(drInserted) ? drInserted : 0}, Total=${totalInserted}`,
+    );
+    lines.push(
+      `Registos atualizados: BASE=${Number.isFinite(baseUpdated) ? baseUpdated : 0}, DR=${Number.isFinite(drUpdated) ? drUpdated : 0}, Total=${totalUpdated}`,
+    );
+  }
+
+  const summary = asObject(payload.summary);
+  if (summary) {
+    const processed = summary.processed;
+    const sent = summary.sent;
+    const failed = summary.failed;
+    if (typeof processed === "number" || typeof sent === "number" || typeof failed === "number") {
+      lines.push(
+        `Resumo processamento: processados=${Number(processed ?? 0)}, enviados=${Number(sent ?? 0)}, falhas=${Number(failed ?? 0)}`,
+      );
+    }
+  }
+
+  const errorMessage =
+    extractErrorMessage(payload.summary) ??
+    extractErrorMessage(payload.base) ??
+    extractErrorMessage(payload.ingest_dr) ??
+    extractErrorMessage(payload.match_and_queue) ??
+    extractErrorMessage(payload);
+  if (errorMessage) {
+    lines.push(`Erro principal: ${errorMessage}`);
+  }
+
+  return [
+    ...lines,
+    "",
+    "Detalhe técnico (JSON):",
+    JSON.stringify(payload, null, 2),
+  ].join("\n");
 }
 
 async function loadTenantAlertConfig(): Promise<TenantAlertConfig> {
@@ -301,12 +432,9 @@ async function notifySystemAlert(subject: string, payload: Record<string, unknow
       return;
     }
 
-    const text = [
-      `Tenant: ${config.tenantName ?? config.tenantId ?? "—"}`,
-      `Assunto: ${subject}`,
-      "",
-      JSON.stringify(payload, null, 2),
-    ].join("\n");
+    const tenantLabel = config.tenantName ?? config.tenantId ?? "—";
+
+    const text = buildSystemAlertReport(subject, payload, tenantLabel);
 
     await sendSystemEmail(config.systemAlertEmail, subject, text);
     console.log(`[cron] system alert sent to ${config.systemAlertEmail}`);
@@ -358,7 +486,10 @@ async function maybeNotifyIngestionAlert(
   const status = baseRes.ok && drRes.ok && mqRes.ok ? "success" : "error";
   const baseInserted = extractNumericValue(baseRes.data, "inserted");
   const drInserted = extractDrInsertedCount(drRes.data);
+  const baseUpdated = extractNumericValue(baseRes.data, "updated");
+  const drUpdated = extractDrUpdatedCount(drRes.data);
   const totalInserted = baseInserted + drInserted;
+  const totalUpdated = baseUpdated + drUpdated;
 
   if (status === "error") {
     await notifySystemAlert("Alerta do sistema: falha na ingestão automática", {
@@ -370,11 +501,13 @@ async function maybeNotifyIngestionAlert(
     return;
   }
 
-  if (totalInserted === 0) {
+  if (totalInserted === 0 && totalUpdated === 0) {
     await notifySystemAlert("Alerta do sistema: ingestão automática sem novos registos", {
       range: body,
       base_inserted: baseInserted,
       dr_inserted: drInserted,
+      base_updated: baseUpdated,
+      dr_updated: drUpdated,
       base: baseRes.data,
       ingest_dr: drRes.data,
       match_and_queue: mqRes.data,

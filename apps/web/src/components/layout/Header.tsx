@@ -42,8 +42,13 @@ export default function Header() {
       }}
     >
       <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-12 lg:py-0 lg:h-[104px]">
-        {/* ── Logo ── */}
-        <Link href="/" className="shrink-0">
+        {/* ── Logo atualizado para abrir link externo em nova aba ── */}
+        <a 
+          href="https://www.helpdeskpublico.pt/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="shrink-0"
+        >
           <Image
             src="/logo.png"
             alt="Helpdesk Público"
@@ -53,20 +58,22 @@ export default function Header() {
             style={{ width: "300px", maxWidth: "72vw", height: "auto" }}
             priority
           />
-        </Link>
+        </a>
 
         <div className="flex-1" />
 
         {/* ── Right menu & Actions ── */}
         <div className="relative shrink-0 flex items-center gap-2" ref={menuRef}>
           
-          {/* Botão "Início" sempre fora do menu - Atualizado com o link externo */}
+          {/* Botão atualizado para abrir em novo separador (target="_blank") */}
           <a
             href="https://www.helpdeskpublico.pt"
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 active:scale-95"
           >
             <Home className="w-4 h-4" strokeWidth={2} />
-            <span>Início</span>
+            <span>Helpdesk Público</span>
           </a>
 
           {/* Botão de Menu Dropdown */}
@@ -89,6 +96,7 @@ export default function Header() {
               role="menu"
               className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-60 rounded-xl border border-white/10 bg-[#202329] p-1.5 shadow-xl top-full"
             >
+              {/* Se também quiseres que os Contactos abram em novo separador, podes aplicar o mesmo target="_blank" aqui */}
               <a
                 href="https://www.helpdeskpublico.pt/contactos"
                 role="menuitem"
