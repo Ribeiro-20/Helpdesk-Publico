@@ -533,6 +533,33 @@ export default function AdminActions({
         return { res, data };
       };
 
+      const runExtractApi = async (endpoint: string, requestBody: Record<string, unknown>) => {
+        const res = await fetch(`/api/admin/${endpoint}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody),
+        });
+        const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        return { res, data };
+      };
+
+      if (fn === "extract-companies" || fn === "extract-entities") {
+        const endpoint = fn === "extract-companies" ? "extract-companies" : "extract-entities";
+        const label = fn === "extract-companies" ? "Empresas" : "Entidades";
+        setInfo(`A extrair ${label}...`);
+        const { res, data } = await runExtractApi(endpoint, body);
+        if (!res.ok) throw new Error((data as Record<string, string>)?.error ?? `HTTP ${res.status}`);
+        setInfo(`${label} extraídas com sucesso.`);
+        setResults((prev) => [{ fn, data }, ...prev.slice(0, 4)]);
+        await recordHistory({
+          title: actionLabel,
+          status: "success",
+          steps: [buildHistoryStep(fn, actionLabel, data, "success")],
+        });
+        router.refresh();
+        return;
+      }
+
       if (fn === "delete-announcement-versions") {
         setInfo("A apagar histórico de versões dos anúncios...");
         const { res, data } = await runDeleteAnnouncementVersions(body);
