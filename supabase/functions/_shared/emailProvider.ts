@@ -879,21 +879,23 @@ export function buildAnnouncementEmail(params: {
           </tr>
 
           <!-- FOOTER -->
-          <tr>
-            <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
-              <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
-              <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
-                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Contactos</span></font></a>
-                <span style="color:#d1d5db;"> | </span>
-                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Política de Privacidade</span></font></a>
-                <span style="color:#d1d5db;"> | </span>
-                <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Website</span></font></a>
-              </div>
-              <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
-                Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa através da <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-muted" color="#9ca3af" style="color:#9ca3af !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#9ca3af; text-decoration:underline;"><font color="#9ca3af">hiperligação</font></a>.
-              </div>
-            </td>
-          </tr>
+      <tr>
+  <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
+    <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
+    <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
+      <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Contactos</span></font></a>
+      <span style="color:#d1d5db;"> | </span>
+      <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Política de Privacidade</span></font></a>
+      <span style="color:#d1d5db;"> | </span>
+      <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Website</span></font></a>
+    </div>
+    <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
+      Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço.
+      <br />
+      Caso pretenda alterar as suas preferências, contacte a nossa equipa.
+    </div>
+  </td>
+</tr>
 
         </table>
 
