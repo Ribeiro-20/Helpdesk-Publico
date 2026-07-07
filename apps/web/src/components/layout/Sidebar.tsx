@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -16,6 +17,8 @@ import {
   Bell,
   Settings,
   LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 
 const NAV_SECTIONS = [
@@ -49,6 +52,28 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+
+    document.addEventListener("keydown", onEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", onEscape);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileOpen]);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -57,7 +82,32 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
   }
 
   return (
-    <aside className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
+    <>
+      <button
+        type="button"
+        onClick={() => setMobileOpen(true)}
+        className="fixed right-2.5 top-2.5 z-[70] inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white/95 text-slate-700 shadow-sm backdrop-blur-sm lg:hidden"
+        aria-label="Abrir menu lateral"
+      >
+        <Menu className="h-4.5 w-4.5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => setMobileOpen(false)}
+        className={clsx(
+          "fixed inset-0 z-40 bg-slate-900/40 transition-opacity lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0",
+        )}
+        aria-label="Fechar menu lateral"
+      />
+
+      <aside
+        className={clsx(
+          "fixed inset-y-0 left-0 z-50 flex w-64 max-w-[86vw] shrink-0 flex-col border-r border-slate-200 bg-slate-50 transition-transform duration-200 lg:static lg:z-auto lg:w-64 lg:max-w-none lg:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full",
+        )}
+      >
       {/* Logo */}
       <div className="px-5 py-5 border-b border-slate-200 bg-slate-100/70">
         <div className="flex items-center gap-3">
@@ -76,6 +126,15 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
               by Helpdesk Público
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 lg:hidden"
+            aria-label="Fechar menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -133,6 +192,7 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
           Sair
         </button>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

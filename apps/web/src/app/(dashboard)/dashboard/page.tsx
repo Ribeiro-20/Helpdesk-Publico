@@ -180,7 +180,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <PageHeader
@@ -191,7 +191,7 @@ export default async function DashboardPage() {
 
         <Link
           href="/"
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-surface-100 hover:text-gray-900"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-surface-100 hover:text-gray-900 md:w-auto"
         >
           <House className="h-4 w-4" />
           Página principal
@@ -222,7 +222,7 @@ export default async function DashboardPage() {
               title="Anúncios"
               description="Procedimentos publicados no portal BASE (concursos, ajustes directos, etc.)"
             />
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
               <KpiCard label="Últimas 24h" value={announcements.last24h} href="/announcements" />
               <KpiCard label="Últimos 7 dias" value={announcements.last7d} href="/announcements" />
               <KpiCard label="Total" value={announcements.total.toLocaleString("pt-PT")} href="/announcements" />
@@ -235,7 +235,7 @@ export default async function DashboardPage() {
               title="Contratos"
               description="Contratos celebrados com vencedores e preços finais"
             />
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
               <KpiCard label="Últimos 7 dias" value={contracts.last7d} href="/contracts" />
               <KpiCard label="Últimos 30 dias" value={contracts.last30d} href="/contracts" />
               <KpiCard label="Total" value={contracts.total.toLocaleString("pt-PT")} href="/contracts" />
@@ -248,7 +248,7 @@ export default async function DashboardPage() {
               title="Entidades & Empresas"
               description="Entidades públicas adjudicantes e empresas fornecedoras"
             />
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
               <KpiCard label="Entidades" value={entities.total.toLocaleString("pt-PT")} href="/entities" />
               <KpiCard label="Municípios" value={entities.municipios.toLocaleString("pt-PT")} href="/entities" />
               <KpiCard label="Empresas" value={companies.total.toLocaleString("pt-PT")} href="/companies" />
@@ -262,7 +262,7 @@ export default async function DashboardPage() {
               title="Notificações"
               description="Estado do envio de emails aos clientes"
             />
-            <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
               <KpiCard label="Pendentes" value={notifications.pending} variant="warning" />
               <KpiCard label="Enviadas" value={notifications.sent} variant="success" />
               <KpiCard label="Falhadas" value={notifications.failed} variant="danger" />

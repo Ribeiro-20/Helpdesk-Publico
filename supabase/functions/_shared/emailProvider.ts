@@ -751,7 +751,7 @@ export function buildAnnouncementEmail(params: {
           <tr>
             <td style="padding:18px 18px 8px 18px;">
               <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:6px;">Objeto do contrato</div>
-              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(objectStr)}</div>
+              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; max-height:87px;">${escapeEmailHtml(objectStr)}</div>
             </td>
           </tr>
 
@@ -847,7 +847,7 @@ export function buildAnnouncementEmail(params: {
           <!-- SUPORTE -->
           <tr>
             <td style="padding:20px 18px; background-color:#edf3e6; border-top:1px solid #d7e3c8;">
-              <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px;">Precisa de apoio para decidir ou preparar a sua proposta?</div>
+              <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px; text-align:center;">Precisa de apoio para decidir ou preparar uma proposta a este procedimento?</div>
               <div style="text-align:center; font-size:0;">
                 <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="49%" valign="top"><![endif]-->
                 <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">

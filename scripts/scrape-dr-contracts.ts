@@ -1042,7 +1042,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
     console.warn(`[dr-scrape] Falling back to Playwright due to missing OutSystems template after ${sampleUrls.length} warmup attempt(s).`);
   }
 
-  const CHUNK_SIZE = 20;
+  const CHUNK_SIZE = parseInt(process.env.DR_SCRAPE_ENRICH_CHUNK_SIZE ?? "5", 10) || 5;
 
   for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
     const chunk = candidates.slice(i, i + CHUNK_SIZE);
