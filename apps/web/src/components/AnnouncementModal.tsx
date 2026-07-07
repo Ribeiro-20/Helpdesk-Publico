@@ -429,7 +429,7 @@ export default function AnnouncementModal({
           {loading ? (
             <div className="h-6 w-3/4 bg-white/10 rounded animate-pulse" />
           ) : (
-            <h2 className="text-white text-base font-bold leading-snug sm:text-lg">
+            <h2 className="text-white text-base font-bold leading-snug line-clamp-3 sm:text-lg" title={displayTitle}>
               {displayTitle}
             </h2>
           )}
@@ -554,7 +554,7 @@ export default function AnnouncementModal({
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
                       DESCRIÇÃO
                     </p>
-                    <p className="text-sm text-gray-800 leading-relaxed">
+                    <p className="text-sm text-gray-800 leading-relaxed line-clamp-6" title={displayDescription}>
                       {displayDescription}
                     </p>
                   </div>

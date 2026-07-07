@@ -751,7 +751,7 @@ export function buildAnnouncementEmail(params: {
           <tr>
             <td style="padding:18px 18px 8px 18px;">
               <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:6px;">Objeto do contrato</div>
-              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(objectStr)}</div>
+              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word; overflow-wrap:anywhere; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; max-height:87px;">${escapeEmailHtml(objectStr)}</div>
             </td>
           </tr>
 
