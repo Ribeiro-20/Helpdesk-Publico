@@ -80,6 +80,7 @@ function MissingInfo({
         ariaLabel="Dados ainda nao disponiveis"
         placement={placement}
         side={side}
+        triggerAs="span"
       />
     </span>
   );
@@ -184,21 +185,21 @@ export default function OportunidadesResults({
                 <div className="mt-1.5 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400">Publicação</p>
-                    <p className="mt-0.5 text-gray-700">
+                    <div className="mt-0.5 text-gray-700">
                       {op.publication_date ? fmtDate(op.publication_date) : <MissingInfo placement="bottom" side="left" />}
-                    </p>
+                    </div>
                   </div>
 
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400">Data limite</p>
-                    <p className="mt-0.5 text-gray-700">
+                    <div className="mt-0.5 text-gray-700">
                       {op.proposal_deadline_at ? fmtDate(op.proposal_deadline_at) : <MissingInfo placement="bottom" side="left" />}
-                    </p>
+                    </div>
                   </div>
 
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400">CPV</p>
-                    <p className="mt-0.5">
+                    <div className="mt-0.5">
                       {op.cpv_main ? (
                         <span
                           title={cpvTitle}
@@ -209,14 +210,14 @@ export default function OportunidadesResults({
                       ) : (
                         <MissingInfo placement="bottom" side="left" />
                       )}
-                    </p>
+                    </div>
                   </div>
 
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400">Valor</p>
-                    <p className="mt-0.5 font-medium text-gray-900">
+                    <div className="mt-0.5 font-medium text-gray-900">
                       {op.base_price == null ? <MissingInfo placement="bottom" side="left" /> : fmtMoney(op.base_price, op.currency)}
-                    </p>
+                    </div>
                   </div>
                 </div>
               </button>
