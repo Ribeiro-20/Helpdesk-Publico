@@ -9,7 +9,6 @@ const PUBLIC_PATHS = [
   "/estatisticas-privado",
   "/oportunidades",
   "/login-mi",
-  "/outros",
   "/api/contracts",
   "/api/mi-login",
   "/api/mi-verify",

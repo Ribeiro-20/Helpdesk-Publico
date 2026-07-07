@@ -84,19 +84,27 @@ Deno.serve(async (req) => {
         return true;
       });
 
-      for (const contract of matchedContracts) {
-        // Insert PENDING notification (UNIQUE constraint will avoid duplicate emails automatically)
-        const { error: insertErr } = await supabase
-          .from("mi_contract_notifications")
-          .insert({
-            subscriber_id: sub.id,
-            contract_id: contract.id,
-            progress_at_send: contract.progress,
-            status: "PENDING",
-          });
+      // Limit to top 1 contract per subscriber (user request)
+      const limitedContracts = matchedContracts
+        .sort((a: any, b: any) => (b.progress ?? 0) - (a.progress ?? 0))
+        .slice(0, 1);
 
-        if (!insertErr) {
-          notificationsCreated++;
+      // Batch insert PENDING notifications
+      const rows = limitedContracts.map((contract: any) => ({
+        subscriber_id: sub.id,
+        contract_id: contract.id,
+        progress_at_send: contract.progress,
+        status: "PENDING",
+      }));
+
+      if (rows.length > 0) {
+        const { data: inserted, error: batchErr } = await supabase
+          .from("mi_contract_notifications")
+          .upsert(rows, { onConflict: "subscriber_id,contract_id", ignoreDuplicates: true })
+          .select("id");
+
+        if (!batchErr && inserted) {
+          notificationsCreated += inserted.length;
         }
       }
     }
@@ -180,6 +188,7 @@ Deno.serve(async (req) => {
           const estimatedEndDate = endDate.toISOString().slice(0, 10);
 
           return {
+            contractId: item.id,
             object: item.object,
             entity: cleanEntityName(entityRaw),
             winner: cleanEntityName(winnerRaw),

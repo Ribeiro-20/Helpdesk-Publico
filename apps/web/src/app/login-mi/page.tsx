@@ -9,8 +9,8 @@ import { Mail, ShieldCheck, ArrowLeft, KeyRound } from "lucide-react";
 
 export default function LoginMIPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
+  const [token, setToken] = useState("");
   const [step, setStep] = useState<"login" | "verify">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export default function LoginMIPage() {
     try {
       const res = await fetch("/api/mi-login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email }),
         headers: { "Content-Type": "application/json" },
       });
 
@@ -35,6 +35,7 @@ export default function LoginMIPage() {
         return;
       }
 
+      setToken(data.token);
       setStep("verify");
       setLoading(false);
     } catch {
@@ -51,7 +52,7 @@ export default function LoginMIPage() {
     try {
       const res = await fetch("/api/mi-verify", {
         method: "POST",
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code, token }),
         headers: { "Content-Type": "application/json" },
       });
 
@@ -106,20 +107,7 @@ export default function LoginMIPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Palavra-passe</label>
-                  <div className="relative">
-                    <ShieldCheck className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="w-full bg-slate-50 border-none rounded-2xl pl-12 pr-4 py-3.5 text-sm focus:ring-2 focus:ring-emerald-500/20 transition-all font-medium text-slate-700"
-                      placeholder="********"
-                    />
-                  </div>
-                </div>
+
 
                 {error && (
                   <div className="bg-rose-50 border border-rose-100 text-rose-600 rounded-2xl px-4 py-3 text-xs font-bold animate-shake">{error}</div>

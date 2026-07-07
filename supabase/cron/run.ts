@@ -358,7 +358,14 @@ if (isOnce) {
     runIngestPipeline().catch(console.error);
   });
 
+  // MI Contract Alerts – weekdays at 08:00 (after nightly contract ingestion)
+  cron.schedule("0 8 * * 1-5", () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – mi-contract-alerts`);
+    callFunction("mi-contract-alerts").catch(console.error);
+  }, { timezone: "Europe/Lisbon" });
+
   console.log("[cron] Scheduled:");
   console.log("  ingest-base                                       → weekdays at 13:30 and 23:30");
+  console.log("  mi-contract-alerts                                → weekdays at 08:00 (Lisbon)");
   console.log("[cron] Press Ctrl+C to stop.\n");
 }

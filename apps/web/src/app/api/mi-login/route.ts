@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/server";
+import crypto from "crypto";
 
-// Memory storage for verification codes
-const globalAny: any = global;
-if (!globalAny.miCodes) {
-  globalAny.miCodes = new Map<string, { code: string; expires: number }>();
+// HMAC secret — uses SUPABASE_SERVICE_ROLE_KEY as a server-side secret
+function getHmacSecret(): string {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY || "mi-login-fallback-secret";
+}
+
+function createVerificationToken(email: string, code: string, expiresAt: number): string {
+  const payload = `${email}:${code}:${expiresAt}`;
+  const hmac = crypto.createHmac("sha256", getHmacSecret()).update(payload).digest("hex");
+  const token = Buffer.from(JSON.stringify({ email, expiresAt, hmac })).toString("base64url");
+  return token;
 }
 
 export async function POST(request: Request) {
@@ -14,18 +22,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email é obrigatório" }, { status: 400 });
     }
 
-    // Generate 6-digit code
+    const normalizedEmail = email.toLowerCase().trim();
+    const supabase = await createAdminClient();
+
+    // 1. Verify if subscriber exists and is active
+    const { data: subscriber, error: dbError } = await supabase
+      .from("mi_subscribers")
+      .select("id, is_active")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (dbError) {
+      console.error("[MI-LOGIN] Database error:", dbError);
+      return NextResponse.json({ error: "Erro ao validar subscritor." }, { status: 500 });
+    }
+
+    if (!subscriber) {
+      return NextResponse.json({ error: "Este email não está autorizado a aceder ao Market Intelligence." }, { status: 403 });
+    }
+
+    if (!subscriber.is_active) {
+      return NextResponse.json({ error: "A sua subscrição do Market Intelligence está inativa." }, { status: 403 });
+    }
+
+    // 2. Generate 6-digit code and sign it (stateless — nothing stored in DB)
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const verificationToken = createVerificationToken(normalizedEmail, code, expiresAt);
 
-    // Store in memory (expires in 10 minutes)
-    globalAny.miCodes.set(email, {
-      code,
-      expires: Date.now() + 10 * 60 * 1000
-    });
+    console.log(`[MI-LOGIN] Code for ${normalizedEmail}: ${code}`);
 
-    console.log(`[MI-LOGIN] Code for ${email}: ${code}`);
-
-    // Send email using Brevo API
+    // 3. Send email using Brevo API
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
@@ -36,9 +63,9 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         sender: {
           name: "Market Intelligence | Helpdesk Público",
-          email: process.env.BREVO_SENDER_EMAIL || "helpdesk.publico@gmail.com",
+          email: process.env.BREVO_SENDER_EMAIL || "helpdesk.publico@11113040.brevosend.com",
         },
-        to: [{ email: email }],
+        to: [{ email: normalizedEmail }],
         subject: "Código de acesso - Market Intelligence | Helpdesk Público",
         htmlContent: `
           <div style="font-family: sans-serif; padding: 20px; color: #333;">
@@ -61,7 +88,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Erro ao enviar email de verificação." }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    // Return the verification token to the client (no DB storage needed)
+    return NextResponse.json({ success: true, token: verificationToken });
   } catch (err) {
     console.error("[MI-LOGIN] Unexpected Error:", err);
     return NextResponse.json({ error: "Erro interno do servidor." }, { status: 500 });
