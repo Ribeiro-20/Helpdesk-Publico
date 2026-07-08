@@ -12,6 +12,7 @@ type CpvHintItem = {
 
 type Props = {
   items: CpvHintItem[];
+  linkQuery?: string;
 };
 
 function chunkItems<T>(arr: T[], chunkSize: number): T[][] {
@@ -35,7 +36,7 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export default function CpvCarouselHints({ items }: Props) {
+export default function CpvCarouselHints({ items, linkQuery = "" }: Props) {
   const fallback: CpvHintItem[] = [
     { code: "77000000-0", description: "Serviços de agricultura, silvicultura e horticultura", contracts: 0, totalValue: 0 },
     { code: "71240000-2", description: "Serviços de arquitectura, engenharia e planeamento", contracts: 0, totalValue: 0 },
@@ -78,7 +79,7 @@ export default function CpvCarouselHints({ items }: Props) {
             {page.map((item, idx) => (
               <Link
                 key={`${item.code}-${idx}`}
-                href={`/market?cpv=${encodeURIComponent(item.code)}`}
+                href={`/market?cpv=${encodeURIComponent(item.code)}${linkQuery ? `&${linkQuery}` : ""}`}
                 className="group flex h-full flex-col rounded-xl border border-surface-200 bg-white p-3 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md"
               >
                 <p className="text-base font-bold text-gray-900 group-hover:text-brand-700">{item.code}</p>
