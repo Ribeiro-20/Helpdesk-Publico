@@ -531,7 +531,7 @@ export default async function OportunidadesPage({
               <div>
                 <MercadoMultiSelect
                   name="model"
-                  label="Tipo de modelo"
+                  label="Tipo de Procedimento"
                   options={modelTypeOptions}
                   defaultSelected={modelTypeFilters}
                 />

@@ -536,7 +536,7 @@ export default async function AnnouncementsPage({
           <div>
             <MercadoMultiSelect
               name="procedure_type"
-              label="Tipo de modelo"
+              label="Tipo de Procedimento"
               options={[...MODEL_TYPE_CANONICAL]}
               defaultSelected={procedureTypeFilters}
             />
