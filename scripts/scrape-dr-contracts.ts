@@ -150,6 +150,7 @@ async function waitForJsonResponse(page: Page, urlPart: string | string[], timeo
 }
 
 const DR_DETAIL_DATA_ENDPOINTS = [
+  "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetAllConteudoDetalheData",
   "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetConteudoData",
   "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetConteudoDataAndApplicationSettings",
 ];
@@ -427,8 +428,13 @@ async function resolveTodayDailyUrl(maxWaitMs: number): Promise<string> {
   return buildDailyUrlFromHit(target);
 }
 
-async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[], maxWaitMs: number): Promise<string[]> {
-  const urls: string[] = [];
+type DailyUrlTarget = {
+  url: string;
+  date: string;
+};
+
+async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[], maxWaitMs: number): Promise<DailyUrlTarget[]> {
+  const urls: DailyUrlTarget[] = [];
   const seen = new Set<string>();
 
   for (const date of [...dates].reverse()) {
@@ -438,7 +444,7 @@ async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[]
       const url = buildDailyUrlFromHit(target);
       if (!seen.has(url)) {
         seen.add(url);
-        urls.push(url);
+        urls.push({ url, date });
       }
       continue;
     }
@@ -452,7 +458,7 @@ async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[]
     const url = buildDailyUrlFromParts(fallback.numero, fallback.ano, fallback.dbId);
     if (seen.has(url)) continue;
     seen.add(url);
-    urls.push(url);
+    urls.push({ url, date });
     console.log(`[dr-scrape] fallback search resolved date=${date}: ${fallback.title}`);
   }
 
@@ -471,12 +477,13 @@ async function scrapeByDateRange(fromDate: string, toDate: string, maxWaitMs: nu
   const all: DrContractCandidate[] = [];
   const seen = new Set<string>();
 
-  for (const url of urls) {
+  for (const { url, date } of urls) {
     if (all.length >= totalLimit) break;
 
     const remaining = totalLimit - all.length;
     const dayCandidates = await scrapeDailyContracts(url, maxWaitMs, remaining);
     for (const c of dayCandidates) {
+      c.publication_date = c.publication_date ?? date;
       const key = c.dr_announcement_no ?? c.base_announcement_id ?? sha256(stableStringify(c.raw_payload));
       if (seen.has(key)) continue;
       seen.add(key);
@@ -1068,7 +1075,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
           const vars = body.screenData?.variables ?? {};
           
           vars.ContPubId = repId;
-          vars.DiarioRepId = "0"; // Reset defaults
+          vars.DiarioRepId = repId;
           vars.DipLegisId = "0";
           vars.ConteudoId = repId;
           vars.Numero = numero;
