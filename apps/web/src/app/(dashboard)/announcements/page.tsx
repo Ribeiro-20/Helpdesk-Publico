@@ -5,6 +5,7 @@ import MercadoDateDropdown from "@/components/MercadoDateDropdown";
 import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import CurrencyValueField from "@/components/CurrencyValueField";
+import EntitySearchInput from "@/components/EntitySearchInput";
 import Link from "next/link";
 import { Megaphone, ArrowUp, ArrowDown, ArrowUpDown, FileSpreadsheet, Filter } from "lucide-react";
 import { effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
@@ -205,6 +206,63 @@ function getArrayParam(value: string | string[] | undefined): string[] {
   );
 }
 
+function normalizeEntitySearch(value: string): string {
+  return value
+    .toLocaleLowerCase("pt-PT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildEntitySearchTerms(value: string): string[] {
+  const normalized = normalizeEntitySearch(value);
+  if (!normalized) return [];
+
+  const stopWords = new Set(["de", "do", "da", "dos", "das", "e", "a", "o"]);
+  const tokens = normalized
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+
+  const unique = Array.from(new Set(tokens));
+  if (unique.length === 0 && normalized) return [normalized];
+  return unique.slice(0, 5);
+}
+
+function toIlikeToken(value: string): string {
+  return value.replace(/[%,]/g, " ").trim();
+}
+
+function buildDiacriticVariants(token: string, maxVariants = 32): string[] {
+  const groups: Record<string, string[]> = {
+    a: ["a", "á", "à", "â", "ã"],
+    e: ["e", "é", "ê"],
+    i: ["i", "í"],
+    o: ["o", "ó", "ô", "õ"],
+    u: ["u", "ú"],
+    c: ["c", "ç"],
+  };
+
+  let variants = [""];
+  for (const char of token.toLocaleLowerCase("pt-PT")) {
+    const choices = groups[char] ?? [char];
+    const next: string[] = [];
+    for (const base of variants) {
+      for (const choice of choices) {
+        next.push(base + choice);
+        if (next.length >= maxVariants) break;
+      }
+      if (next.length >= maxVariants) break;
+    }
+    variants = next.length > 0 ? next : variants;
+    if (variants.length >= maxVariants) break;
+  }
+
+  return Array.from(new Set(variants.map((variant) => variant.trim()).filter(Boolean)));
+}
+
 function buildCpvFilterClause(values: string[]): string {
   const clauses = values.flatMap((value) => {
     const filterCore8 = cpvCore8(value);
@@ -324,6 +382,37 @@ export default async function AnnouncementsPage({
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
+  let entityOptionsQuery = supabase
+    .from("announcements")
+    .select("entity_name, entity_nif, publication_date")
+    .not("entity_name", "is", null)
+    .order("publication_date", { ascending: false })
+    .limit(300);
+
+  if (appUser?.tenant_id) {
+    entityOptionsQuery = entityOptionsQuery.eq("tenant_id", appUser.tenant_id);
+  }
+
+  const { data: rawEntityOptions } = await entityOptionsQuery;
+
+  const seenEntityKeys = new Set<string>();
+  const entityOptions = (rawEntityOptions ?? [])
+    .map((row) => ({
+      name: String((row as { entity_name?: unknown }).entity_name ?? "").trim(),
+      nif: (() => {
+        const digits = String((row as { entity_nif?: unknown }).entity_nif ?? "").replace(/\D/g, "");
+        return digits || null;
+      })(),
+    }))
+    .filter((row) => {
+      if (!row.name) return false;
+      const key = `${normalizeEntitySearch(row.name)}|${row.nif ?? ""}`;
+      if (seenEntityKeys.has(key)) return false;
+      seenEntityKeys.add(key);
+      return true;
+    })
+    .slice(0, 120);
+
   let query = supabase
     .from("announcements")
     .select(
@@ -336,10 +425,28 @@ export default async function AnnouncementsPage({
     query = query.or(buildCpvFilterClause(cpvFilters));
   }
   if (entityFilter) {
-    if (entityNifFilter.length >= 5) {
-      query = query.or(`entity_name.ilike.%${entityFilter}%,entity_nif.ilike.%${entityNifFilter}%`);
-    } else {
-      query = query.ilike("entity_name", `%${entityFilter}%`);
+    const termClauses = buildEntitySearchTerms(entityFilter)
+      .flatMap((term) => {
+        const ilikeTerm = toIlikeToken(term);
+        if (!ilikeTerm) return [];
+        const variants = buildDiacriticVariants(ilikeTerm, 32);
+        return variants.length > 0 ? variants : [ilikeTerm];
+      })
+      .filter(Boolean)
+      .map((term) => `entity_name.ilike.%${term}%`);
+    const baseEntityToken = toIlikeToken(entityFilter);
+    const baseEntityVariants = baseEntityToken ? buildDiacriticVariants(baseEntityToken, 32) : [];
+
+    const orClauses = Array.from(
+      new Set([
+        ...baseEntityVariants.map((term) => `entity_name.ilike.%${term}%`),
+        ...termClauses,
+        ...(entityNifFilter.length >= 5 ? [`entity_nif.ilike.%${entityNifFilter}%`] : []),
+      ]),
+    );
+
+    if (orClauses.length > 0) {
+      query = query.or(orClauses.join(","));
     }
   }
   if (announcementNumberFilter) query = query.or(`dr_announcement_no.ilike.%${announcementNumberFilter}%,base_announcement_id.ilike.%${announcementNumberFilter}%`);
@@ -497,10 +604,12 @@ export default async function AnnouncementsPage({
 
           <div>
             <label className="block text-xs text-gray-400 mb-1">Entidade Adjudicante</label>
-            <input
+            <EntitySearchInput
               name="entity"
               defaultValue={entityFilter}
               placeholder="Nome ou NIPC"
+              minChars={2}
+              options={entityOptions}
               className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>

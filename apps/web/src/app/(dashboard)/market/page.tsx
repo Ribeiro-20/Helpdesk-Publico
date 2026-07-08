@@ -5,6 +5,7 @@ import MarketInsightPanel from "../../../components/market/MarketInsightPanel";
 import CpvCarouselHints from "../../../components/market/CpvCarouselHints";
 import MarketChartsLoader from "../../../components/market/MarketChartsLoader";
 import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel";
+import BaseHistoricalIngestButton from "@/components/market/BaseHistoricalIngestButton";
 import CpvMultiSearchInput from "../../../components/CpvMultiSearchInput";
 import SingleDatePicker from "../../../components/SingleDatePicker";
 
@@ -157,6 +158,29 @@ const MODEL_TYPE_OPTIONS = [
   "Anúncio de Adjudicação de Aquisição de Serviços Sociais e de Outros Serviços Específicos",
   "Concurso público simplificado",
   "Concurso limitado por prévia qualificação simplificado",
+] as const;
+
+const DISTRICT_OPTIONS = [
+  "Aveiro",
+  "Beja",
+  "Braga",
+  "Bragança",
+  "Castelo Branco",
+  "Coimbra",
+  "Évora",
+  "Faro",
+  "Guarda",
+  "Leiria",
+  "Lisboa",
+  "Portalegre",
+  "Porto",
+  "Região Autónoma da Madeira",
+  "Região Autónoma dos Açores",
+  "Santarém",
+  "Setúbal",
+  "Viana do Castelo",
+  "Vila Real",
+  "Viseu",
 ] as const;
 
 const marketPageCache = new Map<string, { expiresAt: number; data: MarketCacheData }>();
@@ -541,7 +565,12 @@ export default async function MarketPage({
   const yearFilter = (params.year ?? "").trim();
   const monthFilter = (params.month ?? "").trim();
   const districtFilter = (params.district ?? "").trim();
+  const districtSelectValue = DISTRICT_OPTIONS.includes(districtFilter as (typeof DISTRICT_OPTIONS)[number])
+    ? districtFilter
+    : "";
   const cpvFamilyFilter = (params.cpv_family ?? "").trim();
+  const cpvFamilyPrefixFilter = deriveCpvFamilyPrefix(cpvFamilyFilter);
+  const cpvFamilyLikeFilter = cpvFamilyPrefixFilter ? `${cpvFamilyPrefixFilter}%` : "";
   const sortFilter = (params.sort ?? "").trim() || "relevance";
 
   const cpvFamilyPrefix = deriveCpvFamilyPrefix(cpvFilter);
@@ -581,6 +610,13 @@ export default async function MarketPage({
     p.set("analysis", selectedAnalysis ?? "contracts");
     p.set("apply", "1");
     return p.toString();
+  })();
+
+  const observatoryHref = (() => {
+    const p = new URLSearchParams(baseParams);
+    p.set("analysis", selectedAnalysis ?? "contracts");
+    p.set("apply", "1");
+    return `/estatisticas-privado?${p.toString()}`;
   })();
 
   const analysisButtons = (
@@ -697,12 +733,16 @@ export default async function MarketPage({
 
           <label className="block">
             <span className="mb-1 block text-xs text-gray-400">Distrito</span>
-            <input
+            <select
               name="district"
-              defaultValue={districtFilter}
-              placeholder="Ex: Lisboa"
+              defaultValue={districtSelectValue}
               className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            />
+            >
+              <option value="">Todos</option>
+              {DISTRICT_OPTIONS.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
           </label>
 
           <label className="block">
@@ -733,6 +773,7 @@ export default async function MarketPage({
               className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             >
               <option value="relevance">Mais relevantes</option>
+              <option value="detail_desc">Maior pormenor</option>
               <option value="recent">Mais recentes</option>
               <option value="value_desc">Maior valor</option>
               <option value="value_asc">Menor valor</option>
@@ -747,6 +788,16 @@ export default async function MarketPage({
           >
             Filtrar
           </button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={observatoryHref}
+            className="rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-card transition-all hover:bg-surface-50"
+          >
+            Abrir observatório com estes filtros
+          </a>
+          <BaseHistoricalIngestButton />
         </div>
       </form>
     </div>
@@ -808,6 +859,8 @@ export default async function MarketPage({
   let cpvCatalogRelated: Array<{ id: string; descricao: string }> = [];
   let cpvCatalogFamilyCount: number | null = null;
   let resultRows: ContractForResults[] = [];
+  let announcementsUnitCount: number | null = null;
+  let contractsUnitCount: number | null = null;
 
   if (cachedData) {
     totalCpvStats = cachedData.totalCpvStats;
@@ -1126,7 +1179,7 @@ export default async function MarketPage({
     if (needsRealtimeFamilyStats) {
       const targetCodes = new Set(cpvCarouselItems.map((item) => normalizeCpvInput(item.code)));
       const agg = new Map<string, { contracts: number; totalValue: number }>();
-      for (const code of targetCodes) {
+      for (const code of Array.from(targetCodes)) {
         agg.set(code, { contracts: 0, totalValue: 0 });
       }
 
@@ -1148,7 +1201,7 @@ export default async function MarketPage({
           if (code) presentCodes.add(code);
         }
 
-        for (const code of presentCodes) {
+        for (const code of Array.from(presentCodes)) {
           if (!targetCodes.has(code)) continue;
           const current = agg.get(code);
           if (!current) continue;
@@ -1261,6 +1314,9 @@ export default async function MarketPage({
       if (modelTypeFilter) {
         announcementsQuery = announcementsQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
       }
+      if (cpvFamilyLikeFilter) {
+        announcementsQuery = announcementsQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+      }
       if (dateStart) {
         announcementsQuery = announcementsQuery.gte("publication_date", dateStart);
       }
@@ -1302,6 +1358,7 @@ export default async function MarketPage({
       resultRows = mappedRows.filter((row) =>
         matchesDeadlineBucket(daysRemaining(row.proposal_deadline_at ?? null), deadlineBucketFilter),
       );
+      announcementsUnitCount = resultRows.length;
     } else {
       let resultsQuery = supabase
         .from("contracts")
@@ -1324,6 +1381,9 @@ export default async function MarketPage({
       if (modelTypeFilter) {
         resultsQuery = resultsQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
       }
+      if (cpvFamilyLikeFilter) {
+        resultsQuery = resultsQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+      }
       if (dateStart) {
         resultsQuery = resultsQuery.gte("signing_date", dateStart);
       }
@@ -1340,6 +1400,7 @@ export default async function MarketPage({
       resultRows = districtFilteredRows.filter((row) =>
         matchesDeadlineBucket(daysRemaining(row.proposal_deadline_at ?? null), deadlineBucketFilter),
       );
+      contractsUnitCount = resultRows.length;
     }
 
     if (sortFilter === "value_desc") {
@@ -1348,6 +1409,57 @@ export default async function MarketPage({
       resultRows.sort((a, b) => Number(a.contract_price ?? 0) - Number(b.contract_price ?? 0));
     } else if (sortFilter === "recent") {
       resultRows.sort((a, b) => String(b.signing_date ?? "").localeCompare(String(a.signing_date ?? "")));
+    } else if (sortFilter === "detail_desc") {
+      resultRows.sort((a, b) => String(b.object ?? "").length - String(a.object ?? "").length);
+    }
+
+    if (announcementsUnitCount == null) {
+      let announcementsCountQuery = supabase
+        .from("announcements")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      if (cpvFilters.length > 0) {
+        const cpvPatterns = buildCpvIlikePatterns(cpvFilters);
+        if (cpvPatterns.length > 0) {
+          announcementsCountQuery = announcementsCountQuery.or(
+            cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(","),
+          );
+        }
+      }
+      if (actTypeFilter) announcementsCountQuery = announcementsCountQuery.ilike("act_type", `%${actTypeFilter}%`);
+      if (contractTypeFilter) announcementsCountQuery = announcementsCountQuery.ilike("contract_type", `%${contractTypeFilter}%`);
+      if (modelTypeFilter) announcementsCountQuery = announcementsCountQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
+      if (cpvFamilyLikeFilter) announcementsCountQuery = announcementsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+      if (dateStart) announcementsCountQuery = announcementsCountQuery.gte("publication_date", dateStart);
+      if (dateEnd) announcementsCountQuery = announcementsCountQuery.lt("publication_date", dateEnd);
+
+      const { count } = await announcementsCountQuery;
+      announcementsUnitCount = count ?? 0;
+    }
+
+    if (contractsUnitCount == null) {
+      let contractsCountQuery = supabase
+        .from("contracts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      if (cpvFilters.length > 0) {
+        const cpvPatterns = buildCpvIlikePatterns(cpvFilters);
+        if (cpvPatterns.length > 0) {
+          contractsCountQuery = contractsCountQuery.or(
+            cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(","),
+          );
+        }
+      }
+      if (contractTypeFilter) contractsCountQuery = contractsCountQuery.ilike("contract_type", `%${contractTypeFilter}%`);
+      if (modelTypeFilter) contractsCountQuery = contractsCountQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
+      if (cpvFamilyLikeFilter) contractsCountQuery = contractsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+      if (dateStart) contractsCountQuery = contractsCountQuery.gte("signing_date", dateStart);
+      if (dateEnd) contractsCountQuery = contractsCountQuery.lt("signing_date", dateEnd);
+
+      const { count } = await contractsCountQuery;
+      contractsUnitCount = count ?? 0;
     }
   }
 
@@ -1387,6 +1499,11 @@ export default async function MarketPage({
     : marketOverview?.totalValue ?? 0);
   const kpiAvgValue = kpiContracts > 0 ? kpiTotalValue / kpiContracts : 0;
   const kpiDiscount = cpvInsight?.avg_discount_pct ?? marketOverview?.avgDiscountPct ?? null;
+  const unitAnnouncements = Math.max(0, announcementsUnitCount ?? 0);
+  const unitContracts = Math.max(0, contractsUnitCount ?? 0);
+  const unitTotal = unitAnnouncements + unitContracts;
+  const unitAnnouncementsPct = unitTotal > 0 ? (unitAnnouncements / unitTotal) * 100 : null;
+  const unitContractsPct = unitTotal > 0 ? (unitContracts / unitTotal) * 100 : null;
 
   return (
     <div className="space-y-8">
@@ -1428,6 +1545,27 @@ export default async function MarketPage({
         <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
           <p className="text-xs uppercase tracking-wider text-gray-500">Desconto médio</p>
           <p className="mt-1 text-2xl font-extrabold text-gray-900">{kpiDiscount == null ? "--" : `${kpiDiscount.toFixed(1)}%`}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Anúncios (unidade)</p>
+          <p className="mt-1 text-xl font-extrabold text-gray-900">
+            {formatCount(unitAnnouncements)}
+            <span className="ml-2 text-base font-semibold text-brand-600">
+              {unitAnnouncementsPct == null ? "--" : `${unitAnnouncementsPct.toFixed(1)}%`}
+            </span>
+          </p>
+        </div>
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Contratos (unidade)</p>
+          <p className="mt-1 text-xl font-extrabold text-gray-900">
+            {formatCount(unitContracts)}
+            <span className="ml-2 text-base font-semibold text-brand-600">
+              {unitContractsPct == null ? "--" : `${unitContractsPct.toFixed(1)}%`}
+            </span>
+          </p>
         </div>
       </div>
 
