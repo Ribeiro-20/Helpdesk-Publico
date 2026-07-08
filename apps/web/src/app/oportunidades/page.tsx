@@ -7,6 +7,7 @@ import OportunidadesResults from "@/components/OportunidadesResults";
 import InfoPopover from "@/components/InfoPopover";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
+import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import CurrencyValueField from "../../components/CurrencyValueField";
 import { FileText, Filter, House } from "lucide-react";
@@ -20,10 +21,10 @@ type OportunidadesSearchParams = {
   cpv?: string;
   entity?: string;
   announcement_number?: string;
-  act_type?: string;
-  model?: string;
-  procedure?: string;
-  contract_type?: string;
+  act_type?: string | string[];
+  model?: string | string[];
+  procedure?: string | string[];
+  contract_type?: string | string[];
   min_value?: string;
   max_value?: string;
   from_day?: string;
@@ -236,6 +237,14 @@ function toIsoFromParts(day: string, month: string, year: string): string {
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
+function getArrayParam(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  return (Array.isArray(value) ? value : [value])
+    .flatMap((item) => item.split("|"))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 export default async function OportunidadesPage({
   searchParams,
 }: {
@@ -259,9 +268,11 @@ export default async function OportunidadesPage({
   ].includes(rawSort)
     ? rawSort
     : "publication_date_desc";
-  const actType = (params.act_type ?? "").trim();
-  const modelType = (params.model ?? params.procedure ?? "").trim();
-  const contractType = (params.contract_type ?? "").trim();
+  const actTypeFilters = getArrayParam(params.act_type);
+  const modelTypeFilters = Array.from(
+    new Set([...getArrayParam(params.model), ...getArrayParam(params.procedure)]),
+  );
+  const contractTypeFilters = getArrayParam(params.contract_type);
   const minValue = (params.min_value ?? "").trim();
   const maxValue = (params.max_value ?? "").trim();
 
@@ -318,14 +329,23 @@ export default async function OportunidadesPage({
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) query = query.ilike("entity_name", `%${entity}%`);
-    if (actType) {
-      query = query.in("act_type", actTypeFilterValues(actType));
+    if (actTypeFilters.length > 0) {
+      query = query.in(
+        "act_type",
+        Array.from(new Set(actTypeFilters.flatMap((value) => actTypeFilterValues(value)))),
+      );
     }
-    if (modelType) {
-      query = query.in("procedure_type", modelTypeFilterValues(modelType));
+    if (modelTypeFilters.length > 0) {
+      query = query.in(
+        "procedure_type",
+        Array.from(new Set(modelTypeFilters.flatMap((value) => modelTypeFilterValues(value)))),
+      );
     }
-    if (contractType) {
-      query = query.in("contract_type", contractTypeFilterValues(contractType));
+    if (contractTypeFilters.length > 0) {
+      query = query.in(
+        "contract_type",
+        Array.from(new Set(contractTypeFilters.flatMap((value) => contractTypeFilterValues(value)))),
+      );
     }
     if (announcementNumber) {
       query = query.or(
@@ -398,9 +418,9 @@ export default async function OportunidadesPage({
     Boolean(cpv) ||
     Boolean(entity) ||
     Boolean(announcementNumber) ||
-    Boolean(actType) ||
-    Boolean(modelType) ||
-    Boolean(contractType) ||
+    actTypeFilters.length > 0 ||
+    modelTypeFilters.length > 0 ||
+    contractTypeFilters.length > 0 ||
     Boolean(minValue) ||
     Boolean(maxValue) ||
     Boolean(fromDate) ||
@@ -410,9 +430,9 @@ export default async function OportunidadesPage({
     cpv,
     entity,
     announcementNumber,
-    actType,
-    modelType,
-    contractType,
+    actTypeFilters.join("|"),
+    modelTypeFilters.join("|"),
+    contractTypeFilters.join("|"),
     minValue,
     maxValue,
     fromDate,
@@ -491,38 +511,29 @@ export default async function OportunidadesPage({
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="act_type"
                   label="Tipo de ato"
-                  defaultValue={actType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...actTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  options={actTypeOptions}
+                  defaultSelected={actTypeFilters}
                 />
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="contract_type"
                   label="Tipo de contrato"
-                  defaultValue={contractType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...contractTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  options={contractTypeOptions}
+                  defaultSelected={contractTypeFilters}
                 />
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="model"
                   label="Tipo de modelo"
-                  defaultValue={modelType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...modelTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  options={modelTypeOptions}
+                  defaultSelected={modelTypeFilters}
                 />
               </div>
 
@@ -633,10 +644,10 @@ export default async function OportunidadesPage({
               announcement_number: announcementNumber,
               limit: String(PAGE_SIZE),
               sort,
-              act_type: actType,
-              model: modelType,
-              procedure: modelType,
-              contract_type: contractType,
+              model: modelTypeFilters,
+              procedure: modelTypeFilters,
+              act_type: actTypeFilters,
+              contract_type: contractTypeFilters,
               min_value: minValue,
               max_value: maxValue,
               from_day: fromDay,
