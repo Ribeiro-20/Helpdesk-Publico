@@ -218,6 +218,7 @@ Deno.serve(async (req) => {
           subject,
           html,
           text,
+          from: { email: "marketintelligence@helpdeskpublico.pt", name: "Helpdesk Público" },
         });
 
         if (result.success) {

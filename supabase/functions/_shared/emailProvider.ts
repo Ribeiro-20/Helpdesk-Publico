@@ -16,6 +16,7 @@ export interface EmailMessage {
   subject: string;
   html: string;
   text?: string;
+  from?: { email: string; name: string };
   attachments?: Array<{ name: string; content: string; contentType?: string }>;
 }
 
@@ -158,10 +159,12 @@ class BrevoEmailProvider implements EmailProvider {
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
+    const senderEmail = msg.from?.email ?? this.fromEmail;
+    const senderName = msg.from?.name ?? this.fromName;
     const payload = {
       sender: {
-        name: this.fromName,
-        email: this.fromEmail,
+        name: senderName,
+        email: senderEmail,
       },
       to: [{ email: msg.to }],
       subject: msg.subject,
