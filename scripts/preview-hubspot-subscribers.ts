@@ -128,7 +128,7 @@ function getCliArgValue(name: string): string | null {
   return null;
 }
 
-const token = process.env.HUBSPOT_ACCESS_TOKEN?.trim();
+const token = process.env.HUBSPOT_MI_ACCESS_TOKEN?.trim();
 const cliSegmentId = getCliArgValue("--segment-id");
 const listId = cliSegmentId || process.env.HUBSPOT_SEGMENT_ID?.trim();
 const supabaseUrl = process.env.SUPABASE_URL?.trim();
@@ -212,7 +212,7 @@ function parseCpvs(rawValue: string | null): { cpvs: string[]; invalidCpvs: stri
 }
 
 async function hubspotFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const accessToken = requireEnv("HUBSPOT_ACCESS_TOKEN", token);
+  const accessToken = requireEnv("HUBSPOT_MI_ACCESS_TOKEN", token);
   const response = await fetch(`${HUBSPOT_BASE_URL}${path}`, {
     ...init,
     headers: {
@@ -684,8 +684,8 @@ async function applySync(
 }
 
 async function main() {
-  requireEnv("HUBSPOT_ACCESS_TOKEN", token);
-  requireEnv("HUBSPOT_SEGMENT_ID", listId);
+  requireEnv("HUBSPOT_MI_ACCESS_TOKEN", token);
+  requireEnv("HUBSPOT_MI_SEGMENT_ID", listId);
   const resolvedSupabaseUrl = requireEnv("SUPABASE_URL", supabaseUrl);
   const resolvedServiceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY", serviceRoleKey);
   const supabase = createClient(resolvedSupabaseUrl, resolvedServiceRoleKey, {
