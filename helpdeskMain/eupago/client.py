@@ -4,7 +4,7 @@ from typing import Any
 from requests import Response
 import os
 import requests
-
+"""
 # TODO: Add Logging.
 class EupagoClient:
     def __init__(self):
@@ -49,7 +49,7 @@ from typing import Any
 from requests import Response
 import os
 import requests
-
+"""
 # TODO: Add Logging.
 class EupagoClient:
     def __init__(self):

@@ -1,0 +1,2 @@
+class HubspotContactsService:
+    pass

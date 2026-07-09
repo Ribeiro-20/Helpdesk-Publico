@@ -1,8 +1,8 @@
-# 🛠️ Django Management Commands Documentation -- EuPago Integration
+# Django Management Commands Documentation | EuPago Integration
 
 A quick reference guide for executing custom management commands (`BaseCommand`) within the EuPago payment ecosystem
 
-## 🚀 General Usage
+## General Usage
 
 To run any management command from the root of the project:
 
@@ -10,7 +10,7 @@ To run any management command from the root of the project:
 python manage.py [command] [--args]
 ```
 
-## 💳 Available Commands
+## Available Commands
 
 ### 1. `create_mbway_payment`
 
