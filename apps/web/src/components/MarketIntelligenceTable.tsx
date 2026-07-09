@@ -103,9 +103,9 @@ export default function MarketIntelligenceTable({
     };
   }, [cpvCodesOnPage, cpvDescriptions, supabase]);
 
-  // Filter out contracts that have reached 105% or more
+  // Filter out contracts that have reached > 100%
   const visibleContracts = useMemo(
-    () => contracts.filter((c) => c.progress < 1.05),
+    () => contracts.filter((c) => c.progress <= 1.00),
     [contracts]
   );
 

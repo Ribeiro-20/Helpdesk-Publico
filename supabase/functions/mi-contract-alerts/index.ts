@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // 2. Query high-progress contracts from optimized Postgres RPC
     const { data: contracts, error: contractsErr } = await supabase.rpc(
       "get_high_progress_contracts",
-      { min_pct: 0.75, max_pct: 1.05 }
+      { min_pct: 0.75, max_pct: 1.00 }
     );
 
     if (contractsErr) throw contractsErr;
@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     const candidateContracts = contracts ?? [];
     if (candidateContracts.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No contracts found in the 75% - 105% progress range." }),
+        JSON.stringify({ message: "No contracts found in the 75% - 100% progress range." }),
         { status: 200, headers: CORS },
       );
     }
