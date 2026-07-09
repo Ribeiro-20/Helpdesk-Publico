@@ -89,10 +89,9 @@ Deno.serve(async (req) => {
         return true;
       });
 
-      // Limit to top 1 contract per subscriber (user request)
+      // Send all matching contracts (do not limit to 1)
       const limitedContracts = matchedContracts
-        .sort((a: any, b: any) => (b.progress ?? 0) - (a.progress ?? 0))
-        .slice(0, 1);
+        .sort((a: any, b: any) => (b.progress ?? 0) - (a.progress ?? 0));
 
       // Batch insert PENDING notifications
       const rows = limitedContracts.map((contract: any) => ({
@@ -140,26 +139,6 @@ Deno.serve(async (req) => {
 
     if (notifErr) throw notifErr;
 
-    // Group pending by subscriber
-    const grouped = new Map<string, { subscriber: any; items: any[] }>();
-
-    for (const notif of pendingNotifications ?? []) {
-      const sub = notif.mi_subscribers as any;
-      const contract = notif.contracts as any;
-      if (!sub || !contract) continue;
-
-      const subId = notif.subscriber_id;
-      if (!grouped.has(subId)) {
-        grouped.set(subId, { subscriber: sub, items: [] });
-      }
-
-      grouped.get(subId)!.items.push({
-        notifId: notif.id,
-        progress: notif.progress_at_send,
-        ...contract,
-      });
-    }
-
     const emailProvider = createEmailProvider();
     let emailsSent = 0;
     let emailsFailed = 0;
@@ -177,44 +156,39 @@ Deno.serve(async (req) => {
       return "—";
     }
 
-    for (const [subId, group] of grouped.entries()) {
-      const sub = group.subscriber;
-      const items = group.items;
+    for (const notif of pendingNotifications ?? []) {
+      const sub = notif.mi_subscribers as any;
+      const contract = notif.contracts as any;
+      if (!sub || !contract) continue;
 
       try {
-        // Map items to the email template format
-        const contractsForEmail = items.map((item) => {
-          const entityRaw = Array.isArray(item.contracting_entities) ? item.contracting_entities[0] : item.contracting_entities;
-          const winnerRaw = Array.isArray(item.winners) ? item.winners[0] : item.winners;
+        const entityRaw = Array.isArray(contract.contracting_entities) ? contract.contracting_entities[0] : contract.contracting_entities;
+        const winnerRaw = Array.isArray(contract.winners) ? contract.winners[0] : contract.winners;
 
-          // Estimate end date
-          const signingDate = new Date(item.signing_date);
-          const endDate = new Date(signingDate);
-          endDate.setDate(endDate.getDate() + (item.execution_deadline_days || 0));
-          const estimatedEndDate = endDate.toISOString().slice(0, 10);
+        const signingDate = new Date(contract.signing_date);
+        const endDate = new Date(signingDate);
+        endDate.setDate(endDate.getDate() + (contract.execution_deadline_days || 0));
+        const estimatedEndDate = endDate.toISOString().slice(0, 10);
 
-          return {
-            contractId: item.id,
-            object: item.object,
-            entity: cleanEntityName(entityRaw),
-            winner: cleanEntityName(winnerRaw),
-            progress: item.progress,
-            contractPrice: item.contract_price,
-            signingDate: item.signing_date,
-            deadlineDays: item.execution_deadline_days || 0,
-            estimatedEndDate,
-            cpvMain: item.cpv_main || "—",
-          };
-        });
+        const contractForEmail = {
+          contractId: contract.id,
+          object: contract.object,
+          entity: cleanEntityName(entityRaw),
+          winner: cleanEntityName(winnerRaw),
+          progress: notif.progress_at_send,
+          contractPrice: contract.contract_price,
+          signingDate: contract.signing_date,
+          deadlineDays: contract.execution_deadline_days || 0,
+          estimatedEndDate,
+          cpvMain: contract.cpv_main || "—",
+        };
 
-        // Build the email body
         const { subject, html, text } = buildMiContractAlertEmail({
           subscriberName: sub.name || "Subscritor",
-          contracts: contractsForEmail,
+          contracts: [contractForEmail],
           appBaseUrl,
         });
 
-        // Send the email
         const result = await emailProvider.send({
           to: sub.email,
           subject,
@@ -225,27 +199,23 @@ Deno.serve(async (req) => {
 
         if (result.success) {
           emailsSent++;
-          const notifIds = items.map((item) => item.notifId);
           await supabase
             .from("mi_contract_notifications")
             .update({ status: "SENT", sent_at: new Date().toISOString() })
-            .in("id", notifIds);
+            .eq("id", notif.id);
         } else {
           emailsFailed++;
-          const notifIds = items.map((item) => item.notifId);
           await supabase
             .from("mi_contract_notifications")
             .update({ status: "FAILED", error: result.error ?? "Provider error" })
-            .in("id", notifIds);
+            .eq("id", notif.id);
         }
-      } catch (grpErr) {
-        console.error(`[mi-contract-alerts] Group error for subscriber ${sub.email}:`, grpErr);
+      } catch (err) {
         emailsFailed++;
-        const notifIds = items.map((item) => item.notifId);
         await supabase
           .from("mi_contract_notifications")
-          .update({ status: "FAILED", error: String(grpErr) })
-          .in("id", notifIds);
+          .update({ status: "FAILED", error: String(err) })
+          .eq("id", notif.id);
       }
     }
 
