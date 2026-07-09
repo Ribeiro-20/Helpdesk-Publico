@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 // Access the shared memory storage
 const globalAny: any = global;
@@ -27,15 +26,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Código incorreto." }, { status: 400 });
     }
 
-    // Success! 
-    // Delete code from memory
+    // Success! Delete code from memory
     globalAny.miCodes.delete(email);
 
-    // Set MI session cookie (10 minutes as per previous requirements)
+    // Set MI session cookie directly on the response (10 minutes)
     const response = NextResponse.json({ success: true });
-    
-    // Using 10 minutes expiry for the session
-    cookies().set("mi-session", "active", {
+    response.cookies.set("mi-session", "active", {
       path: "/",
       maxAge: 60 * 10, // 10 minutes
       httpOnly: true,
