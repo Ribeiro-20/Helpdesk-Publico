@@ -6,6 +6,8 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public
+set statement_timeout = '0'
+set work_mem = '256MB'
 as $$
 declare
   v_upserted int;
