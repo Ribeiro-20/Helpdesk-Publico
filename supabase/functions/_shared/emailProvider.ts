@@ -1493,3 +1493,100 @@ export function buildAnnouncementEmailOutlook(params: {
 }): { subject: string; html: string; text: string } {
   return buildAnnouncementEmail(params);
 }
+
+// ---------------------------------------------------------------------------
+// MI Contract Alert email template
+// ---------------------------------------------------------------------------
+
+export function buildMiContractAlertEmail(params: {
+  subscriberName: string;
+  contracts: Array<{
+    object: string;
+    entity: string;
+    winner: string;
+    progress: number;
+    contractPrice?: number;
+    signingDate?: string;
+    deadlineDays?: number;
+    estimatedEndDate?: string;
+  }>;
+  appBaseUrl: string;
+}): { subject: string; html: string; text: string } {
+  const { subscriberName, contracts, appBaseUrl } = params;
+
+  const subject = `Market Intelligence — ${contracts.length} contrato(s) próximo(s) de renovação`;
+
+  const contractRows = contracts.map((c) => {
+    const pct = Math.round((c.progress ?? 0) * 100);
+    const progressColor = pct >= 100 ? "#dc2626" : pct >= 90 ? "#ea580c" : "#059669";
+    const price = typeof c.contractPrice === "number"
+      ? c.contractPrice.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })
+      : "—";
+
+    return `<tr style="border-bottom: 1px solid #e2e8f0;">
+      <td style="padding: 12px 8px; font-size: 13px; color: #1e293b;">${c.object ?? "—"}</td>
+      <td style="padding: 12px 8px; font-size: 13px; color: #475569;">${c.entity ?? "—"}</td>
+      <td style="padding: 12px 8px; font-size: 13px; color: #475569;">${c.winner ?? "—"}</td>
+      <td style="padding: 12px 8px; font-size: 13px; text-align: center;"><span style="background: ${progressColor}; color: white; padding: 2px 10px; border-radius: 12px; font-weight: bold;">${pct}%</span></td>
+      <td style="padding: 12px 8px; font-size: 13px; color: #475569; text-align: right;">${price}</td>
+      <td style="padding: 12px 8px; font-size: 13px; color: #475569; text-align: center;">${c.estimatedEndDate ?? "—"}</td>
+    </tr>`;
+  }).join("");
+
+  const html = `<!doctype html>
+<html>
+<body style="font-family: Arial, sans-serif; background: #f8fafc; padding: 24px; color: #0f172a;">
+  <div style="max-width: 800px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px;">
+    <div style="text-align: center; margin-bottom: 24px;">
+      <h1 style="margin: 0; font-size: 22px; color: #059669;">Market Intelligence</h1>
+      <p style="margin: 8px 0 0; font-size: 14px; color: #64748b;">Contratos próximos de renovação</p>
+    </div>
+
+    <p style="font-size: 14px; color: #334155;">Olá <strong>${subscriberName}</strong>,</p>
+    <p style="font-size: 14px; color: #334155;">Foram identificados <strong>${contracts.length}</strong> contrato(s) com progresso de execução relevante para os seus CPVs:</p>
+
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+      <thead>
+        <tr style="background: #f1f5f9;">
+          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left;">Objeto</th>
+          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left;">Entidade</th>
+          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left;">Vencedor</th>
+          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: center;">Progresso</th>
+          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: right;">Preço</th>
+          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: center;">Fim Estimado</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${contractRows}
+      </tbody>
+    </table>
+
+    <div style="text-align: center; margin: 24px 0;">
+      <a href="${appBaseUrl}/outros" style="display: inline-block; padding: 12px 28px; background: #059669; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 14px;">Ver no painel MI</a>
+    </div>
+
+    <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 32px;">
+      Este e-mail é enviado automaticamente pelo sistema de Market Intelligence do Helpdesk Público.<br/>
+      Caso pretenda alterar as suas preferências, contacte a nossa equipa em <a href="https://www.helpdeskpublico.pt/contactos" style="color: #059669;">helpdeskpublico.pt/contactos</a>.
+    </p>
+  </div>
+</body>
+</html>`;
+
+  const textLines = contracts.map((c) => {
+    const pct = Math.round((c.progress ?? 0) * 100);
+    return `- ${c.object} | ${c.entity} | ${pct}% | Fim: ${c.estimatedEndDate ?? "?"}`;
+  });
+
+  const text = `Market Intelligence — Contratos próximos de renovação
+
+Olá ${subscriberName},
+
+Foram identificados ${contracts.length} contrato(s) relevantes:
+
+${textLines.join("\n")}
+
+Ver no painel: ${appBaseUrl}/outros`;
+
+  return { subject, html, text };
+}

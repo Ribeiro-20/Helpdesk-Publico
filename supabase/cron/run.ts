@@ -900,6 +900,60 @@ async function runSendEmailsJob(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// MI HubSpot sync + contract alerts
+// ---------------------------------------------------------------------------
+
+let miSyncRunning = false;
+
+async function runMiHubspotSyncJob(): Promise<void> {
+  if (miSyncRunning) {
+    console.warn("[cron] MI HubSpot sync skipped because a previous run is still active");
+    return;
+  }
+
+  miSyncRunning = true;
+
+  try {
+    const scriptsDir = findScriptsDir();
+    if (!scriptsDir) throw new Error("Could not locate the scripts directory for MI HubSpot sync");
+
+    const tsxCli = findTsxCli(scriptsDir);
+    if (!tsxCli) {
+      throw new Error(
+        `Could not locate tsx in ${scriptsDir}. Run 'npm install --prefix scripts' first.`,
+      );
+    }
+
+    console.log(`[cron] → mi-hubspot-sync ...`);
+    const { stdout, stderr } = await execFileAsync(
+      process.execPath,
+      [tsxCli, "sync-mi-hubspot.ts", "--apply"],
+      {
+        cwd: scriptsDir,
+        timeout: 10 * 60 * 1000,
+        shell: false,
+        windowsHide: true,
+        maxBuffer: 1024 * 1024 * 5,
+      },
+    );
+
+    const output = `${stdout ?? ""}\n${stderr ?? ""}`;
+    console.log(`[cron] ✓ mi-hubspot-sync completed`);
+    const tail = output.trim().slice(-2000);
+    if (tail) console.log(`[cron] MI sync output:\n${tail}`);
+
+    // After sync, trigger MI contract alerts
+    console.log(`[cron] → mi-contract-alerts ...`);
+    await callFunction("mi-contract-alerts");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[cron] MI HubSpot sync failed:", message);
+  } finally {
+    miSyncRunning = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Entry point
 // ---------------------------------------------------------------------------
 
@@ -939,6 +993,12 @@ if (isHubspotOnce) {
       console.log(`\n[cron] ${new Date().toISOString()} - sync HubSpot clients`);
       runHubspotSyncJob().catch(console.error);
     }, { timezone: "Europe/Lisbon" });
+
+    // MI HubSpot sync + contract alerts on same schedule
+    cron.schedule(HUBSPOT_SYNC_SCHEDULE, () => {
+      console.log(`\n[cron] ${new Date().toISOString()} - sync MI HubSpot + contract alerts`);
+      runMiHubspotSyncJob().catch(console.error);
+    }, { timezone: "Europe/Lisbon" });
   }
 
   cron.schedule("30 13,23 * * 1-5", () => {
@@ -951,19 +1011,18 @@ if (isHubspotOnce) {
     runSendEmailsJob().catch(console.error);
   }, { timezone: "Europe/Lisbon" });
 
-  // MI Contract Alerts – weekdays at 08:00 (after nightly contract ingestion)
-  cron.schedule("0 8 * * 1-5", () => {
-    console.log(`\n[cron] ${new Date().toISOString()} – mi-contract-alerts`);
-    callFunction("mi-contract-alerts").catch(console.error);
-  }, { timezone: "Europe/Lisbon" });
-
   console.log("[cron] Scheduled:");
   console.log(
     HUBSPOT_SYNC_ENABLED
       ? `  hubspot-client-sync                                -> ${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon`
       : "  hubspot-client-sync                                -> disabled",
   );
+  console.log(
+    HUBSPOT_SYNC_ENABLED
+      ? `  mi-hubspot-sync + mi-contract-alerts               -> ${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon`
+      : "  mi-hubspot-sync + mi-contract-alerts               -> disabled",
+  );
+  console.log("  ingest-base                                       → weekdays at 13:30 and 23:30");
   console.log("  send-emails                                       → daily at 08:30 Europe/Lisbon");
-  console.log("  mi-contract-alerts                                → weekdays at 08:00 (Lisbon)");
   console.log("[cron] Press Ctrl+C to stop.\n");
 }

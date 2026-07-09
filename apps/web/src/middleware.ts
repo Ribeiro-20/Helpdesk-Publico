@@ -10,6 +10,7 @@ const PUBLIC_PATHS = [
   "/mp/empresas-adjudicatarios",
   "/mp/oportunidades-mercado",
   "/mp/login-mi",
+  "/mp/login-mi/entrar",
   "/mp/login",
   "/mp/o",
   "/mercado-publico",

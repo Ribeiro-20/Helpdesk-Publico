@@ -1,60 +1,37 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import crypto from "crypto";
 
-// Same HMAC secret used in mi-login
-function getHmacSecret(): string {
-  return process.env.SUPABASE_SERVICE_ROLE_KEY || "mi-login-fallback-secret";
-}
-
-function verifyToken(token: string, submittedCode: string): { valid: boolean; error?: string } {
-  try {
-    const decoded = JSON.parse(Buffer.from(token, "base64url").toString("utf-8"));
-    const { email, expiresAt, hmac } = decoded;
-
-    if (!email || !expiresAt || !hmac) {
-      return { valid: false, error: "Token inválido." };
-    }
-
-    // Check expiry
-    if (Date.now() > expiresAt) {
-      return { valid: false, error: "Código expirado. Solicite um novo." };
-    }
-
-    // Recompute HMAC with the submitted code
-    const payload = `${email}:${submittedCode}:${expiresAt}`;
-    const expectedHmac = crypto.createHmac("sha256", getHmacSecret()).update(payload).digest("hex");
-
-    if (!crypto.timingSafeEqual(Buffer.from(hmac, "hex"), Buffer.from(expectedHmac, "hex"))) {
-      return { valid: false, error: "Código incorreto." };
-    }
-
-    return { valid: true };
-  } catch {
-    return { valid: false, error: "Token inválido ou corrompido." };
-  }
-}
+// Access the shared memory storage
+const globalAny: any = global;
 
 export async function POST(request: Request) {
   try {
-    const { email, code, token } = await request.json();
+    const { email, code } = await request.json();
 
-    if (!email || !code || !token) {
-      return NextResponse.json({ error: "Email, código e token são obrigatórios." }, { status: 400 });
+    if (!email || !code) {
+      return NextResponse.json({ error: "Email e código são obrigatórios" }, { status: 400 });
     }
 
-    // Verify the HMAC token (stateless — no DB lookup)
-    const result = verifyToken(token, code);
+    const storedData = globalAny.miCodes?.get(email);
 
-    if (!result.valid) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+    if (!storedData) {
+      return NextResponse.json({ error: "Código não encontrado ou expirado." }, { status: 400 });
     }
 
-    // Success! Set MI session cookie (10 minutes)
+    if (Date.now() > storedData.expires) {
+      globalAny.miCodes.delete(email);
+      return NextResponse.json({ error: "Código expirado. Solicite um novo." }, { status: 400 });
+    }
+
+    if (storedData.code !== code) {
+      return NextResponse.json({ error: "Código incorreto." }, { status: 400 });
+    }
+
+    // Success! Delete code from memory
+    globalAny.miCodes.delete(email);
+
+    // Set MI session cookie directly on the response (10 minutes)
     const response = NextResponse.json({ success: true });
-    const cookieStore = await cookies();
-
-    cookieStore.set("mi-session", "active", {
+    response.cookies.set("mi-session", "active", {
       path: "/",
       maxAge: 60 * 10, // 10 minutes
       httpOnly: true,
