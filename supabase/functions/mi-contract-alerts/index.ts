@@ -37,7 +37,7 @@ Deno.serve(async (req) => {
     // 1. Fetch active subscritores
     const { data: subscribers, error: subsErr } = await supabase
       .from("mi_subscribers")
-      .select("id, email, name, cpv_filter, min_progress")
+      .select("id, email, name, cpv_filter, cpv_codes, min_progress")
       .eq("is_active", true);
 
     if (subsErr) throw subsErr;
@@ -68,14 +68,19 @@ Deno.serve(async (req) => {
     let notificationsCreated = 0;
 
     for (const sub of subscribers) {
+      // Build list of CPV codes to match against
+      const cpvCodes: string[] = Array.isArray(sub.cpv_codes) && sub.cpv_codes.length > 0
+        ? sub.cpv_codes.map((c: string) => String(c).trim().toUpperCase())
+        : sub.cpv_filter
+          ? [sub.cpv_filter.trim().toUpperCase()]
+          : [];
+
       const matchedContracts = candidateContracts.filter((c: any) => {
-        // Apply CPV prefix filter if defined
-        if (sub.cpv_filter) {
-          const cleanFilter = sub.cpv_filter.trim().toUpperCase();
+        // Apply CPV filter: contract must match at least one of the subscriber's CPVs
+        if (cpvCodes.length > 0) {
           const mainCpv = (c.cpv_main ?? "").trim().toUpperCase();
-          if (!mainCpv.startsWith(cleanFilter)) {
-            return false;
-          }
+          const hasMatch = cpvCodes.some((cpv: string) => mainCpv.startsWith(cpv));
+          if (!hasMatch) return false;
         }
         // Apply subscriber's specific min_progress threshold
         if (c.progress < (sub.min_progress ?? 0.75)) {
@@ -84,19 +89,27 @@ Deno.serve(async (req) => {
         return true;
       });
 
-      for (const contract of matchedContracts) {
-        // Insert PENDING notification (UNIQUE constraint will avoid duplicate emails automatically)
-        const { error: insertErr } = await supabase
-          .from("mi_contract_notifications")
-          .insert({
-            subscriber_id: sub.id,
-            contract_id: contract.id,
-            progress_at_send: contract.progress,
-            status: "PENDING",
-          });
+      // Limit to top 1 contract per subscriber (user request)
+      const limitedContracts = matchedContracts
+        .sort((a: any, b: any) => (b.progress ?? 0) - (a.progress ?? 0))
+        .slice(0, 1);
 
-        if (!insertErr) {
-          notificationsCreated++;
+      // Batch insert PENDING notifications
+      const rows = limitedContracts.map((contract: any) => ({
+        subscriber_id: sub.id,
+        contract_id: contract.id,
+        progress_at_send: contract.progress,
+        status: "PENDING",
+      }));
+
+      if (rows.length > 0) {
+        const { data: inserted, error: batchErr } = await supabase
+          .from("mi_contract_notifications")
+          .upsert(rows, { onConflict: "subscriber_id,contract_id", ignoreDuplicates: true })
+          .select("id");
+
+        if (!batchErr && inserted) {
+          notificationsCreated += inserted.length;
         }
       }
     }
@@ -180,6 +193,7 @@ Deno.serve(async (req) => {
           const estimatedEndDate = endDate.toISOString().slice(0, 10);
 
           return {
+            contractId: item.id,
             object: item.object,
             entity: cleanEntityName(entityRaw),
             winner: cleanEntityName(winnerRaw),

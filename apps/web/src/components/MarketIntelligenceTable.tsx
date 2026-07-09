@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import ContractModal from "./ContractModal";
 import { createClient } from "@/lib/supabase/client";
 import InfoPopover from "./InfoPopover";
@@ -55,6 +56,15 @@ export default function MarketIntelligenceTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [cpvDescriptions, setCpvDescriptions] = useState<Record<string, string>>({});
   const supabase = createClient();
+  const searchParams = useSearchParams();
+
+  // Auto-open modal if ?contract=<id> is present in the URL (e.g. from email link)
+  useEffect(() => {
+    const contractParam = searchParams.get("contract");
+    if (contractParam) {
+      setSelectedId(contractParam);
+    }
+  }, [searchParams]);
 
   // Get unique CPV codes on the current page to fetch descriptions
   const cpvCodesOnPage = useMemo(
