@@ -13,7 +13,7 @@
  * Request body:
  *   {
  *     tenant_id?:   string,
- *     since_hours?: number   // processar apenas dados das últimas N horas (default: all)
+ *     since_hours?: number   // processar apenas dados criados/atualizados nas últimas N horas (default: all)
  *   }
  */
 
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
 
     if (sinceHours) {
       const since = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
-      contractQuery = contractQuery.gte("created_at", since);
+      contractQuery = contractQuery.gte("updated_at", since);
     }
 
     const allContracts: Array<{

@@ -281,8 +281,8 @@ export default async function DashboardPage() {
                 actions={[
                   { fn: "ingest-base", label: "Ingerir Anúncios", variant: "primary" },
                   { fn: "ingest-contracts", label: "Ingerir Contratos", variant: "primary" },
-                  { fn: "extract-entities", label: "Extrair Entidades", variant: "secondary" },
-                  { fn: "extract-companies", label: "Extrair Empresas", variant: "secondary" },
+                  { fn: "extract-entities", label: "Extrair Entidades", variant: "secondary", body: { since_hours: 72 } },
+                  { fn: "extract-companies", label: "Extrair Empresas", variant: "secondary", body: { since_hours: 72 } },
                   { fn: "match-and-queue", label: "Processar CPV", variant: "secondary" },
                   { fn: "send-emails", label: "Enviar Emails", variant: "secondary" },
                 ]}
