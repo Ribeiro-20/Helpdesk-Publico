@@ -580,7 +580,7 @@ export default function AnnouncementModal({
                     )}
                   </InfoCard>
                   <InfoCard title="Referências">
-                    <Field label="Nº DR / Base" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
+                    <Field label="Nº DRE" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
                     {showSource && <Field label="Fonte" value={announcement.source} />}
                     {showVersionHistory && <Field label="Versões" value={versions.length} />}
                   </InfoCard>
