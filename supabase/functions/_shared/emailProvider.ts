@@ -979,43 +979,172 @@ export function buildMiContractAlertEmail(params: {
     </tr>`;
   }).join("");
 
-  const html = `<!doctype html>
+  const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
+
+  const html = `<!DOCTYPE html>
 <html>
-<body style="font-family: Arial, sans-serif; background: #f8fafc; padding: 24px; color: #0f172a;">
-  <div style="max-width: 800px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px;">
-    <div style="text-align: center; margin-bottom: 24px;">
-      <h1 style="margin: 0; font-size: 22px; color: #059669;">Market Intelligence</h1>
-      <p style="margin: 8px 0 0; font-size: 14px; color: #64748b;">Contratos próximos de renovação</p>
-    </div>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeEmailHtml(subject)}</title>
+  <style type="text/css">
+    a, a:link, a:visited, a:hover, a:active {
+      color: #111111 !important;
+      cursor: pointer !important;
+      text-decoration: none !important;
+    }
+    a span {
+      cursor: pointer !important;
+      text-decoration: none !important;
+    }
+    span.MsoHyperlink, span.MsoHyperlinkFollowed {
+      color: #111111 !important;
+      text-decoration: none !important;
+    }
+    .link-black, .link-black:link, .link-black:visited, .link-black:hover, .link-black:active {
+      color: #111111 !important;
+    }
+    .link-white, .link-white:link, .link-white:visited, .link-white:hover, .link-white:active {
+      color: #ffffff !important;
+    }
+  </style>
+</head>
 
-    <p style="font-size: 14px; color: #334155;">Olá <strong>${subscriberName}</strong>,</p>
-    <p style="font-size: 14px; color: #334155;">Foram identificados <strong>${contracts.length}</strong> contrato(s) com progresso de execução relevante para os seus CPVs:</p>
+<body id="body" style="margin:0; padding:0; box-sizing:border-box; font-family:Arial, Helvetica, sans-serif; line-height:1.5; color:#333333; background-color:#f5f5f3;">
+  <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f5f5f3;">
+    <tr>
+      <td align="center" style="padding:12px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:700px; background-color:#ffffff; border:1px solid #e0e0dc;">
+          <!-- HEADER -->
+          <tr>
+            <td style="padding:20px 18px; background-color:#2d4a1e;">
+              <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="52" valign="middle" style="width:52px; padding:0 12px 0 0;">
+                    <img src="${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
+                  </td>
+                  <td valign="middle" style="color:#ffffff;">
+                    <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
+                    <div style="font-size:14px; line-height:18px; color:#ffffff; margin-top:4px;">Contratação Pública Eficiente</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-      <thead>
-        <tr style="background: #f1f5f9;">
-          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left;">Objeto</th>
-          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left;">Entidade</th>
-          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: left;">Vencedor</th>
-          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: center;">Progresso</th>
-          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: right;">Preço</th>
-          <th style="padding: 10px 8px; font-size: 11px; text-transform: uppercase; color: #64748b; text-align: center;">Fim Estimado</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${contractRows}
-      </tbody>
-    </table>
+          <!-- BADGE -->
+          <tr>
+            <td style="padding:18px 18px 4px 18px;">
+              <div style="background-color:#eef6e9; padding:11px 14px; font-size:14px; line-height:19px; color:#2d4a1e; font-weight:700;">
+                Market Intelligence: ${contracts.length} contrato(s) próximos de renovação
+              </div>
+            </td>
+          </tr>
 
-    <div style="text-align: center; margin: 24px 0;">
-      <a href="${appBaseUrl}/outros" style="display: inline-block; padding: 12px 28px; background: #059669; color: white; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 14px;">Ver no painel MI</a>
-    </div>
+          <!-- INTRO TEXT -->
+          <tr>
+            <td style="padding:18px 18px 8px 18px;">
+              <div style="font-size:14px; line-height:21px; color:#111827;">Olá <strong>${escapeEmailHtml(subscriberName)}</strong>,</div>
+              <div style="font-size:14px; line-height:21px; color:#4b5563; margin-top:8px;">Foram identificados contrato(s) com progresso de execução relevante para os seus CPVs:</div>
+            </td>
+          </tr>
 
-    <p style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 32px;">
-      Este e-mail é enviado automaticamente pelo sistema de Market Intelligence do Helpdesk Público.<br/>
-      Caso pretenda alterar as suas preferências, contacte a nossa equipa em <a href="https://www.helpdeskpublico.pt/contactos" style="color: #059669;">helpdeskpublico.pt/contactos</a>.
-    </p>
-  </div>
+          <!-- TABLE -->
+          <tr>
+            <td style="padding:8px 18px 14px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
+                <thead>
+                  <tr style="background-color:#f5f5f3;">
+                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:left; border-bottom:1px solid #e5e5e0;">Objeto</th>
+                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:left; border-bottom:1px solid #e5e5e0;">Entidade</th>
+                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:center; border-bottom:1px solid #e5e5e0;">Progresso</th>
+                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:right; border-bottom:1px solid #e5e5e0;">Fim Estimado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${contractRows}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <!-- BOTAO -->
+          <tr>
+            <td align="center" style="padding:22px 18px 22px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(appBaseUrl + '/outros')}" style="height:48px;v-text-anchor:middle;width:340px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
+                      <w:anchorlock/>
+                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Ver no painel MI</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-- -->
+                    <a href="${escapeEmailHtml(appBaseUrl + '/outros')}" target="_blank" class="link-white" color="#ffffff" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
+                      <font color="#ffffff">Ver no painel MI</font>
+                    </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- SUPORTE -->
+          <tr>
+            <td style="padding:20px 18px; background-color:#edf3e6; border-top:1px solid #d7e3c8;">
+              <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px;">Precisa de apoio para decidir ou preparar a sua proposta?</div>
+              <div style="text-align:center; font-size:0;">
+                <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="49%" valign="top"><![endif]-->
+                <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
+                  <div style="padding:0 6px 8px 6px;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
+                      <tr>
+                        <td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
+                          <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" class="link-black" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; text-decoration:none;"><span style="color:#111111 !important;">Go / No-Go<br>Concursos Públicos</span></a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+                <!--[if mso]></td><td width="2%" valign="top" style="font-size:0; line-height:0;">&nbsp;</td><td width="49%" valign="top"><![endif]-->
+                <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
+                  <div style="padding:0 6px 8px 6px;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
+                      <tr>
+                        <td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
+                          <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" class="link-black" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; text-decoration:none;"><span style="color:#111111 !important;">Plataforma de Suporte<br>Contratação Pública</span></a>
+                        </td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+                <!--[if mso]></td></tr></table><![endif]-->
+              </div>
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
+              <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
+              <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
+                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-black" style="color:#111111 !important; text-decoration:none; font-weight:700;"><span style="color:#111111 !important;">Contactos</span></a>
+                <span style="color:#d1d5db;"> | </span>
+                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" class="link-black" style="color:#111111 !important; text-decoration:none; font-weight:700;"><span style="color:#111111 !important;">Política de Privacidade</span></a>
+                <span style="color:#d1d5db;"> | </span>
+                <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" style="color:#111111 !important; text-decoration:none; font-weight:700;"><span style="color:#111111 !important;">Website</span></a>
+              </div>
+              <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
+                Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa através da <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" style="color:#2d4a1e !important; text-decoration:underline; font-weight:700;">hiperligação</a>.
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
 
