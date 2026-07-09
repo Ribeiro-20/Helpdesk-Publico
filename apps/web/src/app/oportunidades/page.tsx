@@ -303,6 +303,34 @@ function buildDiacriticVariants(token: string, maxVariants = 32): string[] {
   return Array.from(new Set(variants.map((variant) => variant.trim()).filter(Boolean)));
 }
 
+function buildEntityNameClause(value: string): string | null {
+  const baseEntityToken = toIlikeToken(value);
+  const searchTerms = buildEntitySearchTerms(value)
+    .map((term) => toIlikeToken(term))
+    .filter(Boolean);
+
+  if (!baseEntityToken && searchTerms.length === 0) return null;
+
+  if (searchTerms.length <= 1) {
+    const broadToken = searchTerms[0] ?? baseEntityToken;
+    const variants = buildDiacriticVariants(broadToken, 32);
+    const clauses = Array.from(new Set(
+      (variants.length > 0 ? variants : [broadToken]).map((term) => `entity_name.ilike.%${term}%`),
+    ));
+    return clauses.length === 1 ? clauses[0] : `or(${clauses.join(",")})`;
+  }
+
+  const groups = searchTerms.map((term) => {
+    const variants = buildDiacriticVariants(term, 32);
+    const clauses = Array.from(new Set(
+      (variants.length > 0 ? variants : [term]).map((variant) => `entity_name.ilike.%${variant}%`),
+    ));
+    return clauses.length === 1 ? clauses[0] : `or(${clauses.join(",")})`;
+  });
+
+  return groups.length === 1 ? groups[0] : `and(${groups.join(",")})`;
+}
+
 export default async function OportunidadesPage({
   searchParams,
 }: {
@@ -415,28 +443,23 @@ export default async function OportunidadesPage({
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
     if (entity) {
       const entityDigits = entity.replace(/\D/g, "");
-      const termClauses = buildEntitySearchTerms(entity)
-        .flatMap((term) => {
-          const ilikeTerm = toIlikeToken(term);
-          if (!ilikeTerm) return [];
-          const variants = buildDiacriticVariants(ilikeTerm, 32);
-          return variants.length > 0 ? variants : [ilikeTerm];
-        })
-        .filter(Boolean)
-        .map((term) => `entity_name.ilike.%${term}%`);
-      const baseEntityToken = toIlikeToken(entity);
-      const baseEntityVariants = baseEntityToken ? buildDiacriticVariants(baseEntityToken, 32) : [];
+      const entityNameClause = buildEntityNameClause(entity);
+      const topLevelClauses = [
+        ...(entityNameClause ? [entityNameClause] : []),
+        ...(entityDigits.length >= 5 ? [`entity_nif.ilike.%${entityDigits}%`] : []),
+      ];
 
-      const orClauses = Array.from(
-        new Set([
-          ...baseEntityVariants.map((term) => `entity_name.ilike.%${term}%`),
-          ...termClauses,
-          ...(entityDigits.length >= 5 ? [`entity_nif.ilike.%${entityDigits}%`] : []),
-        ]),
-      );
-
-      if (orClauses.length > 0) {
-        query = query.or(orClauses.join(","));
+      if (topLevelClauses.length === 1) {
+        const [singleClause] = topLevelClauses;
+        if (singleClause.startsWith("entity_name.ilike.")) {
+          query = query.ilike("entity_name", singleClause.replace("entity_name.ilike.", ""));
+        } else if (singleClause.startsWith("entity_nif.ilike.")) {
+          query = query.ilike("entity_nif", singleClause.replace("entity_nif.ilike.", ""));
+        } else {
+          query = query.or(singleClause);
+        }
+      } else if (topLevelClauses.length > 1) {
+        query = query.or(topLevelClauses.join(","));
       }
     }
     if (actTypeFilters.length > 0) {
