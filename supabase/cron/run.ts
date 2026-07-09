@@ -337,14 +337,14 @@ async function loadTenantAlertConfig(): Promise<TenantAlertConfig> {
 }
 
 async function sendSystemEmail(to: string, subject: string, text: string) {
-  const provider = (process.env.EMAIL_PROVIDER ?? (process.env.BREVO_API_KEY ? "brevo" : "dev")).trim().toLowerCase();
+  const provider = (process.env.EMAIL_PROVIDER ?? (process.env.BREVO_MI_API_KEY ? "brevo" : "dev")).trim().toLowerCase();
   const fromEmail = process.env.EMAIL_FROM ?? process.env.MAIL_FROM ?? "noreply@example.com";
   const fromName = process.env.EMAIL_FROM_NAME ?? "BASE Monitor";
   const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;"><div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;"><h1 style="margin:0 0 16px;font-size:20px;">${escapeHtml(subject)}</h1><pre style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;font-size:13px;line-height:1.55;">${escapeHtml(text)}</pre></div></body></html>`;
 
   if (provider === "brevo") {
-    const apiKey = process.env.BREVO_API_KEY;
-    if (!apiKey) throw new Error("EMAIL_PROVIDER=brevo but BREVO_API_KEY is not set");
+    const apiKey = process.env.BREVO_MI_API_KEY;
+    if (!apiKey) throw new Error("EMAIL_PROVIDER=brevo but BREVO_MI_API_KEY is not set");
 
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",

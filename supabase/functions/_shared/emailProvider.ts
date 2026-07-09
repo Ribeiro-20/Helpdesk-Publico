@@ -7,8 +7,8 @@
  *   "sendgrid"  → SendGrid HTTP API
  *   "brevo"     → Brevo HTTP API
  *
- * For production: set EMAIL_PROVIDER=brevo and BREVO_API_KEY.
- * If EMAIL_PROVIDER is omitted but BREVO_API_KEY exists, Brevo is used.
+ * For production: set EMAIL_PROVIDER=brevo and BREVO_MI_API_KEY.
+ * If EMAIL_PROVIDER is omitted but BREVO_MI_API_KEY exists, Brevo is used.
  */
 
 export interface EmailMessage {
@@ -209,13 +209,13 @@ class BrevoEmailProvider implements EmailProvider {
 
 export function createEmailProvider(): EmailProvider {
   const explicitProvider = Deno.env.get("EMAIL_PROVIDER");
-  const provider = (explicitProvider ?? (Deno.env.get("BREVO_API_KEY") ? "brevo" : "dev")).toLowerCase();
+  const provider = (explicitProvider ?? (Deno.env.get("BREVO_MI_API_KEY") ? "brevo" : "dev")).toLowerCase();
   console.log(`[email] provider=${provider}`);
 
   switch (provider) {
     case "brevo": {
-      const key = Deno.env.get("BREVO_API_KEY");
-      if (!key) throw new Error("EMAIL_PROVIDER=brevo but BREVO_API_KEY is not set");
+      const key = Deno.env.get("BREVO_MI_API_KEY");
+      if (!key) throw new Error("EMAIL_PROVIDER=brevo but BREVO_MI_API_KEY is not set");
       return new BrevoEmailProvider(key);
     }
     case "sendgrid": {
@@ -490,17 +490,17 @@ function formatEmailDeadlineDays(deadlineAt: unknown): { text: string; daysRemai
   const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   const end = Date.UTC(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
   const days = Math.ceil((end - start) / 86400000);
-  
+
   let text = "";
   if (days < 0) text = "Prazo terminado";
   else if (days === 0) text = "Termina hoje";
   else if (days === 1) text = "1 dia restante";
   else text = `${days} dias restantes`;
-  
+
   let color: "green" | "yellow" | "red" = "red";
   if (days >= 15) color = "green";
   else if (days >= 7) color = "yellow";
-  
+
   return { text, daysRemaining: days, color };
 }
 
@@ -630,10 +630,10 @@ export function buildAnnouncementEmail(params: {
       ? payload.detalhe_conteudo.Texto
       : null
   ) ?? (
-    isPlainObject(payload?.detalhe_conteudo) && typeof payload.detalhe_conteudo.TextoFormatado === "string"
-      ? payload.detalhe_conteudo.TextoFormatado
-      : null
-  );
+      isPlainObject(payload?.detalhe_conteudo) && typeof payload.detalhe_conteudo.TextoFormatado === "string"
+        ? payload.detalhe_conteudo.TextoFormatado
+        : null
+    );
 
   const priceStr = formatEmailPrice(basePrice, currency ?? "EUR");
   const deadlineAt = announcement?.proposal_deadline_at;
@@ -660,7 +660,7 @@ export function buildAnnouncementEmail(params: {
     pickEmailPayloadValue(payload, ["tipoProcedimento", "modeloAnuncio", "Tipo de Procedimento", "Modelo de Anúncio"]),
     announcement?.procedure_type,
   ));
- 
+
   const objectStr = firstEmailText(
     title,
     announcement?.description,
@@ -676,7 +676,7 @@ export function buildAnnouncementEmail(params: {
   const subject = `Helpdesk Público | Nova oportunidade: ${objectStr.slice(0, 70)}`;
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
 
-  
+
 
   const deadlineColorMap = { green: "#6b8c3e", yellow: "#b45309", red: "#b91c1c" };
   const deadlineBgMap = { green: "#eef6e9", yellow: "#fff7ed", red: "#fef2f2" };
@@ -1016,7 +1016,7 @@ export function buildMiContractAlertEmail(params: {
                 <tr>
                   <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
                     <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Data de celebração</div>
-                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.signingDate ? c.signingDate.slice(0,10) : "—")}</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.signingDate ? c.signingDate.slice(0, 10) : "—")}</div>
                   </td>
                 </tr>
                 <tr>
