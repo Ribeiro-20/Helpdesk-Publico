@@ -202,6 +202,7 @@ Deno.serve(async (req) => {
             signingDate: item.signing_date,
             deadlineDays: item.execution_deadline_days || 0,
             estimatedEndDate,
+            cpvMain: Array.isArray(item.cpv_codes) ? item.cpv_codes[0] : (item.cpv_codes || "—"),
           };
         });
 

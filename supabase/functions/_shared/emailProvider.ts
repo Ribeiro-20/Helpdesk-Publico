@@ -955,6 +955,7 @@ export function buildMiContractAlertEmail(params: {
     signingDate?: string;
     deadlineDays?: number;
     estimatedEndDate?: string;
+    cpvMain?: string;
   }>;
   appBaseUrl: string;
 }): { subject: string; html: string; text: string } {
@@ -964,29 +965,140 @@ export function buildMiContractAlertEmail(params: {
 
   const contractRows = contracts.map((c) => {
     const pct = Math.round((c.progress ?? 0) * 100);
-    const progressColor = pct >= 100 ? "#dc2626" : pct >= 90 ? "#ea580c" : "#059669";
     const price = typeof c.contractPrice === "number"
       ? c.contractPrice.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })
       : "—";
 
-    return `<tr style="border-bottom: 1px solid #e2e8f0;">
-      <td style="padding: 12px 8px; font-size: 13px; color: #1e293b;">${c.object ?? "—"}</td>
-      <td style="padding: 12px 8px; font-size: 13px; color: #475569;">${c.entity ?? "—"}</td>
-      <td style="padding: 12px 8px; font-size: 13px; color: #475569;">${c.winner ?? "—"}</td>
-      <td style="padding: 12px 8px; font-size: 13px; text-align: center;"><span style="background: ${progressColor}; color: white; padding: 2px 10px; border-radius: 12px; font-weight: bold;">${pct}%</span></td>
-      <td style="padding: 12px 8px; font-size: 13px; color: #475569; text-align: right;">${price}</td>
-      <td style="padding: 12px 8px; font-size: 13px; color: #475569; text-align: center;">${c.estimatedEndDate ?? "—"}</td>
-    </tr>`;
+    const endDate = c.estimatedEndDate ? new Date(c.estimatedEndDate) : new Date();
+    const today = new Date();
+    const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / 86400000));
+
+    return `
+          <!-- BADGE SUPERIOR -->
+          <tr>
+            <td style="padding:18px 18px 4px 18px;">
+              <div style="background-color:#f5f5f0; padding:11px 14px; font-size:13px; line-height:19px; color:#2d4a1e; font-weight:700;">
+                ⚠️ Alerta Market Intelligence — Contrato prestes a terminar
+              </div>
+            </td>
+          </tr>
+
+          <!-- OBJETO DO CONTRATO -->
+          <tr>
+            <td style="padding:18px 18px 8px 18px;">
+              <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:6px;">Objeto do contrato</div>
+              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word; overflow-wrap:anywhere;">${escapeEmailHtml(c.object)}</div>
+            </td>
+          </tr>
+
+          <!-- DETALHES VERTICAIS -->
+          <tr>
+            <td style="padding:8px 18px 4px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
+                <tr>
+                  <td style="padding:14px 16px; background-color:#fff7ed; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#9a6a2c; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:4px;">Progresso de Execução</div>
+                    <div style="font-size:22px; line-height:26px; color:#b45309; font-weight:700; word-break:break-word;">${pct}% — ${daysRemaining} dias restantes</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Término estimado</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.estimatedEndDate || "—")}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Valor contratual</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${price}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Data de celebração</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.signingDate ? c.signingDate.slice(0,10) : "—")}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Prazo de execução</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${c.deadlineDays} dias</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Entidade Adjudicante</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.entity)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Adjudicatário</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.winner)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">CPV(s)</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.cpvMain ?? "—")}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- BOTAO -->
+          <tr>
+            <td align="center" style="padding:22px 18px 12px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(appBaseUrl + '/outros')}" style="height:48px;v-text-anchor:middle;width:340px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
+                      <w:anchorlock/>
+                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Ver no Market Intelligence</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-- -->
+                    <a href="${escapeEmailHtml(appBaseUrl + '/outros')}" target="_blank" class="link-white" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
+                      <font color="#ffffff">Ver no Market Intelligence</font>
+                    </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- TEXTO EXPLICATIVO -->
+          <tr>
+            <td style="padding:4px 18px 14px 18px;">
+              <div style="font-size:14px; line-height:21px; color:#4b5563;">Este contrato atingiu ${pct}% do prazo de execução. Consulte os detalhes e prepare-se para novas oportunidades de contratação nesta área.</div>
+            </td>
+          </tr>
+
+          <!-- ALERTA GERADO AUTO -->
+          <tr>
+            <td style="padding:0 18px 14px 18px;">
+              <div style="background-color:#eef6e9; padding:12px 14px; font-size:13px; line-height:19px; color:#4b5563;">
+                Este alerta foi gerado automaticamente com base nos critérios de monitorização da sua subscrição Market Intelligence.
+              </div>
+            </td>
+          </tr>
+
+          <!-- SEPARADOR ENTRE CONTRATOS -->
+          <tr><td style="padding:0 18px;"><div style="border-top:2px solid #e5e5e0; margin:8px 0;"></div></td></tr>
+    `;
   }).join("");
 
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
 
-  const html = `<!DOCTYPE html>
+  const html = \`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeEmailHtml(subject)}</title>
+  <title>\${escapeEmailHtml(subject)}</title>
   <style type="text/css">
     a, a:link, a:visited, a:hover, a:active {
       color: #111111 !important;
@@ -1021,7 +1133,7 @@ export function buildMiContractAlertEmail(params: {
               <table border="0" cellpadding="0" cellspacing="0">
                 <tr>
                   <td width="52" valign="middle" style="width:52px; padding:0 12px 0 0;">
-                    <img src="${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
+                    <img src="\${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
                   </td>
                   <td valign="middle" style="color:#ffffff;">
                     <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
@@ -1032,64 +1144,7 @@ export function buildMiContractAlertEmail(params: {
             </td>
           </tr>
 
-          <!-- BADGE -->
-          <tr>
-            <td style="padding:18px 18px 4px 18px;">
-              <div style="background-color:#eef6e9; padding:11px 14px; font-size:14px; line-height:19px; color:#2d4a1e; font-weight:700;">
-                Market Intelligence: ${contracts.length} contrato(s) próximos de renovação
-              </div>
-            </td>
-          </tr>
-
-          <!-- INTRO TEXT -->
-          <tr>
-            <td style="padding:18px 18px 8px 18px;">
-              <div style="font-size:14px; line-height:21px; color:#111827;">Olá <strong>${escapeEmailHtml(subscriberName)}</strong>,</div>
-              <div style="font-size:14px; line-height:21px; color:#4b5563; margin-top:8px;">Foram identificados contrato(s) com progresso de execução relevante para os seus CPVs:</div>
-            </td>
-          </tr>
-
-          <!-- TABLE -->
-          <tr>
-            <td style="padding:8px 18px 14px 18px;">
-              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
-                <thead>
-                  <tr style="background-color:#f5f5f3;">
-                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:left; border-bottom:1px solid #e5e5e0;">Objeto</th>
-                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:left; border-bottom:1px solid #e5e5e0;">Entidade</th>
-                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:center; border-bottom:1px solid #e5e5e0;">Progresso</th>
-                    <th style="padding:10px 8px; font-size:11px; text-transform:uppercase; color:#6b7280; text-align:right; border-bottom:1px solid #e5e5e0;">Fim Estimado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${contractRows}
-                </tbody>
-              </table>
-            </td>
-          </tr>
-
-          <!-- BOTAO -->
-          <tr>
-            <td align="center" style="padding:22px 18px 22px 18px;">
-              <table border="0" cellpadding="0" cellspacing="0" role="presentation">
-                <tr>
-                  <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
-                    <!--[if mso]>
-                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(appBaseUrl + '/outros')}" style="height:48px;v-text-anchor:middle;width:340px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
-                      <w:anchorlock/>
-                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Ver no painel MI</center>
-                    </v:roundrect>
-                    <![endif]-->
-                    <!--[if !mso]><!-- -->
-                    <a href="${escapeEmailHtml(appBaseUrl + '/outros')}" target="_blank" class="link-white" color="#ffffff" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
-                      <font color="#ffffff">Ver no painel MI</font>
-                    </a>
-                    <!--<![endif]-->
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+          \${contractRows}
 
           <!-- SUPORTE -->
           <tr>
