@@ -110,11 +110,11 @@ export async function POST(request: Request) {
     }
 
     // Validate against HubSpot MI segment
-    const hubspotToken = process.env.HUBSPOT_ACCESS_TOKEN ?? "";
+    const hubspotToken = process.env.HUBSPOT_MI_ACCESS_TOKEN ?? "";
     const miSegmentId = process.env.HUBSPOT_MI_SEGMENT_ID ?? "";
 
     if (!hubspotToken || !miSegmentId) {
-      console.error("[MI-LOGIN] HUBSPOT_ACCESS_TOKEN or HUBSPOT_MI_SEGMENT_ID not configured");
+      console.error("[MI-LOGIN] HUBSPOT_MI_ACCESS_TOKEN or HUBSPOT_MI_SEGMENT_ID not configured");
       return NextResponse.json(
         { error: "Serviço de autenticação indisponível. Contacte o administrador." },
         { status: 503 },
