@@ -16,6 +16,7 @@ type MercadoCpvInputProps = {
   infoText?: string;
   inputClassName?: string;
   debounceMs?: number;
+  autoSubmit?: boolean;
 };
 
 export default function MercadoCpvInput({
@@ -25,6 +26,7 @@ export default function MercadoCpvInput({
   infoText = "Indique o código CPV que pretende pesquisar",
   inputClassName = "w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all",
   debounceMs = 0,
+  autoSubmit = true,
 }: MercadoCpvInputProps) {
   const [value, setValue] = useState(defaultValue);
   const [suggestions, setSuggestions] = useState<CpvSuggestion[]>([]);
@@ -145,15 +147,19 @@ export default function MercadoCpvInput({
   function handleChange(nextValue: string) {
     setValue(nextValue);
 
-    // Auto-search without reloading the page or losing focus
-    submitForm(debounceMs, nextValue);
+    if (autoSubmit) {
+      // Auto-search without reloading the page or losing focus
+      submitForm(debounceMs, nextValue);
+    }
   }
 
   function handleSuggestionPick(suggestion: CpvSuggestion) {
     setValue(suggestion.id);
     setSuggestions([]);
     setIsOpen(false);
-    submitForm(0, suggestion.id);
+    if (autoSubmit) {
+      submitForm(0, suggestion.id);
+    }
   }
 
   const hasSuggestions = isOpen && suggestions.length > 0;

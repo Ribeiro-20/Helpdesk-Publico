@@ -7,8 +7,10 @@ import OportunidadesResults from "@/components/OportunidadesResults";
 import InfoPopover from "@/components/InfoPopover";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
+import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import CurrencyValueField from "@/components/CurrencyValueField";
+import EntitySearchInput from "@/components/EntitySearchInput";
 import { FileText, Filter, House } from "lucide-react";
 
 export const metadata = {
@@ -26,10 +28,10 @@ type OportunidadesSearchParams = {
   cpv?: string;
   entity?: string;
   announcement_number?: string;
-  act_type?: string;
-  model?: string;
-  procedure?: string;
-  contract_type?: string;
+  act_type?: string | string[];
+  model?: string | string[];
+  procedure?: string | string[];
+  contract_type?: string | string[];
   min_value?: string;
   max_value?: string;
   from_day?: string;
@@ -242,6 +244,71 @@ function toIsoFromParts(day: string, month: string, year: string): string {
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
+function getArrayParam(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  return (Array.isArray(value) ? value : [value])
+    .flatMap((item) => item.split("|"))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeEntitySearch(value: string): string {
+  return value
+    .toLocaleLowerCase("pt-PT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildEntitySearchTerms(value: string): string[] {
+  const normalized = normalizeEntitySearch(value);
+  if (!normalized) return [];
+
+  const stopWords = new Set(["de", "do", "da", "dos", "das", "e", "a", "o"]);
+  const tokens = normalized
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+
+  const unique = Array.from(new Set(tokens));
+  if (unique.length === 0 && normalized) return [normalized];
+  return unique.slice(0, 5);
+}
+
+function toIlikeToken(value: string): string {
+  return value.replace(/[%,]/g, " ").trim();
+}
+
+function buildDiacriticVariants(token: string, maxVariants = 32): string[] {
+  const groups: Record<string, string[]> = {
+    a: ["a", "á", "à", "â", "ã"],
+    e: ["e", "é", "ê"],
+    i: ["i", "í"],
+    o: ["o", "ó", "ô", "õ"],
+    u: ["u", "ú"],
+    c: ["c", "ç"],
+  };
+
+  let variants = [""];
+  for (const char of token.toLocaleLowerCase("pt-PT")) {
+    const choices = groups[char] ?? [char];
+    const next: string[] = [];
+    for (const base of variants) {
+      for (const choice of choices) {
+        next.push(base + choice);
+        if (next.length >= maxVariants) break;
+      }
+      if (next.length >= maxVariants) break;
+    }
+    variants = next.length > 0 ? next : variants;
+    if (variants.length >= maxVariants) break;
+  }
+
+  return Array.from(new Set(variants.map((variant) => variant.trim()).filter(Boolean)));
+}
+
 export default async function OportunidadesPage({
   searchParams,
 }: {
@@ -265,9 +332,11 @@ export default async function OportunidadesPage({
   ].includes(rawSort)
     ? rawSort
     : "publication_date_desc";
-  const actType = (params.act_type ?? "").trim();
-  const modelType = (params.model ?? params.procedure ?? "").trim();
-  const contractType = (params.contract_type ?? "").trim();
+  const actTypeFilters = getArrayParam(params.act_type);
+  const modelTypeFilters = Array.from(
+    new Set([...getArrayParam(params.model), ...getArrayParam(params.procedure)]),
+  );
+  const contractTypeFilters = getArrayParam(params.contract_type);
   const minValue = (params.min_value ?? "").trim();
   const maxValue = (params.max_value ?? "").trim();
 
@@ -302,11 +371,38 @@ export default async function OportunidadesPage({
   let opportunities: OpportunityRow[] = [];
   let cpvDescriptions: Record<string, string> = {};
   let totalCount = 0;
+  let entityOptions: Array<{ name: string; nif: string | null }> = [];
   const actTypeOptions = [...ACT_TYPE_CANONICAL];
   const modelTypeOptions = [...MODEL_TYPE_CANONICAL];
   const contractTypeOptions = [...CONTRACT_TYPE_CANONICAL];
 
   if (tenantId) {
+    const { data: rawEntityOptions } = await supabase
+      .from("announcements")
+      .select("entity_name, entity_nif, publication_date")
+      .eq("tenant_id", tenantId)
+      .not("entity_name", "is", null)
+      .order("publication_date", { ascending: false })
+      .limit(300);
+
+    const seenEntityKeys = new Set<string>();
+    entityOptions = (rawEntityOptions ?? [])
+      .map((row) => ({
+        name: String((row as { entity_name?: unknown }).entity_name ?? "").trim(),
+        nif: (() => {
+          const digits = String((row as { entity_nif?: unknown }).entity_nif ?? "").replace(/\D/g, "");
+          return digits || null;
+        })(),
+      }))
+      .filter((row) => {
+        if (!row.name) return false;
+        const key = `${normalizeEntitySearch(row.name)}|${row.nif ?? ""}`;
+        if (seenEntityKeys.has(key)) return false;
+        seenEntityKeys.add(key);
+        return true;
+      })
+      .slice(0, 120);
+
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
@@ -323,15 +419,49 @@ export default async function OportunidadesPage({
     query = query.in("status", ["active", "expired"]);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
-    if (entity) query = query.ilike("entity_name", `%${entity}%`);
-    if (actType) {
-      query = query.in("act_type", actTypeFilterValues(actType));
+    if (entity) {
+      const entityDigits = entity.replace(/\D/g, "");
+      const termClauses = buildEntitySearchTerms(entity)
+        .flatMap((term) => {
+          const ilikeTerm = toIlikeToken(term);
+          if (!ilikeTerm) return [];
+          const variants = buildDiacriticVariants(ilikeTerm, 32);
+          return variants.length > 0 ? variants : [ilikeTerm];
+        })
+        .filter(Boolean)
+        .map((term) => `entity_name.ilike.%${term}%`);
+      const baseEntityToken = toIlikeToken(entity);
+      const baseEntityVariants = baseEntityToken ? buildDiacriticVariants(baseEntityToken, 32) : [];
+
+      const orClauses = Array.from(
+        new Set([
+          ...baseEntityVariants.map((term) => `entity_name.ilike.%${term}%`),
+          ...termClauses,
+          ...(entityDigits.length >= 5 ? [`entity_nif.ilike.%${entityDigits}%`] : []),
+        ]),
+      );
+
+      if (orClauses.length > 0) {
+        query = query.or(orClauses.join(","));
+      }
     }
-    if (modelType) {
-      query = query.in("procedure_type", modelTypeFilterValues(modelType));
+    if (actTypeFilters.length > 0) {
+      query = query.in(
+        "act_type",
+        Array.from(new Set(actTypeFilters.flatMap((value) => actTypeFilterValues(value)))),
+      );
     }
-    if (contractType) {
-      query = query.in("contract_type", contractTypeFilterValues(contractType));
+    if (modelTypeFilters.length > 0) {
+      query = query.in(
+        "procedure_type",
+        Array.from(new Set(modelTypeFilters.flatMap((value) => modelTypeFilterValues(value)))),
+      );
+    }
+    if (contractTypeFilters.length > 0) {
+      query = query.in(
+        "contract_type",
+        Array.from(new Set(contractTypeFilters.flatMap((value) => contractTypeFilterValues(value)))),
+      );
     }
     if (announcementNumber) {
       query = query.or(
@@ -404,9 +534,9 @@ export default async function OportunidadesPage({
     Boolean(cpv) ||
     Boolean(entity) ||
     Boolean(announcementNumber) ||
-    Boolean(actType) ||
-    Boolean(modelType) ||
-    Boolean(contractType) ||
+    actTypeFilters.length > 0 ||
+    modelTypeFilters.length > 0 ||
+    contractTypeFilters.length > 0 ||
     Boolean(minValue) ||
     Boolean(maxValue) ||
     Boolean(fromDate) ||
@@ -416,9 +546,9 @@ export default async function OportunidadesPage({
     cpv,
     entity,
     announcementNumber,
-    actType,
-    modelType,
-    contractType,
+    actTypeFilters.join("|"),
+    modelTypeFilters.join("|"),
+    contractTypeFilters.join("|"),
     minValue,
     maxValue,
     fromDate,
@@ -475,10 +605,12 @@ export default async function OportunidadesPage({
                   <label className="block text-xs text-gray-400">Entidade Adjudicante</label>
                   <InfoPopover text="Indique nome ou NIPC da Entidade que pretende pesquisar" />
                 </div>
-                <input
+                <EntitySearchInput
                   name="entity"
                   defaultValue={entity}
                   placeholder="Nome ou NIPC"
+                  minChars={2}
+                  options={entityOptions}
                   className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
                 />
               </div>
@@ -497,38 +629,29 @@ export default async function OportunidadesPage({
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="act_type"
                   label="Tipo de ato"
-                  defaultValue={actType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...actTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  options={actTypeOptions}
+                  defaultSelected={actTypeFilters}
                 />
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="contract_type"
                   label="Tipo de contrato"
-                  defaultValue={contractType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...contractTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  options={contractTypeOptions}
+                  defaultSelected={contractTypeFilters}
                 />
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="model"
-                  label="Tipo de modelo"
-                  defaultValue={modelType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...modelTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  label="Tipo de Procedimento"
+                  options={modelTypeOptions}
+                  defaultSelected={modelTypeFilters}
                 />
               </div>
 
@@ -639,10 +762,10 @@ export default async function OportunidadesPage({
               announcement_number: announcementNumber,
               limit: String(PAGE_SIZE),
               sort,
-              act_type: actType,
-              model: modelType,
-              procedure: modelType,
-              contract_type: contractType,
+              model: modelTypeFilters,
+              procedure: modelTypeFilters,
+              act_type: actTypeFilters,
+              contract_type: contractTypeFilters,
               min_value: minValue,
               max_value: maxValue,
               from_day: fromDay,

@@ -56,7 +56,7 @@ base-monitor/
 │   └── scrape-dr-contracts.ts # Scraping headless do Diario da Republica (anuncios de procedimento)
 ├── .env                       # Variáveis de ambiente (NÃO versionar)
 ├── .env.example               # Template de variáveis
-└── cpvs_final.json            # Taxonomia CPV completa
+└── cpv_hierarquia.min.json    # Taxonomia CPV completa
 ```
 
 ---
@@ -180,7 +180,7 @@ cd ..
 Deverá ver:
 
 ```
-Loaded 9454 CPV codes from cpvs_final.json
+Loaded 9454 CPV codes from cpv_hierarquia.min.json
 Inserted 500/9454
 ...
 Done!
