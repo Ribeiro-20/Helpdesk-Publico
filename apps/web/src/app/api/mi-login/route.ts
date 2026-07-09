@@ -147,8 +147,8 @@ export async function POST(request: Request) {
     console.log(`[MI-LOGIN] Code for ${email}: ${code}`);
 
     // Send email using Brevo API with the official no-reply sender
-    const senderEmail = process.env.BREVO_SENDER_EMAIL || "no-reply@helpdeskpublico.pt";
-    const apiKey = process.env.BREVO_API_KEY || "";
+    const senderEmail = process.env.BREVO_MI_SENDER_EMAIL || "no-reply@helpdeskpublico.pt";
+    const apiKey = process.env.BREVO_MI_API_KEY || "";
 
     console.log(`[MI-LOGIN] Using sender: ${senderEmail}`);
     console.log(`[MI-LOGIN] API key present: ${apiKey ? "yes" : "no"}`);
