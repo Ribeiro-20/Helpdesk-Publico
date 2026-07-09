@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { X, ExternalLink, Loader2, Calendar, Tag } from "lucide-react";
 
 interface Modification {
@@ -68,56 +69,38 @@ function decodeHtml(str: string): string {
 }
 
 function extractName(raw: unknown): string {
+  let s = "";
   if (typeof raw === "string") {
-    const s = decodeHtml(raw);
-    const spaceIdx = s.indexOf(" - ");
-    if (spaceIdx !== -1) return s.slice(spaceIdx + 3).trim();
-    const nifMatch = s.match(/^\d{5,12}-(.+)$/);
-    if (nifMatch) return nifMatch[1].trim();
-    // Strip leading "--" placeholder (BASE API uses this when NIF is unknown)
-    return s.replace(/^-+\s*/, "").trim() || s;
-  }
-
-  if (raw && typeof raw === "object") {
+    s = decodeHtml(raw);
+  } else if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
-    const directName = record.name;
-    if (typeof directName === "string" && directName.trim()) return decodeHtml(directName.trim());
-
+    if (typeof record.name === "string" && record.name.trim())
+      return decodeHtml(record.name.trim());
     const value = record.value ?? record.label ?? record.text;
-    if (typeof value === "string" && value.trim()) {
-      const s = decodeHtml(value);
-      const idx = s.indexOf(" - ");
-      return idx === -1 ? s : s.slice(idx + 3).trim();
-    }
+    if (typeof value === "string" && value.trim()) s = decodeHtml(value);
   }
-
-  return "—";
+  if (!s) return "—";
+  // Remove o NIF numérico no início (ex: "516165887-CTT - NOME" → "CTT - NOME")
+  // O alias (CTT, CIVOPAL, etc.) faz parte do nome e é preservado
+  const withoutNif = s.replace(/^\d{5,12}/, "").replace(/^[-–\s]+/, "").trim();
+  return withoutNif || s.replace(/^[-–\s]+/, "").trim() || "—";
 }
 
 function extractNif(raw: unknown): string {
+  let s = "";
   if (typeof raw === "string") {
-    const s = decodeHtml(raw);
-    const spaceIdx = s.indexOf(" - ");
-    if (spaceIdx !== -1) return s.slice(0, spaceIdx).trim();
-    const nifMatch = s.match(/^(\d{5,12})-/);
-    if (nifMatch) return nifMatch[1];
-    return "";
-  }
-
-  if (raw && typeof raw === "object") {
+    s = decodeHtml(raw);
+  } else if (raw && typeof raw === "object") {
     const record = raw as Record<string, unknown>;
-    const nif = record.nif;
-    if (typeof nif === "string" && nif.trim()) return nif.trim();
-
-    const value = record.value ?? record.label ?? record.text;
-    if (typeof value === "string") {
-      const s = decodeHtml(value);
-      const idx = s.indexOf(" - ");
-      return idx === -1 ? "" : s.slice(0, idx).trim();
+    if (typeof record.nif === "string" && record.nif.trim()) s = record.nif.trim();
+    else {
+      const value = record.value ?? record.label ?? record.text;
+      if (typeof value === "string") s = decodeHtml(value);
     }
   }
-
-  return "";
+  // Extrair só os dígitos iniciais — o BASE.gov por vezes usa "516165887-CTT" onde CTT é alias
+  const match = s.match(/^(\d{5,12})/);
+  return match ? match[1] : "";
 }
 
 function parseCompetitors(raw: string): string[] {
@@ -161,7 +144,12 @@ function parseCompetitors(raw: string): string[] {
     if (parts.length > 1) return parts;
   }
 
-  // 5. Plain comma-separated — careful with "Empresa, S.A." patterns
+  // 5. Comma-separated — só divide quando o segmento anterior está completo ou o seguinte começa com NIF
+  // Ex: "Empresa A, Lda., Empresa B" → divide após "Lda." (sufixo legal)
+  // Ex: "Alfagene, Tecnologias das Ciências da Vida, Lda." → NÃO divide (sem sufixo antes)
+  const PREV_SUFFIX = /\b(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)$/i;
+  const NEXT_SUFFIX = /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unip\b|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i;
+
   const entries: string[] = [];
   let current = "";
   for (let i = 0; i < trimmed.length; i++) {
@@ -173,13 +161,16 @@ function parseCompetitors(raw: string): string[] {
       /[A-Z0-9]/.test(trimmed[i + 2])
     ) {
       const next = trimmed.slice(i + 1).trimStart();
-      const isSuffix =
-        /^(S\.A\.|S\.A|Lda\.|Lda|Unip\.|Unip\b|Unipessoal|SA|EM|EIM|EP|EPE|EE|E\.E\.|SPA|SRU|SNC|SCS|SCA|SGPS|ACE|AEIE|CRL|UCRL|IP|I\.P\.|GmbH|S\.L\.|SL|SRL|S\.R\.L\.|BV|B\.V\.|NV|N\.V\.|LLC|SE|e\.V\.|Inc\.|Ltd\.)/i.test(next);
-      if (!isSuffix) {
-        entries.push(current.trim());
-        current = "";
-        i++;
-        continue;
+      const isNextSuffix = NEXT_SUFFIX.test(next);
+      if (!isNextSuffix) {
+        const isPrevSuffix = PREV_SUFFIX.test(current.trim());
+        const isNextNif = /^\d{5,12}[-\s]/.test(next);
+        if (isPrevSuffix || isNextNif) {
+          entries.push(current.trim());
+          current = "";
+          i++;
+          continue;
+        }
       }
     }
     current += trimmed[i];
@@ -221,6 +212,8 @@ export default function ContractModal({
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [cpvDescriptions, setCpvDescriptions] = useState<Record<string, string>>({});
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     setLoading(true);
@@ -239,6 +232,24 @@ export default function ContractModal({
         setLoading(false);
       });
   }, [contractId]);
+
+  useEffect(() => {
+    if (!data?.contract) return;
+    const codes = [
+      ...(data.contract.cpv_main ? [data.contract.cpv_main] : []),
+      ...(Array.isArray(data.contract.cpv_list) ? data.contract.cpv_list : []),
+    ].filter(Boolean);
+    const missing = codes.filter((c) => !cpvDescriptions[c]);
+    if (missing.length === 0) return;
+    supabase.from("cpv_codes").select("id, descricao").in("id", missing).then(({ data: rows }) => {
+      if (!rows) return;
+      const mapped: Record<string, string> = {};
+      for (const row of rows as Array<{ id: string; descricao: string }>) {
+        if (row.id) mapped[row.id] = row.descricao ?? "";
+      }
+      setCpvDescriptions((prev) => ({ ...prev, ...mapped }));
+    });
+  }, [data, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -312,7 +323,7 @@ export default function ContractModal({
         </div>
 
         {/* ── BODY ── */}
-        <div className="flex-1 overflow-y-auto bg-white px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain bg-white px-6 py-5 space-y-6">
           {loading && (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
@@ -395,14 +406,18 @@ export default function ContractModal({
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Códigos CPV
                       </p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-col gap-1.5">
                         {cpvList.map((c, i) => (
-                          <span
-                            key={i}
-                            className="inline-block text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700"
-                          >
-                            {c}
-                          </span>
+                          <div key={i} className="flex items-center gap-2 flex-wrap">
+                            <span className="inline-block text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700 font-mono whitespace-nowrap">
+                              {c}
+                            </span>
+                            {cpvDescriptions[c] && (
+                              <span className="text-sm text-gray-600">
+                                {cpvDescriptions[c]}
+                              </span>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>

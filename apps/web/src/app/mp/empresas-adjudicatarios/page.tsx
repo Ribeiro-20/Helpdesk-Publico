@@ -5,6 +5,12 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { BarChart2, ChevronDown, Filter, House } from "lucide-react";
 import BackButton from "@/components/BackButton";
 
+export const metadata = {
+  title: "Adjudicatários e Fornecedores do Estado | Helpdesk Público",
+  description:
+    "Consulte Adjudicatários e Fornecedores do Estado. Analise Contratos Públicos, clientes públicos e a atividade das empresas ativas na Contratação Pública.",
+};
+
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
@@ -37,6 +43,19 @@ type CompanyRow = {
   last_win_at: string | null;
   top_entities: TopEntity[];
 };
+
+function decodeHtml(str: string): string {
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
 
 function toNumber(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -88,7 +107,7 @@ function normalizeCompany(row: Record<string, unknown>): CompanyRow {
   return {
     id: String(row.id ?? ""),
     nif: String(row.nif ?? ""),
-    name: String(row.name ?? "Sem nome"),
+    name: decodeHtml(String(row.name ?? "Sem nome")),
     location: toStringOrNull(row.location),
     contracts_won: Math.max(0, Math.round(toNumber(row.contracts_won))),
     total_value_won: Math.max(0, toNumber(row.total_value_won)),
@@ -115,7 +134,7 @@ function buildQuery(
   }
 
   const qs = params.toString();
-  return qs ? `/estatisticas-privado?${qs}` : "/estatisticas-privado";
+  return qs ? `/mp/empresas-adjudicatarios?${qs}` : "/mp/empresas-adjudicatarios";
 }
 
 export default async function EstatisticasPrivadoPage({
@@ -160,7 +179,7 @@ export default async function EstatisticasPrivadoPage({
       <PageShell>
         <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-gray-900">
-            /estatisticas-privado
+            /mp/empresas-adjudicatarios
           </h1>
           <p className="text-sm text-gray-500 mt-2">
             Nao foi possivel resolver o tenant para mostrar estatisticas.
@@ -269,21 +288,21 @@ export default async function EstatisticasPrivadoPage({
 
   return (
     <PageShell>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <BarChart2 className="w-6 h-6 text-green-500" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Estatisticas de Empresas Adjudicatárias
+              Empresas e Adjudicatários
             </h1>
             <p className="text-gray-500 text-sm">
-              {totalRows} empresas encontradas
+              {totalRows} entidades encontradas
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/"
+            href="/mp"
             className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
           >
             <House className="h-4 w-4" />
@@ -350,7 +369,7 @@ export default async function EstatisticasPrivadoPage({
           {hasFilters ? (
             <div>
               <Link
-                href="/estatisticas-privado"
+                href="/mp/empresas-adjudicatarios"
                 className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[38px]"
               >
                 Limpar
@@ -376,9 +395,9 @@ export default async function EstatisticasPrivadoPage({
 
             <tbody className="divide-y divide-gray-100">
               {companies.map((row) => {
-                let contractsHref = `/mercado-publico?winner=${encodeURIComponent(
-                  row.nif,
-                )}`;
+                const nifDigits = row.nif.match(/^(\d+)/)?.[1] ?? "";
+                const winnerParam = nifDigits || row.name;
+                let contractsHref = `/mp/contratos-publicos?winner=${encodeURIComponent(winnerParam)}`;
 
                 if (yearFilter) {
                   contractsHref += `&from_date=${yearFilter}-01-01&to_date=${yearFilter}-12-31`;
@@ -390,13 +409,14 @@ export default async function EstatisticasPrivadoPage({
                     className="hover:bg-green-50/40 transition-colors"
                   >
                     <td className="px-4 py-3">
-                      <p className="text-green-700 font-medium leading-tight">
+                      <p className="text-gray-900 font-medium leading-tight">
                         {row.name}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {row.nif}
-                        {row.location ? ` · ${row.location}` : ""}
-                      </p>
+                      {nifDigits && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {nifDigits}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <a
@@ -450,7 +470,7 @@ export default async function EstatisticasPrivadoPage({
                 href={buildQuery(baseQuery, { page: String(p) })}
                 className={
                   p === safePage
-                    ? "px-3 py-1.5 text-sm font-medium rounded-xl text-gray-900"
+                    ? "px-3 py-1.5 text-sm font-medium rounded-md text-white"
                     : "px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
                 }
                 style={p === safePage ? { background: GREEN } : {}}
@@ -478,7 +498,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
       <Header />
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {children}
       </main>
       <PublicFooter />

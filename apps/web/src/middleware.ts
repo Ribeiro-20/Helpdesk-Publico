@@ -4,6 +4,14 @@ import { getSupabaseAdminEnv, getSupabasePublicEnv } from "@/lib/supabase/env";
 
 const PUBLIC_PATHS = [
   "/",
+  "/mp",
+  "/mp/contratos-publicos",
+  "/mp/entidades-adjudicantes",
+  "/mp/empresas-adjudicatarios",
+  "/mp/oportunidades-mercado",
+  "/mp/login-mi",
+  "/mp/login",
+  "/mp/o",
   "/mercado-publico",
   "/estatisticas-publico",
   "/estatisticas-privado",
@@ -13,10 +21,22 @@ const PUBLIC_PATHS = [
   "/api/mi-login",
   "/api/mi-verify",
   "/api/announcements",
+  "/api/cpv-search",
 ];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+function isPublicAnnouncementDetailPath(pathname: string): boolean {
+  const parts = pathname.split("/").filter(Boolean);
+  return (
+    ((parts.length === 3) ||
+      (parts.length === 4 && parts[3] === "pdf")) &&
+    parts[0] === "api" &&
+    parts[1] === "announcements" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parts[2])
+  );
 }
 
 function isPrefetchRequest(request: NextRequest): boolean {
@@ -93,7 +113,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Skip auth check entirely for public pages — no Supabase call needed
-  if (isPublicPath(pathname)) {
+  if (isPublicPath(pathname) || isPublicAnnouncementDetailPath(pathname)) {
     return NextResponse.next({ request });
   }
 
@@ -102,13 +122,13 @@ export async function middleware(request: NextRequest) {
     const miSession = request.cookies.get("mi-session")?.value;
     if (!miSession) {
       const url = request.nextUrl.clone();
-      url.pathname = "/login-mi";
+      url.pathname = "/mp/login-mi";
       return NextResponse.redirect(url);
     }
     return NextResponse.next({ request });
   }
 
-  const isLoginPage = pathname.startsWith("/login");
+  const isLoginPage = pathname.startsWith("/mp/login");
   const isAuthCallback = pathname.startsWith("/auth");
 
   const { supabase, getResponse } = createMiddlewareSupabaseClient(request);
@@ -125,7 +145,7 @@ export async function middleware(request: NextRequest) {
 
   if (!user && !isLoginPage && !isAuthCallback) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/mp/login";
     return NextResponse.redirect(url);
   }
 

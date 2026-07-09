@@ -31,6 +31,17 @@ function monthLabel(date: Date): string {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function formatDateInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const day = digits.slice(0, 2);
+  const month = digits.slice(2, 4);
+  const year = digits.slice(4, 8);
+
+  if (digits.length <= 2) return digits.length === 2 ? `${day}/` : day;
+  if (digits.length <= 4) return digits.length === 4 ? `${day}/${month}/` : `${day}/${month}`;
+  return `${day}/${month}/${year}`;
+}
+
 export interface SingleDatePickerProps {
   /** HTML form field name – renders a hidden input when provided */
   name?: string;
@@ -44,6 +55,10 @@ export interface SingleDatePickerProps {
   placeholder?: string;
   /** Minimum ISO date allowed (yyyy-MM-dd) */
   min?: string;
+  /** Extra classes for the outer wrapper */
+  className?: string;
+  /** Extra classes for the trigger button */
+  buttonClassName?: string;
 }
 
 export default function SingleDatePicker({
@@ -53,6 +68,8 @@ export default function SingleDatePicker({
   onChange,
   placeholder = "Seleccionar data",
   min,
+  className = "",
+  buttonClassName = "",
 }: SingleDatePickerProps) {
   const isControlled = controlledValue !== undefined;
   const [internalIso, setInternalIso] = useState(defaultValue);
@@ -62,6 +79,13 @@ export default function SingleDatePicker({
   const ref = useRef<HTMLDivElement>(null);
 
   const iso = isControlled ? (controlledValue ?? "") : internalIso;
+
+  // Keep uncontrolled state in sync when parent resets defaultValue (e.g. clear filters).
+  useEffect(() => {
+    if (!isControlled) {
+      setInternalIso(defaultValue || "");
+    }
+  }, [defaultValue, isControlled]);
 
   // Sync the text input when popover opens
   useEffect(() => {
@@ -110,6 +134,17 @@ export default function SingleDatePicker({
     applyDate(dateToIso(parsed));
   }
 
+  function handleInputChange(value: string) {
+    const removingSeparator = value.length < inputText.length && inputText.startsWith(value);
+
+    if (removingSeparator && value.endsWith("/")) {
+      setInputText(value.slice(0, -1));
+      return;
+    }
+
+    setInputText(formatDateInput(value));
+  }
+
   // Derive DayPicker selected from the text input
   const selectedDate: Date | undefined = (() => {
     try {
@@ -135,7 +170,7 @@ export default function SingleDatePicker({
   const triggerLabel = iso ? isoToDisplay(iso) : placeholder;
 
   return (
-    <div ref={ref} className="relative inline-block">
+    <div ref={ref} className={`relative inline-block ${className}`}>
       {/* Hidden input for native form submission */}
       {name && <input type="hidden" name={name} value={iso} />}
 
@@ -143,7 +178,7 @@ export default function SingleDatePicker({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all hover:border-brand-400 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+        className={`flex items-center gap-2 rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all hover:border-brand-400 hover:text-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500/30 ${buttonClassName}`}
       >
         <CalendarDays className="h-4 w-4 shrink-0 text-brand-700" />
         <span className={iso ? "" : "text-gray-400"}>{triggerLabel}</span>
@@ -197,9 +232,11 @@ export default function SingleDatePicker({
             <input
               type="text"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
               placeholder="dd/mm/aaaa"
+              inputMode="numeric"
+              maxLength={10}
               className="min-w-0 flex-1 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
             />
             <button

@@ -1,9 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/layout/PageHeader";
-import SingleDatePicker from "@/components/SingleDatePicker";
 import CpvMultiSearchInput from "@/components/CpvMultiSearchInput";
-import NipcMultiInput from "../../../components/NipcMultiInput";
+import MercadoDateDropdown from "@/components/MercadoDateDropdown";
+import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
+import CurrencyValueField from "@/components/CurrencyValueField";
+import EntitySearchInput from "@/components/EntitySearchInput";
 import Link from "next/link";
 import { Megaphone, ArrowUp, ArrowDown, ArrowUpDown, FileSpreadsheet, Filter } from "lucide-react";
 import { effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
@@ -192,19 +194,73 @@ function parseMultiCpvFilter(raw: string): string[] {
   );
 }
 
-function normalizeNipc(raw: string): string {
-  return raw.replace(/\s+/g, "").replace(/^PT/i, "").replace(/\D/g, "");
-}
-
-function parseMultiNipcFilter(raw: string): string[] {
+function getArrayParam(value: string | string[] | undefined): string[] {
+  if (!value) return [];
   return Array.from(
     new Set(
-      raw
-        .split(/[;,\n]+/)
-        .map((value) => normalizeNipc(value.trim()))
+      (Array.isArray(value) ? value : [value])
+        .flatMap((item) => item.split("|"))
+        .map((item) => item.trim())
         .filter(Boolean),
     ),
   );
+}
+
+function normalizeEntitySearch(value: string): string {
+  return value
+    .toLocaleLowerCase("pt-PT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildEntitySearchTerms(value: string): string[] {
+  const normalized = normalizeEntitySearch(value);
+  if (!normalized) return [];
+
+  const stopWords = new Set(["de", "do", "da", "dos", "das", "e", "a", "o"]);
+  const tokens = normalized
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+
+  const unique = Array.from(new Set(tokens));
+  if (unique.length === 0 && normalized) return [normalized];
+  return unique.slice(0, 5);
+}
+
+function toIlikeToken(value: string): string {
+  return value.replace(/[%,]/g, " ").trim();
+}
+
+function buildDiacriticVariants(token: string, maxVariants = 32): string[] {
+  const groups: Record<string, string[]> = {
+    a: ["a", "á", "à", "â", "ã"],
+    e: ["e", "é", "ê"],
+    i: ["i", "í"],
+    o: ["o", "ó", "ô", "õ"],
+    u: ["u", "ú"],
+    c: ["c", "ç"],
+  };
+
+  let variants = [""];
+  for (const char of token.toLocaleLowerCase("pt-PT")) {
+    const choices = groups[char] ?? [char];
+    const next: string[] = [];
+    for (const base of variants) {
+      for (const choice of choices) {
+        next.push(base + choice);
+        if (next.length >= maxVariants) break;
+      }
+      if (next.length >= maxVariants) break;
+    }
+    variants = next.length > 0 ? next : variants;
+    if (variants.length >= maxVariants) break;
+  }
+
+  return Array.from(new Set(variants.map((variant) => variant.trim()).filter(Boolean)));
 }
 
 function buildCpvFilterClause(values: string[]): string {
@@ -273,14 +329,13 @@ export default async function AnnouncementsPage({
     page?: string;
     limit?: string;
     cpv?: string;
-    nipc?: string;
     entity?: string;
-     announcement_number?: string;
-    act_type?: string;
-    procedure_type?: string;
-    contract_type?: string;
-    source?: string;
-    status?: string;
+    announcement_number?: string;
+    act_type?: string | string[];
+    procedure_type?: string | string[];
+    contract_type?: string | string[];
+    min_value?: string;
+    max_value?: string;
     from_date?: string;
     to_date?: string;
     sort?: string;
@@ -288,21 +343,23 @@ export default async function AnnouncementsPage({
   }>;
 }) {
   const params = await searchParams;
+  // Keep filter parsing in sync with URL params for server-side rendering.
   const pageRaw = Number.parseInt(params.page ?? "1", 10);
   const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
   const limitRaw = Number.parseInt(params.limit ?? String(DEFAULT_PAGE_SIZE), 10);
   const PAGE_SIZE = limitRaw === 50 || limitRaw === 100 ? limitRaw : DEFAULT_PAGE_SIZE;
   const cpvFilter = params.cpv ?? "";
   const cpvFilters = parseMultiCpvFilter(cpvFilter);
-  const nipcFilter = params.nipc ?? "";
-  const nipcFilters = parseMultiNipcFilter(nipcFilter);
   const entityFilter = params.entity ?? "";
-    const announcementNumberFilter = params.announcement_number ?? "";
-  const actTypeFilter = params.act_type ?? "";
-  const procedureTypeFilter = params.procedure_type ?? "";
-  const contractTypeFilter = params.contract_type ?? "";
-  const sourceFilter = params.source ?? "";
-  const statusFilter = params.status ?? "";
+  const entityNifFilter = entityFilter.replace(/\D/g, "");
+  const announcementNumberFilter = params.announcement_number ?? "";
+  const actTypeFilters = getArrayParam(params.act_type);
+  const procedureTypeFilters = getArrayParam(params.procedure_type);
+  const contractTypeFilters = getArrayParam(params.contract_type);
+  const minValueFilter = (params.min_value ?? "").trim();
+  const maxValueFilter = (params.max_value ?? "").trim();
+  const minValue = minValueFilter ? Number.parseFloat(minValueFilter) : Number.NaN;
+  const maxValue = maxValueFilter ? Number.parseFloat(maxValueFilter) : Number.NaN;
   const fromDateRaw = params.from_date ?? "";
   const toDateRaw = params.to_date ?? "";
   const fromDateFilter = isIsoDate(fromDateRaw) ? fromDateRaw : "";
@@ -325,6 +382,37 @@ export default async function AnnouncementsPage({
   const from = (page - 1) * PAGE_SIZE;
   const to = from + PAGE_SIZE - 1;
 
+  let entityOptionsQuery = supabase
+    .from("announcements")
+    .select("entity_name, entity_nif, publication_date")
+    .not("entity_name", "is", null)
+    .order("publication_date", { ascending: false })
+    .limit(300);
+
+  if (appUser?.tenant_id) {
+    entityOptionsQuery = entityOptionsQuery.eq("tenant_id", appUser.tenant_id);
+  }
+
+  const { data: rawEntityOptions } = await entityOptionsQuery;
+
+  const seenEntityKeys = new Set<string>();
+  const entityOptions = (rawEntityOptions ?? [])
+    .map((row) => ({
+      name: String((row as { entity_name?: unknown }).entity_name ?? "").trim(),
+      nif: (() => {
+        const digits = String((row as { entity_nif?: unknown }).entity_nif ?? "").replace(/\D/g, "");
+        return digits || null;
+      })(),
+    }))
+    .filter((row) => {
+      if (!row.name) return false;
+      const key = `${normalizeEntitySearch(row.name)}|${row.nif ?? ""}`;
+      if (seenEntityKeys.has(key)) return false;
+      seenEntityKeys.add(key);
+      return true;
+    })
+    .slice(0, 120);
+
   let query = supabase
     .from("announcements")
     .select(
@@ -336,29 +424,52 @@ export default async function AnnouncementsPage({
   if (cpvFilters.length > 0) {
     query = query.or(buildCpvFilterClause(cpvFilters));
   }
-  if (nipcFilters.length > 0) query = query.in("entity_nif", nipcFilters);
-  if (entityFilter) query = query.ilike("entity_name", `%${entityFilter}%`);
-  if (announcementNumberFilter) query = query.or(`dr_announcement_no.ilike.%${announcementNumberFilter}%,base_announcement_id.ilike.%${announcementNumberFilter}%`);
-  if (actTypeFilter) {
-    query = query.in("act_type", actTypeFilterValues(actTypeFilter));
-  }
-  if (procedureTypeFilter) {
-    query = query.in("procedure_type", modelTypeFilterValues(procedureTypeFilter));
-  }
-  if (contractTypeFilter) {
-    query = query.in("contract_type", contractTypeFilterValues(contractTypeFilter));
-  }
-  if (sourceFilter) query = query.eq("source", sourceFilter);
+  if (entityFilter) {
+    const termClauses = buildEntitySearchTerms(entityFilter)
+      .flatMap((term) => {
+        const ilikeTerm = toIlikeToken(term);
+        if (!ilikeTerm) return [];
+        const variants = buildDiacriticVariants(ilikeTerm, 32);
+        return variants.length > 0 ? variants : [ilikeTerm];
+      })
+      .filter(Boolean)
+      .map((term) => `entity_name.ilike.%${term}%`);
+    const baseEntityToken = toIlikeToken(entityFilter);
+    const baseEntityVariants = baseEntityToken ? buildDiacriticVariants(baseEntityToken, 32) : [];
 
-  if (statusFilter === "active") {
-    const todayIso = new Date().toISOString();
-    query = query.eq("status", "active").or(`proposal_deadline_at.is.null,proposal_deadline_at.gte.${todayIso}`);
-  } else if (statusFilter === "expired") {
-    const todayIso = new Date().toISOString();
-    query = query.or(`status.eq.expired,and(status.eq.active,proposal_deadline_at.lt.${todayIso})`);
-  } else if (statusFilter) {
-    query = query.eq("status", statusFilter);
+    const orClauses = Array.from(
+      new Set([
+        ...baseEntityVariants.map((term) => `entity_name.ilike.%${term}%`),
+        ...termClauses,
+        ...(entityNifFilter.length >= 5 ? [`entity_nif.ilike.%${entityNifFilter}%`] : []),
+      ]),
+    );
+
+    if (orClauses.length > 0) {
+      query = query.or(orClauses.join(","));
+    }
   }
+  if (announcementNumberFilter) query = query.or(`dr_announcement_no.ilike.%${announcementNumberFilter}%,base_announcement_id.ilike.%${announcementNumberFilter}%`);
+  if (actTypeFilters.length > 0) {
+    query = query.in(
+      "act_type",
+      Array.from(new Set(actTypeFilters.flatMap((value) => actTypeFilterValues(value)))),
+    );
+  }
+  if (procedureTypeFilters.length > 0) {
+    query = query.in(
+      "procedure_type",
+      Array.from(new Set(procedureTypeFilters.flatMap((value) => modelTypeFilterValues(value)))),
+    );
+  }
+  if (contractTypeFilters.length > 0) {
+    query = query.in(
+      "contract_type",
+      Array.from(new Set(contractTypeFilters.flatMap((value) => contractTypeFilterValues(value)))),
+    );
+  }
+  if (Number.isFinite(minValue)) query = query.gte("base_price", minValue);
+  if (Number.isFinite(maxValue)) query = query.lte("base_price", maxValue);
 
   if (dateFrom) query = query.gte("publication_date", dateFrom);
   if (dateTo) query = query.lte("publication_date", dateTo);
@@ -421,47 +532,54 @@ export default async function AnnouncementsPage({
   const now = new Date();
 
   function qs(overrides: Record<string, string | number> = {}) {
-    const base: Record<string, string> = {
+    const merged = {
       page: String(page),
       limit: String(PAGE_SIZE),
       cpv: cpvFilter,
-      nipc: nipcFilter,
       entity: entityFilter,
-       announcement_number: announcementNumberFilter,
-      act_type: actTypeFilter,
-      procedure_type: procedureTypeFilter,
-      contract_type: contractTypeFilter,
-      source: sourceFilter,
-      status: statusFilter,
+      announcement_number: announcementNumberFilter,
+      min_value: minValueFilter,
+      max_value: maxValueFilter,
       from_date: dateFrom,
       to_date: dateTo,
       sort: rawSort,
+      ...Object.fromEntries(Object.entries(overrides).map(([key, value]) => [key, String(value)])),
     };
-    const merged = { ...base, ...Object.fromEntries(Object.entries(overrides).map(([k, v]) => [k, String(v)])) };
-    const parts = Object.entries(merged).filter(([, value]) => value).map(([key, value]) => `${key}=${encodeURIComponent(value)}`);
-    return `/announcements?${parts.join("&")}`;
+
+    const params = new URLSearchParams();
+    Object.entries(merged).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
+    actTypeFilters.forEach((value) => params.append("act_type", value));
+    procedureTypeFilters.forEach((value) => params.append("procedure_type", value));
+    contractTypeFilters.forEach((value) => params.append("contract_type", value));
+
+    const query = params.toString();
+    return `/announcements${query ? `?${query}` : ""}`;
   }
 
   function exportQs() {
-    const parts = [
+    const params = new URLSearchParams();
+    [
       ["cpv", cpvFilter],
-      ["nipc", nipcFilter],
       ["entity", entityFilter],
-       ["announcement_number", announcementNumberFilter],
-      ["act_type", actTypeFilter],
-      ["procedure_type", procedureTypeFilter],
-      ["contract_type", contractTypeFilter],
-      ["source", sourceFilter],
-      ["status", statusFilter],
+      ["announcement_number", announcementNumberFilter],
+      ["min_value", minValueFilter],
+      ["max_value", maxValueFilter],
       ["from_date", dateFrom],
       ["to_date", dateTo],
       ["sort", sortCol],
       ["dir", sortDir],
-    ]
-      .filter(([, value]) => value)
-      .map(([key, value]) => `${key}=${encodeURIComponent(value)}`);
+    ].forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
 
-    return `/api/announcements/export${parts.length > 0 ? `?${parts.join("&")}` : ""}`;
+    actTypeFilters.forEach((value) => params.append("act_type", value));
+    procedureTypeFilters.forEach((value) => params.append("procedure_type", value));
+    contractTypeFilters.forEach((value) => params.append("contract_type", value));
+
+    const query = params.toString();
+    return `/api/announcements/export${query ? `?${query}` : ""}`;
   }
 
   return (
@@ -473,163 +591,158 @@ export default async function AnnouncementsPage({
       />
 
       <form className="bg-white border border-surface-200 rounded-xl p-4 shadow-card space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
           <div>
             <CpvMultiSearchInput
               name="cpv"
               defaultValue={cpvFilter}
               label="CPV"
-              placeholder="Pesquisar CPV (ex: sementes, 7124...)"
+              placeholder="CPV (ex: 331 ou 45000000)"
+              compact
             />
           </div>
+
           <div>
-            <NipcMultiInput
-              name="nipc"
-              defaultValue={nipcFilter}
-              label="NIPC"
-              placeholder="Inserir NIPC e Enter"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Entidade</label>
-            <input
+            <label className="block text-xs text-gray-400 mb-1">Entidade Adjudicante</label>
+            <EntitySearchInput
               name="entity"
               defaultValue={entityFilter}
-              placeholder="Insira a Entidade"
-              className="h-10 w-full border border-surface-200 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+              placeholder="Nome ou NIPC"
+              minChars={2}
+              options={entityOptions}
+              className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>
+
           <div>
             <label className="block text-xs text-gray-400 mb-1">Nº de Anúncio</label>
             <input
               name="announcement_number"
               defaultValue={announcementNumberFilter}
-              placeholder="Nº DR ou BASE"
-              className="h-10 w-full border border-surface-200 rounded-xl px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
+              placeholder="Nº DRE"
+              className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
             />
           </div>
+
           <div>
-            <MercadoSingleSelect
+            <MercadoMultiSelect
               name="act_type"
               label="Tipo de ato"
-              defaultValue={actTypeFilter}
-              options={[
-                { value: "", label: "Todos" },
-                ...ACT_TYPE_CANONICAL.map((option) => ({ value: option, label: option })),
-              ]}
+              options={[...ACT_TYPE_CANONICAL]}
+              defaultSelected={actTypeFilters}
             />
           </div>
+
           <div>
-            <MercadoSingleSelect
+            <MercadoMultiSelect
               name="contract_type"
               label="Tipo de contrato"
-              defaultValue={contractTypeFilter}
-              options={[
-                { value: "", label: "Todos" },
-                ...CONTRACT_TYPE_CANONICAL.map((option) => ({ value: option, label: option })),
-              ]}
+              options={[...CONTRACT_TYPE_CANONICAL]}
+              defaultSelected={contractTypeFilters}
             />
           </div>
+
           <div>
-            <MercadoSingleSelect
+            <MercadoMultiSelect
               name="procedure_type"
-              label="Tipo de modelo"
-              defaultValue={procedureTypeFilter}
-              options={[
-                { value: "", label: "Todos" },
-                ...MODEL_TYPE_CANONICAL.map((option) => ({ value: option, label: option })),
-              ]}
+              label="Tipo de Procedimento"
+              options={[...MODEL_TYPE_CANONICAL]}
+              defaultSelected={procedureTypeFilters}
             />
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-          <div className="rounded-xl border border-surface-200 bg-white p-3">
-            <label className="block text-xs text-gray-400 mb-2">De Data</label>
-            <SingleDatePicker name="from_date" defaultValue={dateFrom} placeholder="Data início" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-stretch">
+          <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
+            <div className="mb-2">
+              <label className="block text-xs text-gray-400">Ordenar valor por</label>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 w-full">
+              <CurrencyValueField
+                name="min_value"
+                label="Mínimo"
+                defaultValue={minValueFilter}
+                placeholder="0"
+              />
+              <CurrencyValueField
+                name="max_value"
+                label="Máximo"
+                defaultValue={maxValueFilter}
+                placeholder="10000000"
+              />
+            </div>
           </div>
-          <div className="rounded-xl border border-surface-200 bg-white p-3">
-            <label className="block text-xs text-gray-400 mb-2">Até data</label>
-            <SingleDatePicker name="to_date" defaultValue={dateTo} placeholder="Data fim" />
+
+          <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
+            <label className="block text-xs text-gray-400 mb-2">Data de publicação</label>
+            <MercadoDateDropdown name="from_date" defaultValue={dateFrom} />
           </div>
-          <div>
-            <MercadoSingleSelect
-              name="source"
-              label="Fonte"
-              defaultValue={sourceFilter}
-              options={[
-                { value: "", label: "Todas" },
-                { value: "DR_SCRAPE", label: "DR" },
-                { value: "BASE_API", label: "BASE" },
-              ]}
-            />
+
+          <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
+            <label className="block text-xs text-gray-400 mb-2">Prazo de fim</label>
+            <MercadoDateDropdown name="to_date" defaultValue={dateTo} />
           </div>
-          <div>
-            <MercadoSingleSelect
-              name="status"
-              label="Estado"
-              defaultValue={statusFilter}
-              options={[
-                { value: "", label: "Todos" },
-                { value: "active", label: "Ativo" },
-                { value: "expired", label: "Expirado" },
-                { value: "cancelled", label: "Cancelado" },
-                { value: "closed", label: "Fechado" },
-              ]}
-            />
-          </div>
-          <div>
+
+          <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
             <MercadoSingleSelect
               name="limit"
               label="Apresentar"
               defaultValue={String(PAGE_SIZE)}
               options={[
-                { value: "25", label: "25 anúncios" },
-                { value: "50", label: "50 anúncios" },
-                { value: "100", label: "100 anúncios" },
+                { value: "25", label: "25 Anúncios" },
+                { value: "50", label: "50 Anúncios" },
+                { value: "100", label: "100 Anúncios" },
               ]}
             />
           </div>
-          <div>
+
+          <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
             <MercadoSingleSelect
               name="sort"
-              label="Ordenar"
+              label="Ordenar Oportunidades por"
               defaultValue={rawSort}
               options={[
                 { value: "publication_date_desc", label: "Mais recentes" },
                 { value: "publication_date_asc", label: "Mais antigos" },
                 { value: "base_price_desc", label: "Maior valor" },
                 { value: "base_price_asc", label: "Menor valor" },
-                { value: "proposal_deadline_at_asc", label: "Prazo próximo" },
+                { value: "proposal_deadline_at_asc", label: "Fim mais próximo" },
               ]}
             />
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center pt-1">
+        <div className="grid grid-cols-1 items-center gap-2 pt-1 lg:grid-cols-[1fr_auto_1fr]">
+          <div className="flex justify-center lg:justify-start">
+            <a
+              href={exportQs()}
+              download
+              className="h-10 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-white" />
+              Exportar Excel
+            </a>
+          </div>
+
           <button
             type="submit"
-            className="h-10 bg-brand-600 text-white text-sm font-medium px-4 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md inline-flex items-center gap-1"
+            className="inline-flex h-10 w-full items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold text-center text-white shadow-sm transition-all hover:opacity-90 lg:w-[360px]"
+            style={{ background: "#39752a" }}
           >
             <Filter className="w-4 h-4" />
-            Filtrar
+            Aplicar filtros selecionados
           </button>
-          <a
-            href={exportQs()}
-            download
-            className="h-10 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-white" />
-            Exportar Excel
-          </a>
-          {(cpvFilter || nipcFilter || entityFilter || announcementNumberFilter || actTypeFilter || procedureTypeFilter || contractTypeFilter || sourceFilter || statusFilter || dateFrom || dateTo) && (
-            <Link
-              href="/announcements"
-              className="h-10 text-gray-500 text-sm font-medium px-4 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card inline-flex items-center"
-            >
-              Limpar
-            </Link>
-          )}
+
+          <div className="flex justify-center lg:justify-end">
+            {(cpvFilter || entityFilter || announcementNumberFilter || actTypeFilters.length > 0 || procedureTypeFilters.length > 0 || contractTypeFilters.length > 0 || minValueFilter || maxValueFilter || dateFrom || dateTo) && (
+              <Link
+                href="/announcements"
+                className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-500 transition-all hover:bg-gray-50 sm:w-auto"
+              >
+                Limpar
+              </Link>
+            )}
+          </div>
         </div>
       </form>
 

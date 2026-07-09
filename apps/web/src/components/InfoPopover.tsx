@@ -7,7 +7,7 @@ type InfoPopoverProps = {
   ariaLabel?: string;
   placement?: "side" | "bottom";
   side?: "left" | "right";
-  align?: "start" | "center" | "end";
+  triggerAs?: "button" | "span";
 };
 
 export default function InfoPopover({
@@ -15,55 +15,53 @@ export default function InfoPopover({
   ariaLabel = "INFO",
   placement = "side",
   side = "right",
-  align = "center",
+  triggerAs = "button",
 }: InfoPopoverProps) {
-  let tooltipPositionClass = "";
-  let arrowPositionClass = "";
+  const tooltipPositionClass =
+    placement === "bottom"
+      ? "left-1/2 top-[calc(100%+8px)] -translate-x-1/2"
+      : side === "left"
+        ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
+        : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
 
-  if (placement === "bottom") {
-    arrowPositionClass = "left-1/2 -top-1 -translate-x-1/2 border-l border-t";
-    
-    if (align === "start") {
-      tooltipPositionClass = "left-0 top-[calc(100%+8px)]";
-      arrowPositionClass = "left-2 -top-1 border-l border-t";
-    } else if (align === "end") {
-      tooltipPositionClass = "right-0 top-[calc(100%+8px)]";
-      arrowPositionClass = "right-2 -top-1 border-l border-t";
-    } else {
-      tooltipPositionClass = "left-1/2 top-[calc(100%+8px)] -translate-x-1/2";
-    }
-  } else {
-    tooltipPositionClass = side === "left"
-      ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
-      : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
-    
-    arrowPositionClass = side === "left"
-      ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
-      : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
-  }
+  const arrowPositionClass =
+    placement === "bottom"
+      ? "left-1/2 -top-1 -translate-x-1/2 border-l border-t"
+      : side === "left"
+        ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
+        : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
 
   return (
     <div className="relative inline-flex group">
-      <button
-        type="button"
-        className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
-        aria-label={ariaLabel}
-      >
-        <Info className="w-3 h-3" />
-      </button>
+      {triggerAs === "button" ? (
+        <button
+          type="button"
+          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors"
+          aria-label={ariaLabel}
+        >
+          <Info className="w-3 h-3" />
+        </button>
+      ) : (
+        <span
+          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 text-gray-500"
+          aria-label={ariaLabel}
+        >
+          <Info className="w-3 h-3" />
+        </span>
+      )}
 
       <div
         role="tooltip"
         aria-label={ariaLabel}
-        className={`pointer-events-none absolute z-50 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible font-normal normal-case ${tooltipPositionClass}`}
+        className={`pointer-events-none absolute z-50 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible font-normal normal-case whitespace-normal ${tooltipPositionClass}`}
       >
         <span
           className={`absolute h-2 w-2 rotate-45 bg-white border-gray-200 ${arrowPositionClass}`}
         />
-        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1 text-left w-full">
+        <p className="text-[10px] font-bold uppercase text-gray-400 mb-1">
           INFO
         </p>
-        <p className="text-xs leading-5 text-gray-700 font-normal normal-case text-left">{text}</p>
+        <p className="text-xs leading-5 text-gray-700 font-normal normal-case whitespace-normal break-words">{text}</p>
       </div>
     </div>
   );

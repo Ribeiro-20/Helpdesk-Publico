@@ -11,6 +11,13 @@ import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 import BackButton from "@/components/BackButton";
+import PriceInput from "@/components/PriceInput";
+
+export const metadata = {
+  title: "Contratos Públicos | Helpdesk Público",
+  description:
+    "Consulte todos os Contratos Públicos publicados. Pesquise Entidades Adjudicantes, Adjudicatários e o detalhe de cada contrato na Contratação Pública.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -198,16 +205,8 @@ export default async function MercadoPublicoPage({
     .eq("tenant_id", tenantId)
     .limit(5000);
 
-  // Fetch all procedure/contract types (no limit) to populate filters correctly
-  const { data: procedureRows } = await supabase
-    .from("contracts")
-    .select("procedure_type")
-    .eq("tenant_id", tenantId);
-
-  const { data: contractTypeRows } = await supabase
-    .from("contracts")
-    .select("contract_type")
-    .eq("tenant_id", tenantId);
+  await supabase.from("contracts").select("procedure_type").eq("tenant_id", tenantId).limit(1);
+  await supabase.from("contracts").select("contract_type").eq("tenant_id", tenantId).limit(1);
 
   // Seed with known standard types
   const contractTypeSet = new Set<string>([
@@ -704,13 +703,18 @@ export default async function MercadoPublicoPage({
     let rpcRows: ContractRow[] = [];
     let rpcTotalCount = 0;
 
-    if (rpcResult && Array.isArray(rpcResult) && rpcResult.length > 0) {
-      const result = rpcResult[0] as {
-        rows: ContractRow[];
+    if (rpcResult) {
+      const result = (Array.isArray(rpcResult) ? rpcResult[0] : rpcResult) as {
+        rows: ContractRow[] | string;
         total_count: number;
       };
-      rpcRows = Array.isArray(result.rows) ? result.rows : [];
-      rpcTotalCount = result.total_count ?? 0;
+      if (result) {
+        const rawRows = typeof result.rows === "string"
+          ? (JSON.parse(result.rows) as ContractRow[])
+          : result.rows;
+        rpcRows = Array.isArray(rawRows) ? rawRows : [];
+        rpcTotalCount = Number(result.total_count ?? 0);
+      }
     }
 
     const ids = rpcRows.map((row) => row.id).filter(Boolean);
@@ -842,8 +846,8 @@ export default async function MercadoPublicoPage({
   if (sortField) qsParams.set("sort", sortField);
   if (PAGE_SIZE !== 25) qsParams.set("limit", PAGE_SIZE.toString());
   const buildQsBase = qsParams.toString()
-    ? `/mercado-publico?${qsParams.toString()}`
-    : "/mercado-publico";
+    ? `/mp/contratos-publicos?${qsParams.toString()}`
+    : "/mp/contratos-publicos";
 
   return (
     <div
@@ -860,16 +864,16 @@ export default async function MercadoPublicoPage({
             <FileText className="w-6 h-6 text-green-500 shrink-0" />
             <div>
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 leading-tight">
-                Estatísticas de Mercado
+                Contratos Públicos
               </h1>
               <p className="text-gray-500 text-sm">
-                {totalCount} contratos celebrados
+                {totalCount} contratos publicados
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
             <Link
-              href="/"
+              href="/mp"
               className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
             >
               <House className="h-4 w-4" />
@@ -964,34 +968,17 @@ export default async function MercadoPublicoPage({
             </div>
 
             <div className="w-full">
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Preço contratual mínimo
-                </label>
-                <InfoPopover text="Valor mínimo do contrato em euros." />
-              </div>
-              <input
-                name="min_value"
-                type="number"
-                defaultValue={minValue}
-                placeholder="0"
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              />
+              <label className="block text-xs text-gray-400 mb-1">
+                Preço contratual mínimo (€)
+              </label>
+              <PriceInput name="min_value" defaultValue={minValue} placeholder="0" />
             </div>
 
             <div className="w-full">
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Preço contratual máximo
-                </label>
-                <InfoPopover text="Valor máximo do contrato em euros." />
-              </div>
-              <input
-                name="max_value"
-                type="number"
-                defaultValue={maxValue}
-                placeholder="10000000"
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
+              <label className="block text-xs text-gray-400 mb-1">
+                Preço contratual máximo (€)
+              </label>
+              <PriceInput name="max_value" defaultValue={maxValue} placeholder="10000000"
               />
             </div>
           </div>
@@ -1047,7 +1034,7 @@ export default async function MercadoPublicoPage({
             </button>
             {hasFilters && (
               <Link
-                href="/mercado-publico"
+                href="/mp/contratos-publicos"
                 className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium bg-white border border-gray-200 text-gray-500 hover:bg-gray-50 transition-all h-[42px]"
               >
                 Limpar

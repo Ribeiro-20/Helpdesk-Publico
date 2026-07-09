@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
 
@@ -24,12 +24,39 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const BATCH_SIZE = 500;
 
-async function main() {
-  const jsonPath = resolve(__dirname, "..", "cpvs_final.json");
-  const raw = readFileSync(jsonPath, "utf-8");
-  const cpvs: { id: string; descricao: string }[] = JSON.parse(raw);
+type CpvInputRow = {
+  id?: string;
+  descricao?: string;
+  code?: string;
+  label?: string;
+};
 
-  console.log(`Loaded ${cpvs.length} CPV codes from cpvs_final.json`);
+function normalizeCpvs(rows: CpvInputRow[]): { id: string; descricao: string }[] {
+  return rows
+    .map((row) => {
+      const id = String(row.id ?? row.code ?? "").trim();
+      const descricao = String(row.descricao ?? row.label ?? "").trim();
+      return { id, descricao };
+    })
+    .filter((row) => row.id.length > 0 && row.descricao.length > 0);
+}
+
+function resolveCpvSourcePath(): string {
+  const explicitSource = process.env.CPV_SOURCE_FILE?.trim();
+  if (explicitSource) {
+    return resolve(__dirname, "..", explicitSource);
+  }
+
+  return resolve(__dirname, "..", "cpv_hierarquia.min.json");
+}
+
+async function main() {
+  const jsonPath = resolveCpvSourcePath();
+  const raw = readFileSync(jsonPath, "utf-8");
+  const parsed = JSON.parse(raw) as CpvInputRow[];
+  const cpvs = normalizeCpvs(parsed);
+
+  console.log(`Loaded ${cpvs.length} CPV codes from ${jsonPath}`);
 
   let inserted = 0;
   for (let i = 0; i < cpvs.length; i += BATCH_SIZE) {

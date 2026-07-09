@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
+
+const GA_ID = "G-TXXYEHSNSB";
 
 export const metadata: Metadata = {
   title: "Helpdesk Público | Informação do Mercado Público",
@@ -22,12 +25,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt">
-      <body>
+      <body className="overflow-x-hidden">
         {/* Google Tag (gtag.js) */}
-        <script
-          async
-          src="https://www.googletagmanager.com/gtag/js?id=G-TXXYEHSNSB"
-        ></script>
+        <Script
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+          strategy="beforeInteractive"
+        />
+        <Script id="google-analytics" strategy="beforeInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', '${GA_ID}');
+          `}
+        </Script>
         {children}
       </body>
     </html>

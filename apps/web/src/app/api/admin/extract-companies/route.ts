@@ -15,7 +15,7 @@ function mostFrequentLocation(locations: string[]): string | null {
     freq.set(key, (freq.get(key) ?? 0) + 1);
   }
   let best = ""; let bestCount = 0;
-  for (const [key, count] of freq) { if (count > bestCount) { best = key; bestCount = count; } }
+  for (const [key, count] of Array.from(freq.entries())) { if (count > bestCount) { best = key; bestCount = count; } }
   return best || null;
 }
 
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     }
     const companyData = new Map<string, CompanyData>();
 
-    function getOrCreate(nif: string, name: string): CompanyData {
+    const getOrCreate = (nif: string, name: string): CompanyData => {
       let d = companyData.get(nif);
       if (!d) { d = { name, contractsWon: 0, contractsParticipated: 0, totalValueWon: 0, locations: [], cpvs: new Map(), entities: new Map(), lastWinDate: null }; companyData.set(nif, d); }
       if (name && d.name === nif) d.name = name;
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     // 2. Load existing companies
     const existingCompanies = new Map<string, { id: string; location: string | null }>();
-    const nifArr = [...companyData.keys()];
+    const nifArr = Array.from(companyData.keys());
     for (let i = 0; i < nifArr.length; i += 500) {
       const { data } = await admin.from("companies").select("id, nif, location").eq("tenant_id", tenantId).in("nif", nifArr.slice(i, i + 500));
       for (const row of (data ?? []) as Array<{ id: string; nif: string; location: string | null }>) existingCompanies.set(row.nif, row);
@@ -131,14 +131,14 @@ export async function POST(req: NextRequest) {
 
     // 3. Build & upsert rows
     const rows: Array<Record<string, unknown>> = [];
-    for (const [nif, d] of companyData) {
+    for (const [nif, d] of Array.from(companyData.entries())) {
       const existing = existingCompanies.get(nif);
       const location = existing?.location ?? mostFrequentLocation(d.locations);
       if (location && !existing?.location) stats.locations_set++;
       const winRate = d.contractsParticipated > 0 ? Math.round((d.contractsWon / d.contractsParticipated) * 10000) / 100 : null;
       const avgValue = d.contractsWon > 0 ? Math.round((d.totalValueWon / d.contractsWon) * 100) / 100 : null;
-      const cpvSpec = [...d.cpvs.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 10).map(([code, cv]) => ({ code, count: cv.count, value: Math.round(cv.value * 100) / 100 }));
-      const topEntities = [...d.entities.entries()].sort((a, b) => b[1].count - a[1].count).slice(0, 10).map(([n, ev]) => ({ nif: n, name: ev.name, count: ev.count, value: Math.round(ev.value * 100) / 100 }));
+      const cpvSpec = Array.from(d.cpvs.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 10).map(([code, cv]) => ({ code, count: cv.count, value: Math.round(cv.value * 100) / 100 }));
+      const topEntities = Array.from(d.entities.entries()).sort((a, b) => b[1].count - a[1].count).slice(0, 10).map(([n, ev]) => ({ nif: n, name: ev.name, count: ev.count, value: Math.round(ev.value * 100) / 100 }));
       rows.push({ tenant_id: tenantId, nif, name: d.name, location, contracts_won: d.contractsWon, contracts_participated: d.contractsParticipated, total_value_won: Math.round(d.totalValueWon * 100) / 100, avg_contract_value: avgValue, win_rate: winRate, last_win_at: d.lastWinDate ? new Date(d.lastWinDate).toISOString() : null, cpv_specialization: cpvSpec, top_entities: topEntities });
       if (existing) stats.companies_updated++; else stats.companies_created++;
     }

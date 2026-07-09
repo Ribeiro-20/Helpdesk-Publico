@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import AdminActions from "@/components/AdminActions";
 import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { BellRing, Settings } from "lucide-react";
 
 function Field({
   label,
@@ -14,9 +14,9 @@ function Field({
   mono?: boolean;
 }) {
   return (
-    <div className="flex gap-4 text-sm py-2 border-b border-surface-100 last:border-0">
-      <span className="text-gray-400 w-32 shrink-0 font-medium">{label}</span>
-      <span className={`text-gray-900 ${mono ? "font-mono text-xs bg-surface-50 px-2 py-0.5 rounded" : ""}`}>
+    <div className="flex flex-col gap-1 py-2 text-sm border-b border-surface-100 last:border-0 sm:flex-row sm:gap-4">
+      <span className="text-gray-400 font-medium sm:w-32 sm:shrink-0">{label}</span>
+      <span className={`text-gray-900 min-w-0 ${mono ? "inline-block max-w-full break-all font-mono text-xs bg-surface-50 px-2 py-1 rounded" : "break-words"}`}>
         {value}
       </span>
     </div>
@@ -47,9 +47,9 @@ export default async function SettingsPage() {
         description="Informações do sistema e ações de administração"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {/* User info */}
-        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+        <div className="bg-white border border-surface-200 rounded-xl p-4 sm:p-6 shadow-card">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">
             Utilizador
           </h2>
@@ -63,7 +63,7 @@ export default async function SettingsPage() {
         </div>
 
         {/* System info */}
-        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+        <div className="bg-white border border-surface-200 rounded-xl p-4 sm:p-6 shadow-card">
           <h2 className="text-sm font-semibold text-gray-900 mb-4">
             Ambiente
           </h2>
@@ -98,8 +98,8 @@ export default async function SettingsPage() {
 
       {/* Admin actions */}
       {isAdmin && (
-        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="bg-white border border-surface-200 rounded-xl p-4 sm:p-6 shadow-card space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-gray-900 mb-1">
                 Ações de Administração
@@ -109,12 +109,21 @@ export default async function SettingsPage() {
               </p>
             </div>
 
-            <Link
-              href="/settings/historico-ingestao"
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand-700 shadow-sm hover:shadow-md"
-            >
-              Histórico de ingestão
-            </Link>
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:w-auto md:justify-end">
+              <Link
+                href="/settings/historico-ingestao"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand-700 shadow-sm hover:shadow-md sm:w-auto"
+              >
+                Registo de Sistema
+              </Link>
+              <Link
+                href="/settings/alertas-sistema"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:border-brand-200 hover:text-brand-700 sm:w-auto"
+              >
+                <BellRing className="h-4 w-4" />
+                Alertas do sistema
+              </Link>
+            </div>
           </div>
           <AdminActions
             isInitialised={isInitialised}
@@ -128,11 +137,11 @@ export default async function SettingsPage() {
               {
                 fn: "delete-announcements",
                 label: "Apagar Anúncios (intervalo)",
-                variant: "secondary",
+                variant: "primary",
               },
               {
-                fn: "ingest-dr",
-                label: "Ingerir Anúncios DR",
+                fn: "delete-announcement-versions",
+                label: "Apagar histórico de versões",
                 variant: "primary",
               },
               {
@@ -140,23 +149,6 @@ export default async function SettingsPage() {
                 label: "Ingerir Contratos",
                 variant: "primary",
                 body: { dry_run: false },
-              },
-              {
-                fn: "ingest-base",
-                label: "Simular Anúncios",
-                variant: "secondary",
-                body: { dry_run: true },
-              },
-              {
-                fn: "ingest-contracts",
-                label: "Simular Contratos",
-                variant: "secondary",
-                body: { dry_run: true },
-              },
-              {
-                fn: "ingest-contract-mods",
-                label: "Ingerir Modificações",
-                variant: "secondary",
               },
               {
                 fn: "extract-entities",
@@ -171,12 +163,12 @@ export default async function SettingsPage() {
               {
                 fn: "match-and-queue",
                 label: "Processar Correspondência CPV",
-                variant: "secondary",
+                variant: "primary",
               },
               {
                 fn: "send-emails",
                 label: "Enviar Emails Pendentes",
-                variant: "secondary",
+                variant: "primary",
               },
             ]}
           />

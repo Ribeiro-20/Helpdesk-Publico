@@ -20,6 +20,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { matchClientsForAnnouncement } from "../_shared/cpvMatcher.ts";
 import type { CpvRule } from "../_shared/cpvMatcher.ts";
+import { getNextBusinessDay10am } from "../_shared/scheduling.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -192,6 +193,15 @@ function isMissingNotificationRegionsError(error: unknown): boolean {
   return combined.includes("notification_regions") && combined.includes("clients");
 }
 
+function isAnnouncementExpired(deadlineAt: string | null | undefined): boolean {
+  if (!deadlineAt) return false;
+
+  const deadlineMs = Date.parse(deadlineAt);
+  if (!Number.isFinite(deadlineMs)) return false;
+
+  return deadlineMs < Date.now();
+}
+
 function serializeError(error: unknown) {
   if (error instanceof Error) {
     return {
@@ -354,7 +364,7 @@ Deno.serve(async (req: Request) => {
     // Build announcement query
     let annQuery = supabase
       .from("announcements")
-      .select("id, cpv_main, cpv_list, raw_payload")
+      .select("id, cpv_main, cpv_list, raw_payload, proposal_deadline_at")
       .eq("tenant_id", tenantId)
       .eq("status", "active");
 
@@ -397,6 +407,17 @@ Deno.serve(async (req: Request) => {
 
     for (const ann of announcements ?? []) {
       try {
+        const deadlineAt = typeof ann.proposal_deadline_at === "string"
+          ? ann.proposal_deadline_at
+          : null;
+
+        if (isAnnouncementExpired(deadlineAt)) {
+          console.log(
+            `[match-and-queue] skipping expired announcement ${ann.id} (deadline ${deadlineAt})`,
+          );
+          continue;
+        }
+
         const cpvList: string[] = Array.isArray(ann.cpv_list)
           ? ann.cpv_list
           : [];
@@ -429,6 +450,15 @@ Deno.serve(async (req: Request) => {
         }
 
         for (const clientId of regionFilteredClientIds) {
+          // Check if auto-scheduling is disabled (for testing)
+          const autoScheduleEnabled = (Deno.env.get("QUEUE_AUTO_SCHEDULE") ?? "true")
+            .trim()
+            .toLowerCase() === "true";
+          
+          const scheduledFor = autoScheduleEnabled 
+            ? getNextBusinessDay10am()
+            : new Date().toISOString();
+          
           const { error: insertErr } = await supabase
             .from("notifications")
             .insert({
@@ -437,6 +467,7 @@ Deno.serve(async (req: Request) => {
               announcement_id: ann.id,
               channel: "email",
               status: "PENDING",
+              scheduled_for: scheduledFor,
             });
 
           if (insertErr) {

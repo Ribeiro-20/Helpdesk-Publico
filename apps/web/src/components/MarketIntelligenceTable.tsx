@@ -144,7 +144,7 @@ export default function MarketIntelligenceTable({
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
                   <div className="flex items-center gap-2">
                     Informação do Contrato
-                    <InfoPopover text="Clique sobre o contrato pretendido para aceder a toda a informação disponível." placement="bottom" align="start" />
+                    <InfoPopover text="Clique sobre o contrato pretendido para aceder a toda a informação disponível." placement="bottom" />
                   </div>
                 </th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -168,7 +168,7 @@ export default function MarketIntelligenceTable({
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">
                   <div className="flex items-center justify-end gap-2">
                     Valor
-                    <InfoPopover text="Valor pelo qual o contrato foi celebrado." placement="bottom" align="end" />
+                    <InfoPopover text="Valor pelo qual o contrato foi celebrado." placement="bottom" />
                   </div>
                 </th>
               </tr>

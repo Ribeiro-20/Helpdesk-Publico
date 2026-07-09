@@ -72,13 +72,13 @@ function PriceField({
 }
 
 function extractName(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? raw : raw.slice(idx + 3);
+  const withoutNif = raw.replace(/^\d{5,12}/, "").replace(/^[-–\s]+/, "").trim();
+  return withoutNif || raw.replace(/^[-–\s]+/, "").trim() || "—";
 }
 
 function extractNif(raw: string): string {
-  const idx = raw.indexOf(" - ");
-  return idx === -1 ? "" : raw.slice(0, idx);
+  const match = raw.match(/^(\d{5,12})/);
+  return match ? match[1] : "";
 }
 
 export default async function ContractDetailPage({

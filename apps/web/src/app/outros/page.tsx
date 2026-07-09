@@ -12,6 +12,12 @@ import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 
+export const metadata = {
+  title: "Market Intelligence em Contratação Pública | Helpdesk Público",
+  description:
+    "Identifique oportunidades na Contratação Pública. Consulte contratos em execução, potenciais clientes públicos e informação estruturada para apoiar a ação comercial.",
+};
+
 export const dynamic = "force-dynamic";
 
 type MercadoSearchParams = {
@@ -573,20 +579,14 @@ export default async function OutrosPage({
       .trim();
   }
 
-  // Extract NIF and cleaned company name from standard format "123456789 - Name"
+  // Extract NIF and name — suporta "NIF - Nome" e "NIF-ALIAS - Nome" (ex: "516165887-CTT - NOME")
   function extractNifAndCleanName(rawStr: string): { nif: string; cleanName: string } {
     const trimmed = rawStr.trim();
-    const match = trimmed.match(/^(\d{9})\s*-\s*(.+)$/);
-    if (match) {
-      return {
-        nif: match[1],
-        cleanName: normalizeCompanyName(match[2].replace(/^[\s\-\/\.]+/g, "").trim()),
-      };
-    }
-    return {
-      nif: "",
-      cleanName: normalizeCompanyName(trimmed.replace(/^[\s\-\/\.]+/g, "").trim()),
-    };
+    const nifMatch = trimmed.match(/^(\d{5,12})/);
+    const nif = nifMatch ? nifMatch[1] : "";
+    const withoutNif = trimmed.replace(/^\d{5,12}/, "").replace(/^[-–\s]+/, "").trim();
+    const cleanName = normalizeCompanyName(withoutNif || trimmed.replace(/^[-–\s\/\.]+/g, "").trim());
+    return { nif, cleanName };
   }
 
   // Build lookup mapping of normalized company name -> NIF

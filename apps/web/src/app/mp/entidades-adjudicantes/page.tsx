@@ -5,6 +5,12 @@ import { BarChart2, Building2, ChevronDown, Filter, House, Search } from "lucide
 import BackButton from "@/components/BackButton";
 import PublicFooter from "@/components/layout/PublicFooter";
 
+export const metadata = {
+  title: "Entidades Adjudicantes | Helpdesk Público",
+  description:
+    "Consulte todas as Entidades Adjudicantes ativas. Analise Contratos Públicos, Adjudicatários, Fornecedores do Estado e a atividade de cada Entidade.",
+};
+
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
@@ -37,6 +43,19 @@ type EntityRow = {
   last_activity_at: string | null;
   top_companies: TopCompany[];
 };
+
+function decodeHtml(str: string): string {
+  let s = str;
+  for (let i = 0; i < 5; i++) {
+    const next = s
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&#(\d+);/g, (_, c) => String.fromCharCode(Number(c)));
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
 
 function toNumber(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -107,7 +126,7 @@ function normalizeEntity(row: Record<string, unknown>): EntityRow {
   return {
     id: String(row.id ?? ""),
     nif: String(row.nif ?? ""),
-    name: String(row.name ?? "Sem nome"),
+    name: decodeHtml(String(row.name ?? "Sem nome")),
     entity_type: toStringOrNull(row.entity_type),
     location: toStringOrNull(row.location),
     total_contracts: Math.max(0, Math.round(toNumber(row.total_contracts))),
@@ -162,7 +181,7 @@ function buildQuery(
   }
 
   const qs = params.toString();
-  return qs ? `/estatisticas-publico?${qs}` : "/estatisticas-publico";
+  return qs ? `/mp/entidades-adjudicantes?${qs}` : "/mp/entidades-adjudicantes";
 }
 
 export default async function EstatisticasPublicoPage({
@@ -207,7 +226,7 @@ export default async function EstatisticasPublicoPage({
       <PageShell>
         <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
           <h1 className="text-xl font-semibold text-gray-900">
-            /estatisticas-publico
+            /mp/entidades-adjudicantes
           </h1>
           <p className="text-sm text-gray-500 mt-2">
             Nao foi possivel resolver o tenant para mostrar estatisticas.
@@ -327,12 +346,12 @@ export default async function EstatisticasPublicoPage({
 
   return (
     <PageShell>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <BarChart2 className="w-6 h-6 text-green-500" />
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Estatisticas de Entidades Adjudicantes
+              Entidades Adjudicantes
             </h1>
             <p className="text-gray-500 text-sm">
               {totalRows} entidades encontradas
@@ -341,7 +360,7 @@ export default async function EstatisticasPublicoPage({
         </div>
         <div className="flex items-center gap-2">
           <Link
-            href="/"
+            href="/mp"
             className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
           >
             <House className="h-4 w-4" />
@@ -408,7 +427,7 @@ export default async function EstatisticasPublicoPage({
           {hasFilters ? (
             <div>
               <Link
-                href="/estatisticas-publico"
+                href="/mp/entidades-adjudicantes"
                 className="inline-flex items-center justify-center px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all h-[38px]"
               >
                 Limpar
@@ -434,9 +453,9 @@ export default async function EstatisticasPublicoPage({
 
             <tbody className="divide-y divide-gray-100">
               {entities.map((row) => {
-                let contractsHref = `/mercado-publico?entity=${encodeURIComponent(
-                  row.nif,
-                )}`;
+                const nifDigits = row.nif.match(/^(\d+)/)?.[1] ?? "";
+                const entityParam = nifDigits || row.name;
+                let contractsHref = `/mp/contratos-publicos?entity=${encodeURIComponent(entityParam)}`;
 
                 if (yearFilter) {
                   contractsHref += `&from_date=${yearFilter}-01-01&to_date=${yearFilter}-12-31`;
@@ -448,12 +467,11 @@ export default async function EstatisticasPublicoPage({
                     className="hover:bg-green-50/40 transition-colors"
                   >
                     <td className="px-4 py-3">
-                          <p className="text-green-700 font-medium leading-tight">
+                          <p className="text-gray-900 font-medium leading-tight">
                         {row.name}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {row.nif}{" "}
-                        {row.entity_type ? `· ${row.entity_type}` : ""}
+                        {row.nif}
                       </p>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -508,7 +526,7 @@ export default async function EstatisticasPublicoPage({
                 href={buildQuery(baseQuery, { page: String(p) })}
                 className={
                   p === safePage
-                    ? "px-3 py-1.5 text-sm font-medium rounded-xl text-gray-900"
+                    ? "px-3 py-1.5 text-sm font-medium rounded-md text-white"
                     : "px-3 py-1.5 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
                 }
                 style={p === safePage ? { background: GREEN } : {}}
@@ -545,7 +563,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col" style={{ background: BODY_BG }}>
       <Header />
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 md:px-6 py-6 md:py-10 space-y-6">
         {children}
       </main>
       <PublicFooter />

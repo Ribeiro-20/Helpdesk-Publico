@@ -7,9 +7,17 @@ import OportunidadesResults from "@/components/OportunidadesResults";
 import InfoPopover from "@/components/InfoPopover";
 import MercadoCpvInput from "@/components/MercadoCpvInput";
 import MercadoDateDropdown from "@/components/MercadoDateDropdown";
+import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
-import CurrencyValueField from "../../components/CurrencyValueField";
+import CurrencyValueField from "@/components/CurrencyValueField";
+import EntitySearchInput from "@/components/EntitySearchInput";
 import { FileText, Filter, House } from "lucide-react";
+
+export const metadata = {
+  title: "Oportunidades de Mercado | Helpdesk Público",
+  description:
+    "Descubra diariamente novos Concursos Públicos e oportunidades na Contratação Pública. Pesquise Entidades Adjudicantes, Contratos Públicos e Adjudicatários.",
+};
 
 export const dynamic = "force-dynamic";
 
@@ -20,10 +28,10 @@ type OportunidadesSearchParams = {
   cpv?: string;
   entity?: string;
   announcement_number?: string;
-  act_type?: string;
-  model?: string;
-  procedure?: string;
-  contract_type?: string;
+  act_type?: string | string[];
+  model?: string | string[];
+  procedure?: string | string[];
+  contract_type?: string | string[];
   min_value?: string;
   max_value?: string;
   from_day?: string;
@@ -44,8 +52,10 @@ type OpportunityRow = {
   procedure_type: string | null;
   contract_type: string | null;
   publication_date: string | null;
+  proposal_deadline_days: number | null;
   proposal_deadline_at: string | null;
   cpv_main: string | null;
+  cpv_list: string[] | null;
   base_price: number | null;
   currency: string | null;
   status: string;
@@ -234,6 +244,71 @@ function toIsoFromParts(day: string, month: string, year: string): string {
   return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
 }
 
+function getArrayParam(value: string | string[] | undefined): string[] {
+  if (!value) return [];
+  return (Array.isArray(value) ? value : [value])
+    .flatMap((item) => item.split("|"))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeEntitySearch(value: string): string {
+  return value
+    .toLocaleLowerCase("pt-PT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildEntitySearchTerms(value: string): string[] {
+  const normalized = normalizeEntitySearch(value);
+  if (!normalized) return [];
+
+  const stopWords = new Set(["de", "do", "da", "dos", "das", "e", "a", "o"]);
+  const tokens = normalized
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3 && !stopWords.has(token));
+
+  const unique = Array.from(new Set(tokens));
+  if (unique.length === 0 && normalized) return [normalized];
+  return unique.slice(0, 5);
+}
+
+function toIlikeToken(value: string): string {
+  return value.replace(/[%,]/g, " ").trim();
+}
+
+function buildDiacriticVariants(token: string, maxVariants = 32): string[] {
+  const groups: Record<string, string[]> = {
+    a: ["a", "á", "à", "â", "ã"],
+    e: ["e", "é", "ê"],
+    i: ["i", "í"],
+    o: ["o", "ó", "ô", "õ"],
+    u: ["u", "ú"],
+    c: ["c", "ç"],
+  };
+
+  let variants = [""];
+  for (const char of token.toLocaleLowerCase("pt-PT")) {
+    const choices = groups[char] ?? [char];
+    const next: string[] = [];
+    for (const base of variants) {
+      for (const choice of choices) {
+        next.push(base + choice);
+        if (next.length >= maxVariants) break;
+      }
+      if (next.length >= maxVariants) break;
+    }
+    variants = next.length > 0 ? next : variants;
+    if (variants.length >= maxVariants) break;
+  }
+
+  return Array.from(new Set(variants.map((variant) => variant.trim()).filter(Boolean)));
+}
+
 export default async function OportunidadesPage({
   searchParams,
 }: {
@@ -257,9 +332,11 @@ export default async function OportunidadesPage({
   ].includes(rawSort)
     ? rawSort
     : "publication_date_desc";
-  const actType = (params.act_type ?? "").trim();
-  const modelType = (params.model ?? params.procedure ?? "").trim();
-  const contractType = (params.contract_type ?? "").trim();
+  const actTypeFilters = getArrayParam(params.act_type);
+  const modelTypeFilters = Array.from(
+    new Set([...getArrayParam(params.model), ...getArrayParam(params.procedure)]),
+  );
+  const contractTypeFilters = getArrayParam(params.contract_type);
   const minValue = (params.min_value ?? "").trim();
   const maxValue = (params.max_value ?? "").trim();
 
@@ -278,6 +355,8 @@ export default async function OportunidadesPage({
 
   const fromDate = toIsoFromParts(fromDay, fromMonth, fromYear);
   const toDate = toIsoFromParts(toDay, toMonth, toYear);
+  const publicationFromDate = fromDate;
+  const publicationToDate = toDate || (fromDate ? fromDate : "");
 
   const supabase = await createAdminClient();
 
@@ -290,52 +369,110 @@ export default async function OportunidadesPage({
   const tenantId = tenant?.id ?? null;
 
   let opportunities: OpportunityRow[] = [];
+  let cpvDescriptions: Record<string, string> = {};
   let totalCount = 0;
+  let entityOptions: Array<{ name: string; nif: string | null }> = [];
   const actTypeOptions = [...ACT_TYPE_CANONICAL];
   const modelTypeOptions = [...MODEL_TYPE_CANONICAL];
   const contractTypeOptions = [...CONTRACT_TYPE_CANONICAL];
 
   if (tenantId) {
+    const { data: rawEntityOptions } = await supabase
+      .from("announcements")
+      .select("entity_name, entity_nif, publication_date")
+      .eq("tenant_id", tenantId)
+      .not("entity_name", "is", null)
+      .order("publication_date", { ascending: false })
+      .limit(300);
+
+    const seenEntityKeys = new Set<string>();
+    entityOptions = (rawEntityOptions ?? [])
+      .map((row) => ({
+        name: String((row as { entity_name?: unknown }).entity_name ?? "").trim(),
+        nif: (() => {
+          const digits = String((row as { entity_nif?: unknown }).entity_nif ?? "").replace(/\D/g, "");
+          return digits || null;
+        })(),
+      }))
+      .filter((row) => {
+        if (!row.name) return false;
+        const key = `${normalizeEntitySearch(row.name)}|${row.nif ?? ""}`;
+        if (seenEntityKeys.has(key)) return false;
+        seenEntityKeys.add(key);
+        return true;
+      })
+      .slice(0, 120);
+
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
     let query = supabase
       .from("announcements")
       .select(
-        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_at, cpv_main, base_price, currency, status",
+        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_days, proposal_deadline_at, cpv_main, cpv_list, base_price, currency, status",
         { count: "exact" },
       )
       .eq("tenant_id", tenantId);
 
-      // Keep expired opportunities visible for 30 days after their proposal deadline.
-      const expiryCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-      const expiryCutoffDate = `${expiryCutoff.getUTCFullYear()}-${String(
-        expiryCutoff.getUTCMonth() + 1,
-      ).padStart(2, "0")}-${String(expiryCutoff.getUTCDate()).padStart(2, "0")}`;
-
-      // Include rows where status == 'active' OR (status == 'expired' AND proposal_deadline_at >= cutoff).
-      query = query.or(`status.eq.active,and(status.eq.expired,proposal_deadline_at.gte.${expiryCutoffDate})`);
+    // Mostrar anúncios ativos e expirados recentes. A limpeza automática remove
+    // os expirados apenas depois do período de retenção.
+    query = query.in("status", ["active", "expired"]);
 
     if (cpv) query = query.ilike("cpv_main", `${cpv}%`);
-    if (entity) query = query.ilike("entity_name", `%${entity}%`);
-    if (actType) {
-      query = query.in("act_type", actTypeFilterValues(actType));
+    if (entity) {
+      const entityDigits = entity.replace(/\D/g, "");
+      const termClauses = buildEntitySearchTerms(entity)
+        .flatMap((term) => {
+          const ilikeTerm = toIlikeToken(term);
+          if (!ilikeTerm) return [];
+          const variants = buildDiacriticVariants(ilikeTerm, 32);
+          return variants.length > 0 ? variants : [ilikeTerm];
+        })
+        .filter(Boolean)
+        .map((term) => `entity_name.ilike.%${term}%`);
+      const baseEntityToken = toIlikeToken(entity);
+      const baseEntityVariants = baseEntityToken ? buildDiacriticVariants(baseEntityToken, 32) : [];
+
+      const orClauses = Array.from(
+        new Set([
+          ...baseEntityVariants.map((term) => `entity_name.ilike.%${term}%`),
+          ...termClauses,
+          ...(entityDigits.length >= 5 ? [`entity_nif.ilike.%${entityDigits}%`] : []),
+        ]),
+      );
+
+      if (orClauses.length > 0) {
+        query = query.or(orClauses.join(","));
+      }
     }
-    if (modelType) {
-      query = query.in("procedure_type", modelTypeFilterValues(modelType));
+    if (actTypeFilters.length > 0) {
+      query = query.in(
+        "act_type",
+        Array.from(new Set(actTypeFilters.flatMap((value) => actTypeFilterValues(value)))),
+      );
     }
-    if (contractType) {
-      query = query.in("contract_type", contractTypeFilterValues(contractType));
+    if (modelTypeFilters.length > 0) {
+      query = query.in(
+        "procedure_type",
+        Array.from(new Set(modelTypeFilters.flatMap((value) => modelTypeFilterValues(value)))),
+      );
+    }
+    if (contractTypeFilters.length > 0) {
+      query = query.in(
+        "contract_type",
+        Array.from(new Set(contractTypeFilters.flatMap((value) => contractTypeFilterValues(value)))),
+      );
     }
     if (announcementNumber) {
       query = query.or(
-        `dr_announcement_no.ilike.%${announcementNumber}%,base_announcement_id.ilike.%${announcementNumber}%`,
+        `dr_announcement_no.ilike.${announcementNumber},base_announcement_id.ilike.${announcementNumber}`,
       );
     }
     if (minValue) query = query.gte("base_price", Number.parseFloat(minValue));
     if (maxValue) query = query.lte("base_price", Number.parseFloat(maxValue));
-    if (fromDate) query = query.gte("publication_date", fromDate);
-    if (toDate) query = query.lte("publication_date", toDate);
+    // If only one publication date is selected, treat it as an exact-day filter.
+    if (publicationFromDate) query = query.gte("publication_date", publicationFromDate);
+    if (publicationToDate) query = query.lte("publication_date", publicationToDate);
 
     if (sort === "publication_date_asc") {
       query = query
@@ -371,6 +508,25 @@ export default async function OportunidadesPage({
 
     totalCount = count ?? 0;
     opportunities = (data ?? []) as OpportunityRow[];
+
+    const cpvCodes = Array.from(
+      new Set(
+        opportunities
+          .flatMap((op) => [op.cpv_main, ...(Array.isArray(op.cpv_list) ? op.cpv_list : [])])
+          .filter(Boolean) as string[],
+      ),
+    );
+
+    if (cpvCodes.length > 0) {
+      const { data: cpvRows } = await supabase
+        .from("cpv_codes")
+        .select("id, descricao")
+        .in("id", cpvCodes);
+
+      cpvDescriptions = Object.fromEntries(
+        (cpvRows ?? []).map((row) => [row.id, row.descricao ?? ""]),
+      );
+    }
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -378,48 +534,63 @@ export default async function OportunidadesPage({
     Boolean(cpv) ||
     Boolean(entity) ||
     Boolean(announcementNumber) ||
-    Boolean(actType) ||
-    Boolean(modelType) ||
-    Boolean(contractType) ||
+    actTypeFilters.length > 0 ||
+    modelTypeFilters.length > 0 ||
+    contractTypeFilters.length > 0 ||
     Boolean(minValue) ||
     Boolean(maxValue) ||
     Boolean(fromDate) ||
     Boolean(toDate);
 
+  const filtersResetKey = [
+    cpv,
+    entity,
+    announcementNumber,
+    actTypeFilters.join("|"),
+    modelTypeFilters.join("|"),
+    contractTypeFilters.join("|"),
+    minValue,
+    maxValue,
+    fromDate,
+    toDate,
+    String(PAGE_SIZE),
+    sort,
+  ].join("|");
+
   return (
     <div
-      className="min-h-screen flex flex-col"
+      className="min-h-screen flex flex-col overflow-x-hidden"
       style={{ background: "rgba(248, 250, 252, 1)" }}
     >
       <Header />
 
-      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-6 py-10 space-y-6">
+      <main className="flex-1 max-w-screen-2xl mx-auto w-full px-4 py-6 space-y-6 sm:px-6 sm:py-8 lg:py-10">
         <div className="space-y-6">
-          <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-start justify-between gap-4 flex-wrap sm:items-center">
             <div className="flex items-center gap-3">
               <FileText className="w-6 h-6 text-green-500" />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Oportunidades de Contratação Pública</h1>
+                <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Oportunidades de Contratação Pública</h1>
                 <p className="text-gray-500 text-sm mt-0.5">
-                  {totalCount.toLocaleString("pt-PT")} anúncios ativos encontrados
+                  {totalCount.toLocaleString("pt-PT")} anúncios encontrados
                 </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center gap-2 sm:w-auto">
               <Link
-                href="/"
-                className="inline-flex w-fit shrink-0 items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
+                href="/mp"
+                className="inline-flex h-10 flex-1 min-w-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50 sm:w-fit sm:flex-none sm:px-4"
               >
                 <House className="h-4 w-4" />
                 Página inicial
               </Link>
-              <BackButton fallbackHref="/" className="w-fit shrink-0" />
+              <BackButton fallbackHref="/" className="h-10 flex-1 min-w-0 justify-center sm:w-fit sm:flex-none" />
             </div>
           </div>
 
-          <form className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+          <form key={filtersResetKey} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <MercadoCpvInput
                 defaultValue={cpv}
                 label="CPV"
@@ -434,78 +605,60 @@ export default async function OportunidadesPage({
                   <label className="block text-xs text-gray-400">Entidade Adjudicante</label>
                   <InfoPopover text="Indique nome ou NIPC da Entidade que pretende pesquisar" />
                 </div>
-                <input
+                <EntitySearchInput
                   name="entity"
                   defaultValue={entity}
                   placeholder="Nome ou NIPC"
+                  minChars={2}
+                  options={entityOptions}
                   className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Nº de Anúncio</label>
+                <div className="flex items-center gap-1 mb-1">
+                  <label className="block text-xs text-gray-400">Nº de Anúncio</label>
+                  <InfoPopover text="Indique o nº de anúncio que consta no Diário da República." />
+                </div>
                 <input
                   name="announcement_number"
                   defaultValue={announcementNumber}
-                  placeholder="Nº DR ou BASE"
+                  placeholder="Nº DRE"
                   className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
                 />
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="act_type"
                   label="Tipo de ato"
-                  defaultValue={actType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...actTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  options={actTypeOptions}
+                  defaultSelected={actTypeFilters}
                 />
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="contract_type"
                   label="Tipo de contrato"
-                  defaultValue={contractType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...contractTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  options={contractTypeOptions}
+                  defaultSelected={contractTypeFilters}
                 />
               </div>
 
               <div>
-                <MercadoSingleSelect
+                <MercadoMultiSelect
                   name="model"
-                  label="Tipo de modelo"
-                  defaultValue={modelType}
-                  options={[
-                    { value: "", label: "Todos" },
-                    ...modelTypeOptions.map((option) => ({ value: option, label: option })),
-                  ]}
+                  label="Tipo de Procedimento"
+                  options={modelTypeOptions}
+                  defaultSelected={modelTypeFilters}
                 />
               </div>
 
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">Data de publicação</label>
-                </div>
-                <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
-                <div className="flex items-center gap-1 mb-2">
-                  <label className="block text-xs text-gray-400">Prazo de fim</label>
-                </div>
-                <MercadoDateDropdown name="to_date" defaultValue={toDate} />
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-stretch">
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <div className="mb-2">
                   <label className="block text-xs text-gray-400">Ordenar valor por</label>
                 </div>
@@ -527,7 +680,21 @@ export default async function OportunidadesPage({
                 </div>
               </div>
 
-              <div>
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-1 mb-2">
+                  <label className="block text-xs text-gray-400">Data de publicação</label>
+                </div>
+                <MercadoDateDropdown name="from_date" defaultValue={fromDate} />
+              </div>
+
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
+                <div className="flex items-center gap-1 mb-2">
+                  <label className="block text-xs text-gray-400">Prazo de fim</label>
+                </div>
+                <MercadoDateDropdown name="to_date" defaultValue={toDate} />
+              </div>
+
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <MercadoSingleSelect
                   name="limit"
                   label="Apresentar"
@@ -540,11 +707,12 @@ export default async function OportunidadesPage({
                 />
               </div>
 
-              <div>
+              <div className="h-full rounded-xl border border-gray-200 bg-white p-3">
                 <MercadoSingleSelect
                   name="sort"
                   label="Ordenar Oportunidades por"
                   defaultValue={sort}
+                  autoSubmitOnChange
                   options={[
                     { value: "publication_date_desc", label: "Mais recentes" },
                     { value: "publication_date_asc", label: "Mais antigos" },
@@ -555,44 +723,36 @@ export default async function OportunidadesPage({
                 />
               </div>
 
-            <div className="flex items-end justify-end gap-2">
-              {hasFilters ? (
-                <Link
-                  href="/oportunidades"
-                  className="inline-flex h-10 items-center justify-center text-gray-500 text-sm font-medium px-4 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-all"
-                >
-                  Limpar
-                </Link>
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className="hidden md:inline-flex h-10 items-center justify-center px-4 rounded-xl border border-transparent invisible"
-                >
-                  Limpar
-                </span>
-              )}
-
-              <div className="flex flex-col items-end">
-                <p className="text-xs text-gray-500 mb-1">
-                  Filtrar para aplicar seleção
-                </p>
-
-                <button
-                  type="submit"
-                  className="inline-flex h-10 w-full md:w-auto items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold whitespace-nowrap transition-all hover:opacity-90"
-                  style={{ background: "#3f6f27", color: "#ffffff" }}
-                >
-                  <Filter className="w-4 h-4" />
-                  Filtrar
-                </button>
-              </div>
             </div>
 
+            <div className="grid grid-cols-1 items-center gap-2 pt-1 lg:grid-cols-[1fr_auto_1fr]">
+              <span aria-hidden="true" className="hidden lg:block" />
+
+              <button
+                type="submit"
+                className="inline-flex h-10 w-full items-center justify-center gap-1 rounded-xl px-5 text-sm font-semibold text-center text-white shadow-sm transition-all hover:opacity-90 lg:w-[360px]"
+                style={{ background: "#39752a" }}
+              >
+                <Filter className="w-4 h-4" />
+                Aplicar filtros selecionados
+              </button>
+
+              <div className="flex justify-center lg:justify-start">
+                {hasFilters && (
+                  <Link
+                    href="/mp/oportunidades-mercado"
+                    className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-500 transition-all hover:bg-gray-50 sm:w-auto"
+                  >
+                    Limpar
+                  </Link>
+                )}
+              </div>
             </div>
           </form>
 
           <OportunidadesResults
             opportunities={opportunities}
+            cpvDescriptions={cpvDescriptions}
             page={page}
             totalPages={totalPages}
             hasFilters={hasFilters}
@@ -602,10 +762,10 @@ export default async function OportunidadesPage({
               announcement_number: announcementNumber,
               limit: String(PAGE_SIZE),
               sort,
-              act_type: actType,
-              model: modelType,
-              procedure: modelType,
-              contract_type: contractType,
+              model: modelTypeFilters,
+              procedure: modelTypeFilters,
+              act_type: actTypeFilters,
+              contract_type: contractTypeFilters,
               min_value: minValue,
               max_value: maxValue,
               from_day: fromDay,
