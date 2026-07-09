@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const maxDuration = 300;
 
-const BATCH_SIZE = 200;
+const PAGE_SIZE = 1000;
+const FETCH_CONCURRENCY = 5;
+const UPSERT_SIZE = 400;
+const UPSERT_CONCURRENCY = 5;
 
 function mostFrequentLocation(locations: string[]): string | null {
   if (locations.length === 0) return null;
@@ -64,7 +67,6 @@ export async function POST(req: NextRequest) {
     const startedAt = Date.now();
 
     const admin = await createAdminClient();
-
     const stats = { contracts_scanned: 0, nifs_found: 0, companies_created: 0, companies_updated: 0, winners_extracted: 0, competitors_extracted: 0, locations_set: 0, errors: 0, elapsed_ms: 0 };
 
     interface CompanyData {
@@ -79,57 +81,77 @@ export async function POST(req: NextRequest) {
       if (!d) { d = { name, contractsWon: 0, contractsParticipated: 0, totalValueWon: 0, locations: [], cpvs: new Map(), entities: new Map(), lastWinDate: null }; companyData.set(nif, d); }
       if (name && d.name === nif) d.name = name;
       return d;
-    }
+    };
 
-    // 1. Fetch all contracts
-    let offset = 0;
-    while (true) {
-      let q = admin.from("contracts").select("winners, competitors, contracting_entities, execution_locations, contract_price, cpv_main, publication_date").eq("tenant_id", tenantId);
-      if (sinceHours) q = q.gte("created_at", new Date(Date.now() - sinceHours * 3600000).toISOString());
-      const { data: batch } = await q.range(offset, offset + 999);
-      if (!batch || batch.length === 0) break;
-      stats.contracts_scanned += batch.length;
+    // 1. Get total page count
+    let cntQ = admin.from("contracts").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
+    if (sinceHours) cntQ = cntQ.gte("created_at", new Date(Date.now() - sinceHours * 3600000).toISOString());
+    const { count: totalContracts } = await cntQ;
+    const totalPages = Math.ceil((totalContracts ?? 0) / PAGE_SIZE);
 
-      for (const c of batch as Array<{ winners: unknown; competitors: string | null; contracting_entities: unknown; execution_locations: unknown; contract_price: number | null; cpv_main: string | null; publication_date: string | null }>) {
-        const winners = Array.isArray(c.winners) ? c.winners as string[] : [];
-        const locations = Array.isArray(c.execution_locations) ? c.execution_locations as string[] : [];
-        const entities = Array.isArray(c.contracting_entities) ? c.contracting_entities as string[] : [];
-        const entityParsed = entities.length > 0 ? parseNifNome(entities[0]) : null;
+    // 2. Fetch all pages in parallel chunks
+    for (let i = 0; i < totalPages; i += FETCH_CONCURRENCY) {
+      const count = Math.min(FETCH_CONCURRENCY, totalPages - i);
+      const results = await Promise.all(
+        Array.from({ length: count }, (_, j) => {
+          const page = i + j;
+          let q = admin.from("contracts")
+            .select("winners,competitors,contracting_entities,execution_locations,contract_price,cpv_main,publication_date")
+            .eq("tenant_id", tenantId);
+          if (sinceHours) q = q.gte("created_at", new Date(Date.now() - sinceHours * 3600000).toISOString());
+          return q.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        })
+      );
 
-        for (const raw of winners) {
-          const { nif, name } = parseNifNome(raw);
-          if (!nif) continue;
-          stats.winners_extracted++;
-          const d = getOrCreate(nif, name);
-          d.contractsWon++; d.contractsParticipated++;
-          if (c.contract_price != null) d.totalValueWon += c.contract_price;
-          d.locations.push(...locations);
-          if (c.cpv_main) { const cd = d.cpvs.get(c.cpv_main) ?? { count: 0, value: 0 }; cd.count++; if (c.contract_price != null) cd.value += c.contract_price; d.cpvs.set(c.cpv_main, cd); }
-          if (entityParsed) { const ed = d.entities.get(entityParsed.nif) ?? { name: entityParsed.name, count: 0, value: 0 }; ed.count++; if (c.contract_price != null) ed.value += c.contract_price; d.entities.set(entityParsed.nif, ed); }
-          if (c.publication_date && (!d.lastWinDate || c.publication_date > d.lastWinDate)) d.lastWinDate = c.publication_date;
-        }
+      for (const { data: batch } of results) {
+        if (!batch) continue;
+        stats.contracts_scanned += batch.length;
 
-        for (const { nif, name } of parseCompetitors(c.competitors)) {
-          stats.competitors_extracted++;
-          getOrCreate(nif, name).contractsParticipated++;
+        for (const c of batch as Array<{ winners: unknown; competitors: string | null; contracting_entities: unknown; execution_locations: unknown; contract_price: number | null; cpv_main: string | null; publication_date: string | null }>) {
+          const winners = Array.isArray(c.winners) ? c.winners as string[] : [];
+          const locations = Array.isArray(c.execution_locations) ? c.execution_locations as string[] : [];
+          const entities = Array.isArray(c.contracting_entities) ? c.contracting_entities as string[] : [];
+          const entityParsed = entities.length > 0 ? parseNifNome(entities[0]) : null;
+
+          for (const raw of winners) {
+            const { nif, name } = parseNifNome(raw);
+            if (!nif) continue;
+            stats.winners_extracted++;
+            const d = getOrCreate(nif, name);
+            d.contractsWon++; d.contractsParticipated++;
+            if (c.contract_price != null) d.totalValueWon += c.contract_price;
+            d.locations.push(...locations);
+            if (c.cpv_main) { const cd = d.cpvs.get(c.cpv_main) ?? { count: 0, value: 0 }; cd.count++; if (c.contract_price != null) cd.value += c.contract_price; d.cpvs.set(c.cpv_main, cd); }
+            if (entityParsed) { const ed = d.entities.get(entityParsed.nif) ?? { name: entityParsed.name, count: 0, value: 0 }; ed.count++; if (c.contract_price != null) ed.value += c.contract_price; d.entities.set(entityParsed.nif, ed); }
+            if (c.publication_date && (!d.lastWinDate || c.publication_date > d.lastWinDate)) d.lastWinDate = c.publication_date;
+          }
+
+          for (const { nif, name } of parseCompetitors(c.competitors)) {
+            stats.competitors_extracted++;
+            getOrCreate(nif, name).contractsParticipated++;
+          }
         }
       }
-
-      if (batch.length < 1000) break;
-      offset += 1000;
     }
 
     stats.nifs_found = companyData.size;
 
-    // 2. Load existing companies
+    // 3. Load existing companies in parallel
     const existingCompanies = new Map<string, { id: string; location: string | null }>();
     const nifArr = Array.from(companyData.keys());
-    for (let i = 0; i < nifArr.length; i += 500) {
-      const { data } = await admin.from("companies").select("id, nif, location").eq("tenant_id", tenantId).in("nif", nifArr.slice(i, i + 500));
-      for (const row of (data ?? []) as Array<{ id: string; nif: string; location: string | null }>) existingCompanies.set(row.nif, row);
-    }
+    await Promise.all(
+      Array.from({ length: Math.ceil(nifArr.length / 500) }, (_, i) =>
+        admin.from("companies").select("id,nif,location").eq("tenant_id", tenantId)
+          .in("nif", nifArr.slice(i * 500, (i + 1) * 500))
+          .then(({ data }) => {
+            for (const row of (data ?? []) as Array<{ id: string; nif: string; location: string | null }>) {
+              existingCompanies.set(row.nif, row);
+            }
+          })
+      )
+    );
 
-    // 3. Build & upsert rows
+    // 4. Build rows
     const rows: Array<Record<string, unknown>> = [];
     for (const [nif, d] of Array.from(companyData.entries())) {
       const existing = existingCompanies.get(nif);
@@ -143,9 +165,18 @@ export async function POST(req: NextRequest) {
       if (existing) stats.companies_updated++; else stats.companies_created++;
     }
 
-    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-      const { error } = await admin.from("companies").upsert(rows.slice(i, i + BATCH_SIZE), { onConflict: "tenant_id,nif" });
-      if (error) stats.errors += Math.min(BATCH_SIZE, rows.length - i);
+    // 5. Upsert in parallel chunks
+    const chunks = Array.from({ length: Math.ceil(rows.length / UPSERT_SIZE) }, (_, i) =>
+      rows.slice(i * UPSERT_SIZE, (i + 1) * UPSERT_SIZE)
+    );
+    for (let i = 0; i < chunks.length; i += UPSERT_CONCURRENCY) {
+      const batch = chunks.slice(i, i + UPSERT_CONCURRENCY);
+      const results = await Promise.all(
+        batch.map((chunk) => admin.from("companies").upsert(chunk, { onConflict: "tenant_id,nif" }))
+      );
+      for (const { error } of results) {
+        if (error) stats.errors++;
+      }
     }
 
     stats.elapsed_ms = Date.now() - startedAt;
