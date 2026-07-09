@@ -183,7 +183,11 @@ Deno.serve(async (req) => {
           cpvMain: contract.cpv_main || "—",
         };
 
-        const { subject, html, text } = buildMiContractAlertEmail({
+        // Create a unique subject for each contract email
+        const shortObj = contract.object ? (contract.object.length > 50 ? contract.object.substring(0, 50) + "..." : contract.object) : "Contrato";
+        const subject = `Alerta Market Intelligence: ${shortObj}`;
+
+        const { html, text } = buildMiContractAlertEmail({
           subscriberName: sub.name || "Subscritor",
           contracts: [contractForEmail],
           appBaseUrl,

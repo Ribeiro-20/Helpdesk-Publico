@@ -1093,12 +1093,12 @@ export function buildMiContractAlertEmail(params: {
 
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
 
-  const html = \`<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>\${escapeEmailHtml(subject)}</title>
+  <title>${escapeEmailHtml(subject)}</title>
   <style type="text/css">
     a, a:link, a:visited, a:hover, a:active {
       color: #111111 !important;
@@ -1133,7 +1133,7 @@ export function buildMiContractAlertEmail(params: {
               <table border="0" cellpadding="0" cellspacing="0">
                 <tr>
                   <td width="52" valign="middle" style="width:52px; padding:0 12px 0 0;">
-                    <img src="\${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
+                    <img src="${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
                   </td>
                   <td valign="middle" style="color:#ffffff;">
                     <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
@@ -1144,7 +1144,7 @@ export function buildMiContractAlertEmail(params: {
             </td>
           </tr>
 
-          \${contractRows}
+          ${contractRows}
 
           <!-- SUPORTE -->
           <tr>
