@@ -135,7 +135,8 @@ Deno.serve(async (req) => {
           cpv_main
         )
       `)
-      .eq("status", "PENDING");
+      .eq("status", "PENDING")
+      .limit(5);
 
     if (notifErr) throw notifErr;
 
