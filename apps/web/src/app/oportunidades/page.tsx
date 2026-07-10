@@ -442,15 +442,18 @@ export default async function OportunidadesPage({
                 />
               </div>
 
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">Nº de Anúncio</label>
-                <input
-                  name="announcement_number"
-                  defaultValue={announcementNumber}
-                  placeholder="Nº DR ou BASE"
-                  className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
-                />
-              </div>
+             <div >
+  <div className="flex items-center gap-1 mb-1">
+    <label className="block text-xs text-gray-400">Nº de Anúncio</label>
+    <InfoPopover text="Indique o nº de anúncio que consta no Diário da República" />
+  </div>
+  <input
+    name="announcement_number"
+    defaultValue={announcementNumber}
+    placeholder="Nº DR ou BASE"
+    className="h-10 w-full border border-gray-200 rounded-xl px-3 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
+  />
+</div>
 
               <div>
                 <MercadoSingleSelect
