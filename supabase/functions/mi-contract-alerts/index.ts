@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { createEmailProvider, buildMiContractAlertEmail } from "../_shared/emailProvider.ts";
+import { createMiEmailProvider, buildMiContractAlertEmail } from "../_shared/emailProvider.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -139,7 +139,7 @@ Deno.serve(async (req) => {
 
     if (notifErr) throw notifErr;
 
-    const emailProvider = createEmailProvider();
+    const emailProvider = createMiEmailProvider();
     let emailsSent = 0;
     let emailsFailed = 0;
 
