@@ -565,7 +565,7 @@ export default async function OutrosPage({
   if (maxValue) q = q.lte("contract_price", parseFloat(maxValue));
 
   // Fetch candidate contracts
-  const { data: contractsRaw } = await q.limit(5000);
+  const { data: contractsRaw } = await q.limit(50000);
 
   // Normalizer to ignore capitalization, spacing, accents, and punctuation
   function normalizeCompanyName(name: string): string {
@@ -683,8 +683,9 @@ export default async function OutrosPage({
       };
     })
     .filter((c) => {
-      // 1. Progress constraint (only >= 75%)
+      // 1. Progress constraint (only >= 75% and <= 100%)
       if (c.progress < 0.75) return false;
+      if (c.progress > 1.0) return false;
 
       // 2. Location filter
       const matchesLoc = locationMatches(
