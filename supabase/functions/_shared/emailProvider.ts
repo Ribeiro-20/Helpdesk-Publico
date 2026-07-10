@@ -7,8 +7,8 @@
  *   "sendgrid"  → SendGrid HTTP API
  *   "brevo"     → Brevo HTTP API
  *
- * For production: set EMAIL_PROVIDER=brevo and BREVO_MI_API_KEY.
- * If EMAIL_PROVIDER is omitted but BREVO_MI_API_KEY exists, Brevo is used.
+ * For production: set EMAIL_PROVIDER=brevo and BREVO_API_KEY (proja) or BREVO_MI_API_KEY (MI).
+ * If EMAIL_PROVIDER is omitted but the respective Brevo key exists, Brevo is used.
  */
 
 export interface EmailMessage {
@@ -208,6 +208,29 @@ class BrevoEmailProvider implements EmailProvider {
 // ---------------------------------------------------------------------------
 
 export function createEmailProvider(): EmailProvider {
+  const explicitProvider = Deno.env.get("EMAIL_PROVIDER");
+  const provider = (explicitProvider ?? (Deno.env.get("BREVO_API_KEY") ? "brevo" : "dev")).toLowerCase();
+  console.log(`[email] provider=${provider}`);
+
+  switch (provider) {
+    case "brevo": {
+      const key = Deno.env.get("BREVO_API_KEY");
+      if (!key) throw new Error("EMAIL_PROVIDER=brevo but BREVO_API_KEY is not set");
+      return new BrevoEmailProvider(key);
+    }
+    case "sendgrid": {
+      const key = Deno.env.get("SENDGRID_API_KEY");
+      if (!key) throw new Error("EMAIL_PROVIDER=sendgrid but SENDGRID_API_KEY is not set");
+      return new SendGridEmailProvider(key);
+    }
+    case "mailpit":
+      return new MailpitEmailProvider();
+    default:
+      return new ConsoleEmailProvider();
+  }
+}
+
+export function createMiEmailProvider(): EmailProvider {
   const explicitProvider = Deno.env.get("EMAIL_PROVIDER");
   const provider = (explicitProvider ?? (Deno.env.get("BREVO_MI_API_KEY") ? "brevo" : "dev")).toLowerCase();
   console.log(`[email] provider=${provider}`);
