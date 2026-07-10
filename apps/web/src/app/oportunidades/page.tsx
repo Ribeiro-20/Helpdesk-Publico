@@ -370,7 +370,21 @@ export default async function OportunidadesPage({
     const { data, count } = await query.range(from, to);
 
     totalCount = count ?? 0;
-    opportunities = (data ?? []) as OpportunityRow[];
+    
+    // FILTRO DE LIMPEZA: Corrige os nomes das entidades que têm o NIPC colado à frente
+    opportunities = ((data ?? []) as OpportunityRow[]).map((opp) => {
+      if (opp.entity_name) {
+        // Deteta 9 números iniciais seguidos de hífen/traço (ex: 501483691-Lusíadas Norte)
+        const matchLimpo = opp.entity_name.match(/^\d{9}\s*[-–—]\s*(.*)$/);
+        if (matchLimpo) {
+          return {
+            ...opp,
+            entity_name: matchLimpo[1].trim(), 
+          };
+        }
+      }
+      return opp;
+    });
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
@@ -594,11 +608,12 @@ export default async function OportunidadesPage({
             </div>
           </form>
 
-          <OportunidadesResults
+         <OportunidadesResults
             opportunities={opportunities}
             page={page}
             totalPages={totalPages}
             hasFilters={hasFilters}
+            cpvDescriptions={{}}
             filters={{
               cpv,
               entity,
