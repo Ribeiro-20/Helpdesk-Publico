@@ -66,6 +66,11 @@ export default function MarketIntelligenceTable({
     }
   }, [searchParams]);
 
+  // Reset to page 1 whenever the contract list or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [contracts, itemsPerPage]);
+
   // Get unique CPV codes on the current page to fetch descriptions
   const cpvCodesOnPage = useMemo(
     () => Array.from(new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[])),
