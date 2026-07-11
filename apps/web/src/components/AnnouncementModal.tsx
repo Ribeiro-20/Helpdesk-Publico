@@ -185,15 +185,16 @@ export default function AnnouncementModal({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
-        <div className="shrink-0 px-6 pt-5 pb-5 pr-16" style={{ background: "rgba(26, 27, 31, 1)" }}>
+      <div className="relative w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
+        
+        <div className="shrink-0 px-6 pt-5 pb-5 pr-16 max-h-[40vh] overflow-y-auto" style={{ background: "rgba(26, 27, 31, 1)" }}>
           <p className="text-xs font-semibold mb-1.5" style={{ color: "#3f6f27" }}>
             {announcement?.dr_announcement_no ? `Anúncio #${announcement.dr_announcement_no}` : "Anúncio"}
           </p>
           {loading ? (
             <div className="h-6 w-3/4 bg-white/10 rounded animate-pulse" />
           ) : (
-            <h2 className="text-white text-lg font-bold leading-snug">
+            <h2 className="text-white text-base font-bold leading-relaxed">
               {displayTitle}
             </h2>
           )}
