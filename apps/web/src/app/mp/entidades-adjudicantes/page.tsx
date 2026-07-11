@@ -123,10 +123,18 @@ function parseTopCompanies(value: unknown): TopCompany[] {
 }
 
 function normalizeEntity(row: Record<string, unknown>): EntityRow {
+  let rawName = decodeHtml(String(row.name ?? "Sem nome"));
+
+  // FILTRO DE LIMPEZA: Corrige os nomes das entidades que têm o NIPC colado à frente
+  const matchLimpo = rawName.match(/^\d{9}\s*[-–—]\s*(.*)$/);
+  if (matchLimpo) {
+    rawName = matchLimpo[1].trim(); // Guarda apenas a parte do nome limpo
+  }
+
   return {
     id: String(row.id ?? ""),
     nif: String(row.nif ?? ""),
-    name: decodeHtml(String(row.name ?? "Sem nome")),
+    name: rawName,
     entity_type: toStringOrNull(row.entity_type),
     location: toStringOrNull(row.location),
     total_contracts: Math.max(0, Math.round(toNumber(row.total_contracts))),
