@@ -122,13 +122,31 @@ function parseTopCompanies(value: unknown): TopCompany[] {
   return out.sort((a, b) => b.count - a.count);
 }
 
+// NOVO: Função auxiliar para formatar texto em Title Case (em português)
+function titleCasePT(str: string): string {
+  const minorWords = new Set(["de", "da", "do", "das", "dos", "e", "em", "na", "no", "nas", "nos", "a", "o", "as", "os"]);
+  return str
+    .toLowerCase()
+    .split(" ")
+    .map((word, i) => {
+      if (i > 0 && minorWords.has(word)) return word;
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
+
 function normalizeEntity(row: Record<string, unknown>): EntityRow {
   let rawName = decodeHtml(String(row.name ?? "Sem nome"));
 
-  // FILTRO DE LIMPEZA: Corrige os nomes das entidades que têm o NIPC colado à frente
+  // FILTRO DE LIMPEZA 1: Corrige os nomes das entidades que têm o NIPC colado à frente
   const matchLimpo = rawName.match(/^\d{9}\s*[-–—]\s*(.*)$/);
   if (matchLimpo) {
     rawName = matchLimpo[1].trim(); // Guarda apenas a parte do nome limpo
+  }
+
+  // FILTRO DE LIMPEZA 2: Corrige nomes todos em MAIÚSCULAS (Caps Lock esquecido)
+  if (rawName === rawName.toUpperCase() && rawName.includes(" ")) {
+    rawName = titleCasePT(rawName);
   }
 
   return {
