@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { createClient } from "@/lib/supabase/server";
-import { effectiveStatus, STATUS_LABEL } from "@/lib/announcements";
+import { cleanAnnouncementText, effectiveStatus, STATUS_LABEL } from "@/lib/announcements";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -106,7 +106,7 @@ function rawBool(payload: Record<string, unknown>, key: string): boolean | null 
 function displayValue(value?: string | number | boolean | null): string {
   if (value == null || value === "") return "-";
   if (typeof value === "boolean") return value ? "Sim" : "Não";
-  return String(value);
+  return cleanAnnouncementText(String(value)) || "-";
 }
 
 type Section = {
@@ -193,7 +193,7 @@ function buildSections(ann: Record<string, unknown>) {
       title: "Objeto do contrato",
       rows: [
         ["Número de referência interna", resolve(["numeroReferenciaInterna", "refInterna"], ["Número de referência interna"])],
-        ["Designação do contrato", ann.title as string | null],
+        ["Designação do contrato", cleanAnnouncementText(ann.title as string | null)],
         ["Descrição", (ann.description as string | null) ?? resolve(["descricaoContrato"], ["Descrição", "Sumário"])],
         ["Tipo de contrato principal", resolve(["tipoContratoPrincipal"], ["Tipo de contrato principal", "Tipo de Contrato Principal"])],
         ["Tipo de contrato", (ann.contract_type as string | null) ?? resolve(["tiposContrato"], ["Tipo de contrato", "Tipo de Contrato"])],
@@ -394,7 +394,7 @@ function buildSections(ann: Record<string, unknown>) {
   return {
     sections,
     summary: {
-      title: displayValue(ann.title as string | null),
+      title: displayValue(cleanAnnouncementText(ann.title as string | null)),
       publicationDate: displayValue(ann.publication_date as string | null),
       status: displayValue(STATUS_LABEL[displayStatus] ?? displayStatus),
       entity: displayValue((ann.entity_name as string | null) ?? pick(payload, ["designacaoEntidade"])),

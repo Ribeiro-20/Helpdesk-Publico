@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { cleanAnnouncementText } from "@/lib/announcements";
 import {
   CircleAlert,
   CircleCheckBig,
@@ -229,6 +230,7 @@ export default function NotificationsManager({
                   title: string;
                   publication_date: string;
                 } | null;
+                const announcementTitle = cleanAnnouncementText(ann?.title) || "—";
 
                 return (
                   <tr key={n.id} className="hover:bg-surface-50 transition-colors">
@@ -242,7 +244,7 @@ export default function NotificationsManager({
                     </td>
                     <td className="px-4 py-3 max-w-[220px]">
                       <p className="text-gray-700 truncate">
-                        {ann?.title ?? "—"}
+                        {announcementTitle}
                       </p>
                       <p className="text-xs text-gray-400">
                         {ann?.publication_date ?? ""}

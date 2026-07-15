@@ -167,7 +167,7 @@ export default function OportunidadesResults({
                 onClick={() => setSelectedAnnouncementId(op.id)}
               >
                 <div className="mb-1 flex items-start justify-between gap-3">
-                  <p className="text-sm font-semibold text-green-700 line-clamp-2">{title}</p>
+                  <p className="text-sm font-semibold text-green-700 line-clamp-2" title={title}>{title}</p>
                   {nearDeadline ? (
                     <span className="inline-block shrink-0 text-xs px-2 py-0.5 rounded-full font-medium bg-amber-100 text-amber-800">
                       Próx. fim
@@ -271,7 +271,7 @@ export default function OportunidadesResults({
                     onClick={() => setSelectedAnnouncementId(op.id)}
                   >
                     <td className="px-4 py-3 max-w-xs align-top">
-                      <p className="text-green-600 font-medium line-clamp-2">{title}</p>
+                      <p className="text-green-600 font-medium line-clamp-2" title={title}>{title}</p>
                       <p className="text-xs text-gray-400 mt-0.5 truncate">{procedureType}</p>
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-[200px] text-xs leading-normal align-top">{entityName}</td>

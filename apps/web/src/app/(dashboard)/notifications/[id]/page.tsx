@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import PageHeader from "@/components/layout/PageHeader";
 import { Bell } from "lucide-react";
+import { cleanAnnouncementText } from "@/lib/announcements";
 
 type Rule = {
   id: string;
@@ -214,6 +215,8 @@ export default async function NotificationDetailPage({
     clientRegionsNormalized.includes("todos") ||
     announcementRegionsNormalized.includes("todos") ||
     clientRegionsNormalized.some((region) => announcementRegionsNormalized.includes(region));
+  const announcementTitle = cleanAnnouncementText(announcement?.title) || "—";
+  const announcementEntityName = cleanAnnouncementText(announcement?.entity_name) || null;
 
   let matchedInclusionRules: Rule[] = [];
   let matchedExclusionRules: Rule[] = [];
@@ -268,12 +271,12 @@ export default async function NotificationDetailPage({
 
       <div className="bg-white border border-surface-200 rounded-xl p-5 shadow-card space-y-2">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Anúncio</h2>
-        <p className="text-base font-semibold text-gray-900">{announcement?.title ? String(announcement.title) : "—"}</p>
+        <p className="text-base font-semibold text-gray-900">{announcementTitle}</p>
         <p className="text-sm text-gray-500">
           Publicação: {announcement?.publication_date ? String(announcement.publication_date) : "—"}
         </p>
-        {announcement?.entity_name && (
-          <p className="text-sm text-gray-500">Entidade: {String(announcement.entity_name)}</p>
+        {announcementEntityName && (
+          <p className="text-sm text-gray-500">Entidade: {announcementEntityName}</p>
         )}
         {announcement?.id && (
           <div className="pt-2 flex gap-2">

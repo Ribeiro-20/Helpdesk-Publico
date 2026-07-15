@@ -8,6 +8,7 @@ import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel"
 import BaseHistoricalIngestButton from "@/components/market/BaseHistoricalIngestButton";
 import CpvMultiSearchInput from "../../../components/CpvMultiSearchInput";
 import SingleDatePicker from "../../../components/SingleDatePicker";
+import { cleanAnnouncementText } from "@/lib/announcements";
 
 export const dynamic = "force-dynamic";
 
@@ -1341,15 +1342,15 @@ export default async function MarketPage({
 
         return {
           id: ann.id,
-          object: ann.title,
-          act_type: ann.act_type,
-          procedure_type: ann.procedure_type,
-          contract_type: ann.contract_type,
+          object: cleanAnnouncementText(ann.title) || null,
+          act_type: cleanAnnouncementText(ann.act_type) || null,
+          procedure_type: cleanAnnouncementText(ann.procedure_type) || null,
+          contract_type: cleanAnnouncementText(ann.contract_type) || null,
           signing_date: ann.publication_date,
           proposal_deadline_at: ann.proposal_deadline_at,
           contract_price: ann.base_price,
           execution_locations: [],
-          contracting_entities: ann.entity_name ? [{ name: ann.entity_name }] : [],
+          contracting_entities: ann.entity_name ? [{ name: cleanAnnouncementText(ann.entity_name) || ann.entity_name }] : [],
           winners: [],
           cpv_main: ann.cpv_main,
         } as ContractForResults;
