@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
       phone: body.phone ?? null,
       email: body.email ?? null,
       notify_mode: body.notify_mode ?? "instant",
-      max_emails_per_day: body.max_emails_per_day ?? 20,
     };
 
     const { data, error } = await supabase.from("clients").insert(insertPayload).select("id").single();
@@ -82,7 +81,6 @@ export async function PATCH(req: NextRequest) {
       "phone",
       "email",
       "notify_mode",
-      "max_emails_per_day",
     ];
 
     for (const k of allowed) {
@@ -108,7 +106,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("clients")
       .select(
-        "id, name, company_name, entity_nipc, distrito, pais, position_title, department, classification, subscription_type, cpv_s_alerta_concursos_publicos, notification_regions, contact_name, phone, email, is_active, notify_mode, max_emails_per_day, created_at, client_cpv_rules (id, pattern, match_type, is_exclusion)",
+        "id, name, company_name, entity_nipc, distrito, pais, position_title, department, classification, subscription_type, cpv_s_alerta_concursos_publicos, notification_regions, contact_name, phone, email, is_active, notify_mode, created_at, client_cpv_rules (id, pattern, match_type, is_exclusion)",
       )
       .order("created_at", { ascending: false });
 

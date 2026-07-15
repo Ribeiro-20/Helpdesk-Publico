@@ -531,7 +531,16 @@ function repairMojibake(value: string): string {
 }
 
 function normalizeSpace(v: string | null | undefined): string {
-  return repairMojibake(v ?? "").replace(/\s+/g, " ").trim();
+  return repairMojibake(v ?? "")
+    .replace(/\u0080/g, "EUR")
+    .replace(/[\u0082\u0091\u0092]/g, "'")
+    .replace(/[\u0093\u0094]/g, "\"")
+    .replace(/[\u0095-\u0097]/g, "-")
+    .replace(/[\u0081\u0083-\u0090\u0098-\u009f]/g, " ")
+    .replace(/\uFFFD/g, "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function mergeRawPayload(

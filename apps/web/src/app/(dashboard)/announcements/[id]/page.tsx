@@ -158,6 +158,11 @@ export default async function AnnouncementDetailPage({
   const displayStatus = effectiveStatus(ann);
   const rawPayload = (ann.raw_payload ?? {}) as Record<string, unknown>;
   const piecesUrl = extractProcedurePiecesUrl(rawPayload) ?? ann.detail_url;
+  const displayTitle = cleanAnnouncementText(ann.title) || "Anuncio sem titulo";
+  const displayEntityName = cleanAnnouncementText(ann.entity_name) || null;
+  const displayProcedureType = cleanAnnouncementText(ann.procedure_type) || null;
+  const displayActType = cleanAnnouncementText(ann.act_type) || null;
+  const displayContractType = cleanAnnouncementText(ann.contract_type) || null;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -172,7 +177,7 @@ export default async function AnnouncementDetailPage({
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900 leading-tight">
-            {ann.title}
+            {displayTitle}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             Publicado em {ann.publication_date}
@@ -188,11 +193,11 @@ export default async function AnnouncementDetailPage({
       {/* Info grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <InfoCard title="Entidade e procedimento">
-          <Field label="Entidade" value={ann.entity_name} />
+          <Field label="Entidade" value={displayEntityName} />
           <Field label="NIPC" value={ann.entity_nif} mono />
-          <Field label="Tipo de procedimento" value={ann.procedure_type} />
-          <Field label="Tipo de acto" value={ann.act_type} />
-          <Field label="Tipo de contrato" value={ann.contract_type} />
+          <Field label="Tipo de procedimento" value={displayProcedureType} />
+          <Field label="Tipo de acto" value={displayActType} />
+          <Field label="Tipo de contrato" value={displayContractType} />
         </InfoCard>
 
         <InfoCard title="Valores e prazos">

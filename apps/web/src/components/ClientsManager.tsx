@@ -32,7 +32,6 @@ type Client = {
   email: string;
   is_active: boolean;
   notify_mode: string;
-  max_emails_per_day: number;
   created_at: string;
   client_cpv_rules: CpvRule[];
 };
@@ -796,7 +795,6 @@ export default function ClientsManager({
       phone,
       email: fd.get("email") as string,
       notify_mode: "instant",
-      max_emails_per_day: 20,
     };
 
     const resp = await fetch("/api/clients", {
@@ -1113,9 +1111,6 @@ export default function ClientsManager({
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
                     <span className="text-xs bg-surface-100 text-gray-500 px-2 py-0.5 rounded-full border border-surface-200">
                       {client.notify_mode === "instant" ? "Imediato" : client.notify_mode === "daily_digest" ? "Resumo diário" : "Resumo semanal"}
-                    </span>
-                    <span className="text-xs bg-surface-100 text-gray-500 px-2 py-0.5 rounded-full border border-surface-200">
-                      máx. {client.max_emails_per_day} emails/dia
                     </span>
                     <span className="text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full border border-brand-200 font-medium">
                       {getEffectiveRuleCount(client)} regra{getEffectiveRuleCount(client) !== 1 ? "s" : ""} CPV

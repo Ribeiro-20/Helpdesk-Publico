@@ -103,6 +103,47 @@ function parsePtDate(str: string): string | null {
   return null;
 }
 
+const WINDOWS_1252_CONTROL_CHARS: Record<string, string> = {
+  "\u0080": "EUR",
+  "\u0082": ",",
+  "\u0083": "f",
+  "\u0084": "\"",
+  "\u0085": "...",
+  "\u0086": "+",
+  "\u0087": "++",
+  "\u0088": "^",
+  "\u0089": "%",
+  "\u008a": "S",
+  "\u008b": "<",
+  "\u008c": "OE",
+  "\u008e": "Z",
+  "\u0091": "'",
+  "\u0092": "'",
+  "\u0093": "\"",
+  "\u0094": "\"",
+  "\u0095": "-",
+  "\u0096": "-",
+  "\u0097": "-",
+  "\u0098": "~",
+  "\u0099": "TM",
+  "\u009a": "s",
+  "\u009b": ">",
+  "\u009c": "oe",
+  "\u009e": "z",
+  "\u009f": "Y",
+};
+
+function cleanApiText(value: unknown): string | null {
+  if (value == null || value === "") return null;
+  const cleaned = String(value)
+    .replace(/[\u0080-\u009f]/g, (char) => WINDOWS_1252_CONTROL_CHARS[char] ?? " ")
+    .replace(/\uFFFD/g, "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || null;
+}
+
 function extractCpvCode(raw: string): string {
   const value = raw.trim().toUpperCase();
   if (!value || value === "-" || value === "—") return "";
@@ -385,21 +426,21 @@ export function mapToContract(payload: Record<string, unknown>): BaseContractMap
     ? payload.tipoContrato
     : null;
 
-  // 3. Entities: Can be a string or an array
+  // 3. Entities: Can be a string or an array; apply cleanApiText for encoding fix
   const adjudicanteSource = payload.adjudicante as string | string[] | undefined;
   const contractingEntities = Array.isArray(adjudicanteSource)
-    ? (adjudicanteSource as string[])
-    : adjudicanteSource ? [String(adjudicanteSource)] : [];
+    ? adjudicanteSource.map(cleanApiText).filter((item): item is string => Boolean(item))
+    : adjudicanteSource ? [cleanApiText(String(adjudicanteSource))].filter((item): item is string => Boolean(item)) : [];
 
   const adjudicatariosSource = payload.adjudicatarios as string | string[] | undefined;
   const winners = Array.isArray(adjudicatariosSource)
-    ? (adjudicatariosSource as string[])
-    : adjudicatariosSource ? [String(adjudicatariosSource)] : [];
+    ? adjudicatariosSource.map(cleanApiText).filter((item): item is string => Boolean(item))
+    : adjudicatariosSource ? [cleanApiText(String(adjudicatariosSource))].filter((item): item is string => Boolean(item)) : [];
 
   const executionLocationsSource = payload.localExecucao as string | string[] | undefined;
   const executionLocations = Array.isArray(executionLocationsSource)
-    ? (executionLocationsSource as string[])
-    : executionLocationsSource ? [String(executionLocationsSource)] : [];
+    ? executionLocationsSource.map(cleanApiText).filter((item): item is string => Boolean(item))
+    : executionLocationsSource ? [cleanApiText(String(executionLocationsSource))].filter((item): item is string => Boolean(item)) : [];
 
   const executionDays = typeof payload.prazoExecucao === "number"
     ? payload.prazoExecucao
@@ -412,13 +453,13 @@ export function mapToContract(payload: Record<string, unknown>): BaseContractMap
     base_procedure_id: payload.idprocedimento ? String(payload.idprocedimento) : null,
     base_announcement_no: payload.nAnuncio ? String(payload.nAnuncio) : null,
     base_incm_id: payload.idINCM ? String(payload.idINCM) : null,
-    object: (payload.objectoContrato as string | undefined)?.trim() || null,
-    description: (payload.descContrato as string | undefined)?.trim() || null,
-    procedure_type: (payload.tipoprocedimento as string | undefined) ?? null,
-    contract_type: contractType,
-    announcement_type: (payload.TipoAnuncio as string | undefined) ?? null,
-    legal_regime: (payload.regime as string | undefined) ?? null,
-    legal_basis: (payload.fundamentacao as string | undefined) ?? null,
+    object: cleanApiText(payload.objectoContrato),
+    description: cleanApiText(payload.descContrato),
+    procedure_type: cleanApiText(payload.tipoprocedimento),
+    contract_type: cleanApiText(contractType),
+    announcement_type: cleanApiText(payload.TipoAnuncio),
+    legal_regime: cleanApiText(payload.regime),
+    legal_basis: cleanApiText(payload.fundamentacao),
     publication_date: effectiveDate,
     award_date: awardDate,
     signing_date: signingDate,
@@ -429,17 +470,17 @@ export function mapToContract(payload: Record<string, unknown>): BaseContractMap
     currency: "EUR",
     contracting_entities: contractingEntities,
     winners,
-    competitors: (payload.concorrentes as string | undefined) ?? null,
+    competitors: cleanApiText(payload.concorrentes),
     cpv_main: cpvMain,
     cpv_list: rawCpvs,
     execution_deadline_days: executionDays,
     execution_locations: executionLocations,
-    framework_agreement: (payload.DescrAcordoQuadro as string | undefined) ?? null,
+    framework_agreement: cleanApiText(payload.DescrAcordoQuadro),
     is_centralized: String(payload.ProcedimentoCentralizado).toLowerCase() === "sim",
     is_ecological: String(payload.ContratEcologico).toLowerCase() === "sim",
-    end_type: (payload.tipoFimContrato as string | undefined) ?? null,
+    end_type: cleanApiText(payload.tipoFimContrato),
     procedure_docs_url: (payload.linkPecasProc as string | undefined) ?? null,
-    observations: (payload.Observacoes as string | undefined) ?? null,
+    observations: cleanApiText(payload.Observacoes),
     raw_payload: payload,
   };
 }
@@ -483,13 +524,13 @@ export function mapToAnnouncement(payload: Record<string, unknown>): BaseAnnounc
     base_announcement_id: payload.IdIncm ? String(payload.IdIncm) : null,
     dr_announcement_no: payload.nAnuncio ? String(payload.nAnuncio) : null,
     publication_date: publicationDate,
-    title: (payload.descricaoAnuncio as string | undefined)?.trim() || "Sem titulo",
+    title: cleanApiText(payload.descricaoAnuncio) || "Sem titulo",
     description: null,
-    entity_name: (payload.designacaoEntidade as string | undefined) ?? null,
+    entity_name: cleanApiText(payload.designacaoEntidade),
     entity_nif: (payload.nifEntidade as string | undefined) ?? null,
-    procedure_type: (payload.modeloAnuncio as string | undefined) ?? null,
-    act_type: (payload.tipoActo as string | undefined) ?? null,
-    contract_type: contractType,
+    procedure_type: cleanApiText(payload.modeloAnuncio),
+    act_type: cleanApiText(payload.tipoActo),
+    contract_type: cleanApiText(contractType),
     base_price: basePrice,
     currency: "EUR",
     cpv_main: cpvMain,
