@@ -11,7 +11,7 @@
  *  }
  *
  * Response:
- *  { processed, sent, failed, errors }
+ *  { claimed, processed, sent, failed, skipped, rate_limited, errors }
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -20,11 +20,6 @@ import {
   buildAnnouncementEmailOutlook,
   createEmailProvider,
 } from "../_shared/emailProvider.ts";
-import {
-  getLisbonDayRangeUtc,
-  getNextBusinessDay10am,
-} from "../_shared/scheduling.ts";
-
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -169,8 +164,7 @@ Deno.serve(async (req: Request) => {
         clients (
           name,
           email,
-          is_active,
-          max_emails_per_day
+          is_active
         ),
         announcements (*)
       `)
@@ -180,35 +174,6 @@ Deno.serve(async (req: Request) => {
       .order("created_at", { ascending: true });
 
     if (fetchErr) throw fetchErr;
-
-    const { startIso, endIso } = getLisbonDayRangeUtc(new Date());
-    const claimedClientIds = Array.from(new Set(
-      (notifications ?? [])
-        .map((notif) => String((notif as Record<string, unknown>).client_id ?? ""))
-        .filter(Boolean),
-    ));
-
-    const sentTodayByClient = new Map<string, number>();
-    if (claimedClientIds.length > 0) {
-      const { data: sentTodayRows, error: sentTodayErr } = await supabase
-        .from("notifications")
-        .select("client_id")
-        .eq("tenant_id", tenantId)
-        .eq("status", "SENT")
-        .gte("sent_at", startIso)
-        .lt("sent_at", endIso)
-        .in("client_id", claimedClientIds);
-
-      if (sentTodayErr) {
-        console.warn("[send-emails] could not load today's sent counters:", sentTodayErr);
-      } else {
-        for (const row of sentTodayRows ?? []) {
-          const clientId = String((row as Record<string, unknown>).client_id ?? "");
-          if (!clientId) continue;
-          sentTodayByClient.set(clientId, (sentTodayByClient.get(clientId) ?? 0) + 1);
-        }
-      }
-    }
 
     const cpvCodes = Array.from(new Set(
       (notifications ?? [])
@@ -247,9 +212,7 @@ Deno.serve(async (req: Request) => {
         name: string;
         email: string;
         is_active: boolean;
-        max_emails_per_day: number;
       } | null;
-      const clientId = String((notif as Record<string, unknown>).client_id ?? "");
 
       const announcement = (notif as Record<string, unknown>)
         .announcements as {
@@ -293,36 +256,6 @@ Deno.serve(async (req: Request) => {
           .eq("id", notif.id)
           .eq("status", "PROCESSING");
         stats.skipped++;
-        continue;
-      }
-
-      const maxEmailsPerDay = Number(client.max_emails_per_day ?? 0);
-      const sentToday = sentTodayByClient.get(clientId) ?? 0;
-      if (Number.isFinite(maxEmailsPerDay) && maxEmailsPerDay >= 0 && sentToday >= maxEmailsPerDay) {
-        const postponedTo = getNextBusinessDay10am(new Date());
-        await supabase
-          .from("notifications")
-          .update({
-            status: "PENDING",
-            scheduled_for: postponedTo,
-            error: `Rate limit reached (${maxEmailsPerDay}/day); postponed`,
-          })
-          .eq("id", notif.id)
-          .eq("status", "PROCESSING");
-
-        try {
-          await supabase.from("email_histories").insert({
-            tenant_id: tenantId,
-            notification_id: notif.id,
-            status: "RATE_LIMITED",
-            payload: { client, announcement, postponed_to: postponedTo },
-            error: `Rate limit reached (${maxEmailsPerDay}/day)`,
-          });
-        } catch (e) {
-          console.error("[send-emails] could not insert email_history for rate limit:", e);
-        }
-
-        stats.rate_limited++;
         continue;
       }
 
@@ -380,7 +313,6 @@ Deno.serve(async (req: Request) => {
           }
 
           stats.sent++;
-          sentTodayByClient.set(clientId, sentToday + 1);
         } else {
           await supabase
             .from("notifications")
