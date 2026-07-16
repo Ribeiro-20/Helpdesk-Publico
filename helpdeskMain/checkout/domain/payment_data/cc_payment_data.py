@@ -4,3 +4,4 @@ from dataclasses import dataclass
 class CCPaymentData:
     email: str
     phone_number: str
+    country_code: str = "PT"

@@ -26,15 +26,16 @@ class SummarySerializer(serializers.Serializer):
 
 
 class CheckoutFormSerializer(serializers.Serializer):
-    pedido_id = serializers.CharField(max_length=50)
-    tipo_servico = serializers.CharField(max_length=100)
-    modalidade = serializers.CharField(max_length=50)
-    tipo_servico_original = serializers.CharField(max_length=100)
-    modalidade_original = serializers.CharField(max_length=50)
-    opcao_pagamento = serializers.CharField(max_length=50)
-    metodo_pagamento = serializers.CharField(max_length=30)
-    codigo_produto = serializers.CharField(max_length=30)
-    pvp = serializers.CharField(max_length=20)
+    email_subscricao = serializers.CharField()
+    pedido_id = serializers.CharField()
+    tipo_servico = serializers.CharField()
+    modalidade = serializers.CharField()
+    tipo_servico_original = serializers.CharField()
+    modalidade_original = serializers.CharField()
+    opcao_pagamento = serializers.CharField()
+    metodo_pagamento = serializers.CharField()
+    codigo_produto = serializers.CharField()
+    pvp = serializers.CharField()
 
     dados_pagamento = serializers.JSONField()
     resumo_apresentado = SummarySerializer()

@@ -26,18 +26,30 @@ def CheckoutEntry(request):
             logger.warning("Invalid data received in checkout form: %s", serialized.errors)
             return JsonResponse({"message": "Invalid data provided"}, status=400)
 
-        #data = 0 #TODO: Add Serialized --> Data
-        #uidentifier = serialized["email"] # To be changed because there's no email yet
-        #service.process(data, uidentifier)
-        return JsonResponse(data={
-            "ok": True,
-            "success": True
-        }, status=200)
+
+        payment_data = serialized.validated_data["dados_pagamento"]
+        uidentifier = serialized.validated_data["email_subscricao"]
+
+        if serialized.validated_data["metodo_pagamento"] == "mbway":
+            processed_payment_data = mapper.MBWayPaymentData(payment_data)
+        elif serialized.validated_data["metodo_pagamento"] == "cartao":
+            processed_payment_data = mapper.CCPaymentData(payment_data)
+        elif serialized.validated_data["metodo_pagamento"] == "debito_direto":
+            processed_payment_data = mapper.DirectDebitPaymentData(payment_data)
+        else:
+            logger.warning("Invalid payment option received in checkout form: %s", serialized.validated_data["opcao_pagamento"])
+            return JsonResponse({"message": "Invalid payment option provided"}, status=400)
+
+        try:
+            service.process(processed_payment_data, uidentifier, serialized.validated_data["codigo_produto"])
+        except Exception as e:
+            logger.error("Error occurred while processing checkout form: %s", str(e))
+            return JsonResponse({"message": "Erro interno do servidor"}, status=500)
 
     except json.JSONDecodeError:
         logger.warning("Invalid JSON received in checkout form")
         return JsonResponse({"message": "Invalid JSON provided"}, status=400)
-
+    
     return JsonResponse(data= {
         "ok": True,
         "success": True
