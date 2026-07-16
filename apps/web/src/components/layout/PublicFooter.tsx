@@ -7,12 +7,9 @@ export default function PublicFooter() {
     <footer className="bg-[#1a1b1f] px-4 py-12 text-gray-300 sm:px-6 lg:px-12 lg:py-16">
       <div className="mx-auto max-w-7xl">
         
-        {/* Distribuição flexível perfeita com justify-between e flex-wrap para responsividade */}
-        <div className="flex flex-col gap-12 md:flex-row md:justify-between md:gap-6">
+        <div className="flex flex-col items-center text-center gap-12 md:flex-row md:items-start md:text-left md:justify-between md:gap-6">
           
-          {/* Coluna 1: Logo e Redes Sociais */}
-          <div className="flex flex-col items-start gap-5">
-            {/* Logo atualizado para abrir em novo separador (target="_blank") */}
+          <div className="flex flex-col items-center md:items-start gap-5">
             <a 
               href="https://www.helpdeskpublico.pt/" 
               target="_blank" 
@@ -25,12 +22,12 @@ export default function PublicFooter() {
                 width={220}
                 height={70}
                 className="object-contain"
+                style={{ width: "220px", height: "auto", maxWidth: "100%" }}
                 priority
               />
             </a>
             
-            {/* Ícones atualizados para abrir em novo separador (target="_blank") */}
-            <div className="flex items-center gap-4 pl-0 sm:pl-6 text-gray-500">
+            <div className="flex items-center justify-center md:justify-start gap-4 text-gray-500">
               <Link
                 href="https://linkedin.com/company/helpdeskpublico/"
                 target="_blank"
@@ -79,12 +76,11 @@ export default function PublicFooter() {
             </div>
           </div>
 
-          {/* Coluna 2: SERVIÇOS */}
-          <div className="space-y-6">
+          <div className="flex flex-col items-center md:items-start space-y-6">
             <h3 className="text-white font-semibold text-[15px] uppercase tracking-wide">
               SERVIÇOS
             </h3>
-            <ul className="space-y-4 text-[15px]">
+            <ul className="flex flex-col items-center md:items-start space-y-4 text-[15px]">
               <li>
                 <Link href="https://helpdeskpublico.pt/adjudicantes" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Serviços Adjudicantes
@@ -113,12 +109,11 @@ export default function PublicFooter() {
             </ul>
           </div>
 
-          {/* Coluna 3: RECURSOS */}
-          <div className="space-y-6">
+          <div className="flex flex-col items-center md:items-start space-y-6">
             <h3 className="text-white font-semibold text-[15px] uppercase tracking-wide">
               RECURSOS
             </h3>
-            <ul className="space-y-4 text-[15px]">
+            <ul className="flex flex-col items-center md:items-start space-y-4 text-[15px]">
               <li>
                 <Link href="https://helpdeskpublico.pt/identificacao-cpvs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Identificação CPV
@@ -147,12 +142,11 @@ export default function PublicFooter() {
             </ul>
           </div>
 
-          {/* Coluna 4: INSTITUCIONAL */}
-          <div className="space-y-6">
+          <div className="flex flex-col items-center md:items-start space-y-6">
             <h3 className="text-white font-semibold text-[15px] uppercase tracking-wide">
               INSTITUCIONAL
             </h3>
-            <ul className="space-y-4 text-[15px]">
+            <ul className="flex flex-col items-center md:items-start space-y-4 text-[15px]">
               <li>
                 <Link href="https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Sobre Nós
@@ -173,7 +167,6 @@ export default function PublicFooter() {
                   ESG e Sustentabilidade
                 </Link>
               </li>
-              {/* Novo Link adicionado na coluna Institucional */}
               <li>
                 <Link href="https://www.helpdeskpublico.pt/rh" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
                   Recursos Humanos
@@ -184,10 +177,8 @@ export default function PublicFooter() {
 
         </div>
 
-        {/* Linha Divisória */}
         <hr className="my-10 border-gray-800" />
 
-        {/* Rodapé Inferior */}
         <div className="text-center text-sm text-gray-500">
           <p>
             © 2022-2026 Helpdesk Público. Todos os direitos reservados. Contratação Pública Eficiente.
