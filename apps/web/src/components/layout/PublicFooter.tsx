@@ -188,9 +188,20 @@ export default function PublicFooter() {
         <hr className="my-10 border-gray-800" />
 
         {/* Rodapé Inferior */}
-        <div className="text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-gray-500 space-y-2">
           <p>
             © 2022-2026 Helpdesk Público. Todos os direitos reservados. Contratação Pública Eficiente.
+          </p>
+          <p className="text-xs text-gray-600">
+            Design by{" "}
+            <Link 
+              href="https://www.tbubble.pt/" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="hover:text-gray-400 transition-colors underline decoration-dotted underline-offset-2"
+            >
+              TBubble Marketing & Comunicação
+            </Link>
           </p>
         </div>
       </div>
