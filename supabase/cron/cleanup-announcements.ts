@@ -3,8 +3,8 @@
  *
  * - Backfills proposal_deadline_at from publication_date + proposal_deadline_days
  *   when the explicit deadline is missing.
- * - Deletes announcements whose deadline expired more than the configured
- *   retention window ago.
+ * - Closes announcements whose deadline expired more than the configured
+ *   frontoffice retention window ago, while keeping their history in the DB.
  *
  * Usage:
  *   npm run cleanup:announcements:dry-run
@@ -35,7 +35,7 @@ type TenantCleanupStats = {
   deadline_candidates: number;
   deadlines_backfilled: number;
   expired_candidates: number;
-  deleted_announcements: number;
+  closed_announcements: number;
 };
 
 type CleanupStats = {
@@ -47,7 +47,7 @@ type CleanupStats = {
   deadline_candidates: number;
   deadlines_backfilled: number;
   expired_candidates: number;
-  deleted_announcements: number;
+  closed_announcements: number;
   tenants: TenantCleanupStats[];
 };
 
@@ -231,6 +231,7 @@ async function countExpiredCandidates(
     .from("announcements")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
+    .eq("status", "active")
     .not("proposal_deadline_at", "is", null)
     .lt("proposal_deadline_at", cutoffIso);
 
@@ -238,24 +239,25 @@ async function countExpiredCandidates(
   return count ?? 0;
 }
 
-async function deleteExpiredAnnouncements(
+async function closeExpiredAnnouncements(
   client: SupabaseClient,
   tenantId: string,
   cutoffIso: string,
   dryRun: boolean,
-): Promise<{ candidates: number; deleted: number }> {
+): Promise<{ candidates: number; closed: number }> {
   const candidates = await countExpiredCandidates(client, tenantId, cutoffIso);
   if (dryRun || candidates === 0) {
-    return { candidates, deleted: 0 };
+    return { candidates, closed: 0 };
   }
 
-  let deleted = 0;
+  let closed = 0;
 
   while (true) {
     const { data, error } = await client
       .from("announcements")
       .select("id")
       .eq("tenant_id", tenantId)
+      .eq("status", "active")
       .not("proposal_deadline_at", "is", null)
       .lt("proposal_deadline_at", cutoffIso)
       .limit(BATCH_SIZE);
@@ -268,20 +270,21 @@ async function deleteExpiredAnnouncements(
 
     if (ids.length === 0) break;
 
-    const { error: deleteError } = await client
+    const { error: updateError } = await client
       .from("announcements")
-      .delete()
+      .update({ status: "closed" })
       .eq("tenant_id", tenantId)
+      .eq("status", "active")
       .in("id", ids);
 
-    if (deleteError) throw deleteError;
+    if (updateError) throw updateError;
 
-    deleted += ids.length;
+    closed += ids.length;
 
     if (ids.length < BATCH_SIZE) break;
   }
 
-  return { candidates, deleted };
+  return { candidates, closed };
 }
 
 async function runCleanup(): Promise<CleanupStats> {
@@ -297,27 +300,27 @@ async function runCleanup(): Promise<CleanupStats> {
     deadline_candidates: 0,
     deadlines_backfilled: 0,
     expired_candidates: 0,
-    deleted_announcements: 0,
+    closed_announcements: 0,
     tenants: [],
   };
 
   for (const tenant of tenants) {
     const deadlineStats = await backfillDeadlines(supabase, tenant.id, DRY_RUN);
-    const deleteStats = await deleteExpiredAnnouncements(supabase, tenant.id, cutoffIso, DRY_RUN);
+    const closeStats = await closeExpiredAnnouncements(supabase, tenant.id, cutoffIso, DRY_RUN);
 
     const tenantStats: TenantCleanupStats = {
       tenant_id: tenant.id,
       tenant_name: tenant.name,
       deadline_candidates: deadlineStats.candidates,
       deadlines_backfilled: deadlineStats.backfilled,
-      expired_candidates: deleteStats.candidates,
-      deleted_announcements: deleteStats.deleted,
+      expired_candidates: closeStats.candidates,
+      closed_announcements: closeStats.closed,
     };
 
     stats.deadline_candidates += tenantStats.deadline_candidates;
     stats.deadlines_backfilled += tenantStats.deadlines_backfilled;
     stats.expired_candidates += tenantStats.expired_candidates;
-    stats.deleted_announcements += tenantStats.deleted_announcements;
+    stats.closed_announcements += tenantStats.closed_announcements;
     stats.tenants.push(tenantStats);
   }
 
