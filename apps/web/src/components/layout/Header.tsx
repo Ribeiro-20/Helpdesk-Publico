@@ -53,7 +53,7 @@ export default function Header() {
             alt="Helpdesk Público"
             width={300}
             height={110}
-            className="object-contain w-[300px] max-w-[60vw] h-auto"
+            className="shrink-0 object-contain w-[180px] sm:w-[220px] lg:w-[300px] h-auto"
             priority
           />
         </a>
