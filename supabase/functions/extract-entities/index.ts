@@ -11,7 +11,7 @@
  * Request body:
  *   {
  *     tenant_id?:   string,
- *     since_hours?: number   // processar apenas dados das últimas N horas (default: all)
+ *     since_hours?: number   // processar apenas dados criados/atualizados nas últimas N horas (default: all)
  *   }
  */
 
@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
 
         if (sinceHours) {
           const since = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
-          annQuery = annQuery.gte("created_at", since);
+          annQuery = annQuery.gte("updated_at", since);
         }
 
         const { data: batch, error: annErr } = await annQuery.range(annOffset, annOffset + annFetchSize - 1);
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
 
     if (sinceHours) {
       const since = new Date(Date.now() - sinceHours * 3600 * 1000).toISOString();
-      contractQuery = contractQuery.gte("created_at", since);
+      contractQuery = contractQuery.gte("updated_at", since);
     }
 
     // Fetch all contracts (paginated to handle large datasets)

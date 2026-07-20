@@ -395,9 +395,9 @@ export default async function EstatisticasPrivadoPage({
 
             <tbody className="divide-y divide-gray-100">
               {companies.map((row) => {
-                let contractsHref = `/mp/contratos-publicos?winner=${encodeURIComponent(
-                  row.nif,
-                )}`;
+                const nifDigits = row.nif.match(/^(\d+)/)?.[1] ?? "";
+                const winnerParam = nifDigits || row.name;
+                let contractsHref = `/mp/contratos-publicos?winner=${encodeURIComponent(winnerParam)}`;
 
                 if (yearFilter) {
                   contractsHref += `&from_date=${yearFilter}-01-01&to_date=${yearFilter}-12-31`;
@@ -412,9 +412,11 @@ export default async function EstatisticasPrivadoPage({
                       <p className="text-gray-900 font-medium leading-tight">
                         {row.name}
                       </p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {row.nif}
-                      </p>
+                      {nifDigits && (
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {nifDigits}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <a

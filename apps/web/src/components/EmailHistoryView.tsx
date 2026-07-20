@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import SingleDatePicker from "@/components/SingleDatePicker";
 import { Clock3, CircleCheckBig, CircleX, CircleAlert, TriangleAlert, Inbox } from "lucide-react";
+import { cleanAnnouncementText } from "@/lib/announcements";
 
 type Notification = {
   id: string;
@@ -85,8 +86,8 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
       if (!search) return true;
       const low = search.toLowerCase();
       const client = n.clients?.name ?? n.clients?.email ?? "";
-      const annTitle = n.announcements?.title ?? "";
-      const annDesc = typeof n.announcements?.description === "string" ? n.announcements?.description : JSON.stringify(n.announcements?.raw_payload ?? "");
+      const annTitle = cleanAnnouncementText(n.announcements?.title);
+      const annDesc = typeof n.announcements?.description === "string" ? cleanAnnouncementText(n.announcements.description) : JSON.stringify(n.announcements?.raw_payload ?? "");
       return [client, annTitle, annDesc, n.error ?? "", n.status].join(" ").toLowerCase().includes(low);
     });
   }, [initial, filter, fromDate, toDate, search]);
@@ -167,7 +168,9 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
                     <span className="text-sm font-semibold text-gray-900">{n.clients?.name ?? "—"}</span>
                     <span className="text-xs text-gray-500">{n.clients?.email ?? ""}</span>
                   </div>
-                  <h4 className="text-sm font-semibold text-gray-900">{n.announcements?.title ?? "—"}</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 line-clamp-3">
+                    {cleanAnnouncementText(n.announcements?.title) || "—"}
+                  </h4>
                   <p className="text-xs text-gray-500">{formatTimestamp(n.sent_at ?? n.created_at)}</p>
                 </div>
 
@@ -180,7 +183,7 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
               <div className="px-5 pb-5 pt-0 space-y-4 border-t border-surface-100 bg-white">
                 <div className="space-y-2">
                   {n.announcements?.description && (
-                    <div className="text-sm text-gray-700">{n.announcements.description}</div>
+                    <div className="text-sm text-gray-700 line-clamp-6">{cleanAnnouncementText(n.announcements.description)}</div>
                   )}
 
                   {(() => {

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { effectiveStatus, STATUS_LABEL } from "@/lib/announcements";
+import { cleanAnnouncementText, effectiveStatus, STATUS_LABEL } from "@/lib/announcements";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 
@@ -280,13 +280,13 @@ export async function GET(req: NextRequest) {
       return {
         "Número do Anúncio": ann.dr_announcement_no ?? ann.base_announcement_id ?? "",
         "Data de Publicação": toIsoDatePt(ann.publication_date),
-        "Objeto do Procedimento": ann.title ?? "",
-        "Entidade(s)": entidade,
+        "Objeto do Procedimento": cleanAnnouncementText(ann.title),
+        "Entidade(s)": cleanAnnouncementText(entidade),
         "Preço Base": precoBase,
         "CPVs": cpvList,
-        "Tipo de Ato": ann.act_type ?? "",
-        "Modelo do Anúncio": ann.procedure_type ?? "",
-        "Tipo de Contrato": ann.contract_type ?? "",
+        "Tipo de Ato": cleanAnnouncementText(ann.act_type),
+        "Modelo do Anúncio": cleanAnnouncementText(ann.procedure_type),
+        "Tipo de Contrato": cleanAnnouncementText(ann.contract_type),
         "Peças do procedimento": procedurePiecesUrl,
         "ID do Procedimento": ann.base_announcement_id ?? "",
       };

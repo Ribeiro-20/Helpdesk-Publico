@@ -16,6 +16,7 @@ const CORS = {
 const BATCH_SIZE = 200;
 const PROCESSING_CHUNK_SIZE = 250;
 const MAX_RANGE_DAYS = 31;
+const FRONT_OFFICE_RETENTION_DAYS = 30;
 
 type ExistingAnnouncement = {
   id: string;
@@ -29,6 +30,22 @@ type MappedAnnouncement = {
   ann: ReturnType<typeof mapToAnnouncement>;
   hash: string;
 };
+
+function initialAnnouncementStatus(announcement: AnnouncementRecord): "active" | "closed" {
+  const publicationMs = Date.parse(`${announcement.publication_date}T00:00:00Z`);
+  const explicitDeadlineMs = announcement.proposal_deadline_at
+    ? Date.parse(announcement.proposal_deadline_at)
+    : Number.NaN;
+  const fallbackDeadlineMs = Number.isFinite(publicationMs)
+    ? publicationMs + Math.max(announcement.proposal_deadline_days ?? 0, 0) * 86_400_000
+    : Number.NaN;
+  const deadlineMs = Number.isFinite(explicitDeadlineMs) ? explicitDeadlineMs : fallbackDeadlineMs;
+  if (!Number.isFinite(deadlineMs)) return "active";
+
+  return deadlineMs + FRONT_OFFICE_RETENTION_DAYS * 86_400_000 < Date.now()
+    ? "closed"
+    : "active";
+}
 
 const EXISTING_ANNOUNCEMENT_SELECT = [
   "id",
@@ -257,7 +274,7 @@ function diffDaysInclusive(fromDate: string, toDate: string): number {
 }
 
 function validateDateRange(fromDate: string, toDate: string): string | null {
-  const minDate = "2026-01-01";
+  const minDate = "2024-01-01";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
     return "Datas invalidas. Use o formato YYYY-MM-DD.";
   }
@@ -579,6 +596,7 @@ Deno.serve(async (req) => {
               detail_url: ann.detail_url,
               raw_payload: ann.raw_payload,
               raw_hash: hash,
+              status: initialAnnouncementStatus(ann),
             }));
 
             const { data, error } = await supabase

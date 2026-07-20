@@ -53,6 +53,38 @@ interface DrDetalheConteudo {
   Texto?: JsonValue;
 }
 
+type DrEnrichmentStats = {
+  requested: number;
+  enriched: number;
+  incomplete: number;
+};
+
+type DrUpsertStats = {
+  inserted: number;
+  updated: number;
+  skipped: number;
+};
+
+const FRONT_OFFICE_RETENTION_DAYS = 30;
+
+function initialAnnouncementStatus(candidate: DrContractCandidate): "active" | "closed" {
+  const publicationMs = candidate.publication_date
+    ? Date.parse(`${candidate.publication_date}T00:00:00Z`)
+    : Number.NaN;
+  const explicitDeadlineMs = candidate.proposal_deadline_at
+    ? Date.parse(candidate.proposal_deadline_at)
+    : Number.NaN;
+  const fallbackDeadlineMs = Number.isFinite(publicationMs)
+    ? publicationMs + Math.max(candidate.proposal_deadline_days ?? 0, 0) * 86_400_000
+    : Number.NaN;
+  const deadlineMs = Number.isFinite(explicitDeadlineMs) ? explicitDeadlineMs : fallbackDeadlineMs;
+  if (!Number.isFinite(deadlineMs)) return "active";
+
+  return deadlineMs + FRONT_OFFICE_RETENTION_DAYS * 86_400_000 < Date.now()
+    ? "closed"
+    : "active";
+}
+
 const DR_HOME_URL = "https://diariodarepublica.pt/dr/home";
 
 interface HomeContagemSource {
@@ -150,6 +182,7 @@ async function waitForJsonResponse(page: Page, urlPart: string | string[], timeo
 }
 
 const DR_DETAIL_DATA_ENDPOINTS = [
+  "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetAllConteudoDetalheData",
   "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetConteudoData",
   "/Legislacao_Conteudos/Conteudo_Detalhe/DataActionGetConteudoDataAndApplicationSettings",
 ];
@@ -272,11 +305,21 @@ async function findDailyIssueBySearch(date: string, maxWaitMs: number): Promise<
     }
   });
 
-  await page.goto("https://diariodarepublica.pt/dr/pesquisa", {
-    waitUntil: "networkidle",
-    timeout: 120000,
-  });
-  await page.waitForTimeout(Math.min(Math.max(maxWaitMs, 3000), 8000));
+  for (let attempt = 1; attempt <= 3 && (!payloadTemplate || !endpoint); attempt += 1) {
+    try {
+      await page.goto("https://diariodarepublica.pt/dr/pesquisa", {
+        waitUntil: "networkidle",
+        timeout: 120000,
+      });
+      await page.waitForTimeout(Math.min(Math.max(maxWaitMs, 3000), 8000));
+    } catch (error) {
+      console.warn(`[dr-scrape] DR search warmup ${attempt}/3 failed for ${date}: ${String(error)}`);
+    }
+
+    if (!payloadTemplate || !endpoint) {
+      console.warn(`[dr-scrape] DR search template missing for ${date}, warmup ${attempt}/3`);
+    }
+  }
 
   if (!payloadTemplate || !endpoint) {
     await context.close();
@@ -358,8 +401,8 @@ async function findDailyIssueBySearch(date: string, maxWaitMs: number): Promise<
       const source = (row as Record<string, unknown>)._source as Record<string, unknown> | undefined;
       if (!source) continue;
 
-      const className = String(source.className ?? "");
-      if (!className.includes("DiarioRepublica")) continue;
+      const className = String(source.className ?? "").toLowerCase();
+      if (!className.includes("diariorepublica")) continue;
 
       const title = normalizeSpace(String(source.title ?? ""));
       const dataPublicacao = String(source.dataPublicacao ?? "");
@@ -427,8 +470,13 @@ async function resolveTodayDailyUrl(maxWaitMs: number): Promise<string> {
   return buildDailyUrlFromHit(target);
 }
 
-async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[], maxWaitMs: number): Promise<string[]> {
-  const urls: string[] = [];
+type DailyUrlTarget = {
+  url: string;
+  date: string;
+};
+
+async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[], maxWaitMs: number): Promise<DailyUrlTarget[]> {
+  const urls: DailyUrlTarget[] = [];
   const seen = new Set<string>();
 
   for (const date of [...dates].reverse()) {
@@ -438,7 +486,7 @@ async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[]
       const url = buildDailyUrlFromHit(target);
       if (!seen.has(url)) {
         seen.add(url);
-        urls.push(url);
+        urls.push({ url, date });
       }
       continue;
     }
@@ -452,7 +500,7 @@ async function resolveDailyUrlsForDates(hits: HomeContagemHit[], dates: string[]
     const url = buildDailyUrlFromParts(fallback.numero, fallback.ano, fallback.dbId);
     if (seen.has(url)) continue;
     seen.add(url);
-    urls.push(url);
+    urls.push({ url, date });
     console.log(`[dr-scrape] fallback search resolved date=${date}: ${fallback.title}`);
   }
 
@@ -471,12 +519,13 @@ async function scrapeByDateRange(fromDate: string, toDate: string, maxWaitMs: nu
   const all: DrContractCandidate[] = [];
   const seen = new Set<string>();
 
-  for (const url of urls) {
+  for (const { url, date } of urls) {
     if (all.length >= totalLimit) break;
 
     const remaining = totalLimit - all.length;
     const dayCandidates = await scrapeDailyContracts(url, maxWaitMs, remaining);
     for (const c of dayCandidates) {
+      c.publication_date = c.publication_date ?? date;
       const key = c.dr_announcement_no ?? c.base_announcement_id ?? sha256(stableStringify(c.raw_payload));
       if (seen.has(key)) continue;
       seen.add(key);
@@ -524,7 +573,16 @@ function repairMojibake(value: string): string {
 }
 
 function normalizeSpace(v: string | null | undefined): string {
-  return repairMojibake(v ?? "").replace(/\s+/g, " ").trim();
+  return repairMojibake(v ?? "")
+    .replace(/\u0080/g, "EUR")
+    .replace(/[\u0082\u0091\u0092]/g, "'")
+    .replace(/[\u0093\u0094]/g, "\"")
+    .replace(/[\u0095-\u0097]/g, "-")
+    .replace(/[\u0081\u0083-\u0090\u0098-\u009f]/g, " ")
+    .replace(/\uFFFD/g, "")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function mergeRawPayload(
@@ -708,7 +766,36 @@ function extractAnnouncementNo(texts: Array<string | null>): string | null {
 
 function parsePrice(raw: string | null): number | null {
   if (!raw) return null;
-  const cleaned = raw.replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+  const compact = raw.replace(/\s/g, "").replace(/[^0-9.,]/g, "");
+  if (!compact) return null;
+
+  const commaPositions = [...compact.matchAll(/,/g)].map((match) => match.index ?? -1);
+  const dotPositions = [...compact.matchAll(/\./g)].map((match) => match.index ?? -1);
+  const lastComma = commaPositions.at(-1) ?? -1;
+  const lastDot = dotPositions.at(-1) ?? -1;
+
+  let decimalSeparator: "," | "." | null = null;
+  if (lastComma >= 0 && lastDot >= 0) {
+    decimalSeparator = lastComma > lastDot ? "," : ".";
+  } else {
+    const separator = lastComma >= 0 ? "," : lastDot >= 0 ? "." : null;
+    if (separator) {
+      const positions = separator === "," ? commaPositions : dotPositions;
+      const digitsAfterLast = compact.length - positions.at(-1)! - 1;
+      if (digitsAfterLast === 2) decimalSeparator = separator;
+    }
+  }
+
+  let cleaned: string;
+  if (decimalSeparator) {
+    const decimalIndex = compact.lastIndexOf(decimalSeparator);
+    const integerPart = compact.slice(0, decimalIndex).replace(/[.,]/g, "");
+    const decimalPart = compact.slice(decimalIndex + 1).replace(/[.,]/g, "");
+    cleaned = `${integerPart}.${decimalPart}`;
+  } else {
+    cleaned = compact.replace(/[.,]/g, "");
+  }
+
   const n = Number.parseFloat(cleaned);
   return Number.isFinite(n) ? n : null;
 }
@@ -993,7 +1080,10 @@ async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResu
   return out;
 }
 
-async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], maxWaitMs: number): Promise<void> {
+async function enrichCandidatesFromDetail(
+  candidates: DrContractCandidate[],
+  maxWaitMs: number,
+): Promise<DrEnrichmentStats> {
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1280, height: 900 },
@@ -1014,7 +1104,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
   if (sampleUrls.length === 0) {
     await context.close();
     await browser.close();
-    return;
+    return { requested: candidates.length, enriched: 0, incomplete: candidates.length };
   }
 
   for (const sampleUrl of sampleUrls) {
@@ -1042,13 +1132,18 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
     console.warn(`[dr-scrape] Falling back to Playwright due to missing OutSystems template after ${sampleUrls.length} warmup attempt(s).`);
   }
 
-  const CHUNK_SIZE = 20;
+  const CHUNK_SIZE = parseInt(process.env.DR_SCRAPE_ENRICH_CHUNK_SIZE ?? "5", 10) || 5;
+  let enriched = 0;
+  let incomplete = 0;
 
   for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
     const chunk = candidates.slice(i, i + CHUNK_SIZE);
     
     await Promise.all(chunk.map(async (item) => {
-      if (!item.detail_url) return;
+      if (!item.detail_url) {
+        incomplete += 1;
+        return;
+      }
 
       let detalhe: DrDetalheConteudo | null = null;
 
@@ -1068,7 +1163,7 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
           const vars = body.screenData?.variables ?? {};
           
           vars.ContPubId = repId;
-          vars.DiarioRepId = "0"; // Reset defaults
+          vars.DiarioRepId = repId;
           vars.DipLegisId = "0";
           vars.ConteudoId = repId;
           vars.Numero = numero;
@@ -1177,15 +1272,21 @@ async function enrichCandidatesFromDetail(candidates: DrContractCandidate[], max
           ...(item.raw_payload as Record<string, JsonValue>),
           detalhe_conteudo: detalhe as JsonValue,
         };
+        enriched += 1;
       } else if (detalhe) {
         const texto = String(detalhe["Texto"] ?? "");
         console.warn(`[dr-scrape] incomplete detail ignored: ${describeIncompleteDetail(item, texto)}`);
+        incomplete += 1;
+      } else {
+        incomplete += 1;
       }
     }));
   }
 
   await context.close();
   await browser.close();
+
+  return { requested: candidates.length, enriched, incomplete };
 }
 
 function hasMeaningfulAnnouncementValue(value: unknown): boolean {
@@ -1248,7 +1349,82 @@ function dedupeAnnouncementRows(rows: Array<Record<string, any>>): Array<Record<
   );
 }
 
-async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ inserted: number; updated: number; skipped: number }> {
+const DR_VERSION_FIELDS = [
+  "title",
+  "description",
+  "entity_name",
+  "entity_nif",
+  "procedure_type",
+  "act_type",
+  "contract_type",
+  "base_price",
+  "currency",
+  "cpv_main",
+  "cpv_list",
+  "proposal_deadline_days",
+  "proposal_deadline_at",
+  "detail_url",
+] as const;
+
+function normalizeDrComparable(value: unknown): unknown {
+  if (value === undefined || value === "") return null;
+  if (Array.isArray(value)) {
+    return value
+      .map(normalizeDrComparable)
+      .filter((item) => item !== null)
+      .sort((a, b) => String(a).localeCompare(String(b)));
+  }
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? Number(value.toFixed(2)) : null;
+  }
+  if (typeof value === "string") {
+    const normalized = normalizeSpace(value);
+    return normalized || null;
+  }
+  return value ?? null;
+}
+
+function summarizeDrValue(value: unknown): unknown {
+  const normalized = normalizeDrComparable(value);
+  if (typeof normalized === "string" && normalized.length > 240) {
+    return `${normalized.slice(0, 237)}...`;
+  }
+  if (Array.isArray(normalized)) return normalized.slice(0, 12);
+  return normalized;
+}
+
+function buildDrVersionSummary(
+  existing: Record<string, unknown>,
+  next: Record<string, unknown>,
+  sourceDate: unknown,
+) {
+  const changes = DR_VERSION_FIELDS.flatMap((field) => {
+    const before = existing[field];
+    const after = next[field];
+    if (JSON.stringify(normalizeDrComparable(before)) === JSON.stringify(normalizeDrComparable(after))) {
+      return [];
+    }
+    return [{ field, from: summarizeDrValue(before), to: summarizeDrValue(after) }];
+  });
+
+  return {
+    reason: "dr_changed",
+    source_date: typeof sourceDate === "string" ? sourceDate : null,
+    changed_fields: changes.map((change) => change.field),
+    changes,
+  };
+}
+
+function drPayloadFingerprint(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object") return null;
+  const root = raw as Record<string, JsonValue>;
+  const sourceUrl = typeof root.source_url === "string" ? root.source_url : null;
+  const payload = root.payload ?? null;
+  if (!sourceUrl && payload === null) return null;
+  return sha256(stableStringify({ source_url: sourceUrl, payload }));
+}
+
+async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<DrUpsertStats> {
   const supabaseUrl = process.env.SUPABASE_URL ?? "";
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
@@ -1343,7 +1519,8 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
         payload: c.raw_payload,
       } as JsonValue;
 
-      const rawHash = sha256(stableStringify(raw));
+      const rawHash = drPayloadFingerprint(raw);
+      if (!rawHash) throw new Error(`Could not fingerprint DR payload ${c.dr_announcement_no ?? c.detail_url ?? "unknown"}`);
       const effectiveTitle = buildEffectiveTitle(c.title, c.description, c.entity_name);
       const drAnnouncementNo = normalizeSpace(c.dr_announcement_no ?? "");
 
@@ -1369,7 +1546,7 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
         detail_url: c.detail_url,
         raw_payload: raw,
         raw_hash: rawHash,
-        status: "active",
+        status: initialAnnouncementStatus(c),
       };
     }));
     
@@ -1389,13 +1566,37 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
     .map((r) => r.base_announcement_id)
     .filter((v): v is string => typeof v === "string" && v.trim().length > 0)));
 
-  const existingByDrNo = new Set<string>();
+  const existingSelect = [
+    "id",
+    "source",
+    "base_announcement_id",
+    "dr_announcement_no",
+    "publication_date",
+    "title",
+    "description",
+    "entity_name",
+    "entity_nif",
+    "procedure_type",
+    "act_type",
+    "contract_type",
+    "base_price",
+    "currency",
+    "cpv_main",
+    "cpv_list",
+    "proposal_deadline_days",
+    "proposal_deadline_at",
+    "detail_url",
+    "raw_payload",
+    "raw_hash",
+  ].join(", ");
+
+  const existingByDrNo = new Map<string, Record<string, any>>();
   const EXISTING_LOOKUP_CHUNK_SIZE = 100;
   for (let i = 0; i < drNos.length; i += EXISTING_LOOKUP_CHUNK_SIZE) {
     const chunk = drNos.slice(i, i + EXISTING_LOOKUP_CHUNK_SIZE);
     const { data, error } = await supabase
       .from("announcements")
-      .select("dr_announcement_no")
+      .select(existingSelect)
       .eq("tenant_id", tenantId)
       .in("dr_announcement_no", chunk);
 
@@ -1405,16 +1606,16 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
 
     for (const row of data ?? []) {
       const drNo = normalizeSpace(String(row.dr_announcement_no ?? ""));
-      if (drNo) existingByDrNo.add(drNo);
+      if (drNo) existingByDrNo.set(drNo, row);
     }
   }
 
-  const existingByBaseId = new Set<string>();
+  const existingByBaseId = new Map<string, Record<string, any>>();
   for (let i = 0; i < baseIds.length; i += EXISTING_LOOKUP_CHUNK_SIZE) {
     const chunk = baseIds.slice(i, i + EXISTING_LOOKUP_CHUNK_SIZE);
     const { data, error } = await supabase
       .from("announcements")
-      .select("base_announcement_id")
+      .select(existingSelect)
       .eq("tenant_id", tenantId)
       .in("base_announcement_id", chunk);
 
@@ -1424,20 +1625,30 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
 
     for (const row of data ?? []) {
       const baseId = normalizeSpace(String(row.base_announcement_id ?? ""));
-      if (baseId) existingByBaseId.add(baseId);
+      const drNo = normalizeSpace(String(row.dr_announcement_no ?? ""));
+      if (baseId) existingByBaseId.set(baseId, row);
+      if (drNo && !existingByDrNo.has(drNo)) existingByDrNo.set(drNo, row);
     }
   }
 
-  const toInsert = uniqueRows.filter((r) => {
-    const hasExistingDrNo = !!r.dr_announcement_no && existingByDrNo.has(r.dr_announcement_no);
-    const hasExistingBaseId = !!r.base_announcement_id && existingByBaseId.has(r.base_announcement_id);
-    return !hasExistingDrNo && !hasExistingBaseId;
-  });
-  const toUpdate = uniqueRows.filter((r) => {
-    const hasExistingDrNo = !!r.dr_announcement_no && existingByDrNo.has(r.dr_announcement_no);
-    const hasExistingBaseId = !!r.base_announcement_id && existingByBaseId.has(r.base_announcement_id);
-    return hasExistingDrNo || hasExistingBaseId;
-  });
+  const toInsert: Array<Record<string, any>> = [];
+  const toUpdate: Array<{ row: Record<string, any>; existing: Record<string, any> }> = [];
+
+  for (const row of uniqueRows) {
+    const byDr = row.dr_announcement_no ? existingByDrNo.get(row.dr_announcement_no) : undefined;
+    const byBase = row.base_announcement_id ? existingByBaseId.get(row.base_announcement_id) : undefined;
+
+    if (byDr && byBase && byDr.id !== byBase.id) {
+      throw new Error(
+        `Conflicting DR identities for ${row.dr_announcement_no ?? "unknown"}: ` +
+        `dr row=${byDr.id}, base row=${byBase.id}`,
+      );
+    }
+
+    const existing = byDr ?? byBase;
+    if (existing) toUpdate.push({ row, existing });
+    else toInsert.push(row);
+  }
 
   if (toInsert.length > 0) {
     const { error } = await supabase.from("announcements").insert(toInsert);
@@ -1445,29 +1656,15 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
   }
 
   const UPDATE_CHUNK_SIZE = 10;
+  let updatedCount = 0;
+  let unchangedCount = 0;
+
   for (let i = 0; i < toUpdate.length; i += UPDATE_CHUNK_SIZE) {
     const chunk = toUpdate.slice(i, i + UPDATE_CHUNK_SIZE);
     
-    await Promise.all(chunk.map(async (row) => {
+    await Promise.all(chunk.map(async ({ row, existing }) => {
       const { raw_hash, tenant_id, dr_announcement_no, ...incoming } = row;
       const baseAnnouncementId = normalizeSpace(String(incoming.base_announcement_id ?? ""));
-
-      let existingQuery = supabase
-        .from("announcements")
-        .select(
-          "source, publication_date, title, description, entity_nif, procedure_type, act_type, contract_type, base_price, currency, cpv_main, cpv_list, proposal_deadline_days, proposal_deadline_at, detail_url, raw_payload",
-        )
-        .eq("tenant_id", tenant_id);
-
-      if (baseAnnouncementId) {
-        existingQuery = existingQuery.eq("base_announcement_id", baseAnnouncementId);
-      } else {
-        existingQuery = existingQuery.eq("dr_announcement_no", dr_announcement_no as string);
-      }
-
-      const { data: existing, error: fetchErr } = await existingQuery.maybeSingle();
-
-      if (fetchErr) throw new Error(`Fetch existing failed for DR ${dr_announcement_no ?? baseAnnouncementId}: ${fetchErr.message}`);
 
       const existingCanonicalCpv = await resolveCanonicalCpv(
         typeof existing?.cpv_main === "string" ? existing.cpv_main : null,
@@ -1512,71 +1709,53 @@ async function upsertIntoSupabase(candidates: DrContractCandidate[]): Promise<{ 
         raw_hash,
       };
 
-      const { error } = await supabase
+      const versionSummary = buildDrVersionSummary(
+        existing as Record<string, unknown>,
+        updateFields as Record<string, unknown>,
+        incoming.publication_date,
+      );
+      const existingFingerprint = drPayloadFingerprint(existing.raw_payload);
+
+      if (existingFingerprint === raw_hash && versionSummary.changes.length === 0) {
+        unchangedCount += 1;
+        return;
+      }
+
+      const { data: updated, error } = await supabase
         .from("announcements")
         .update(updateFields)
         .eq("tenant_id", tenant_id)
-        .eq("dr_announcement_no", dr_announcement_no as string);
+        .eq("id", existing.id)
+        .select("id")
+        .single();
 
       if (error) throw new Error(`Update failed for DR ${dr_announcement_no}: ${error.message}`);
-    }));
-  }
+      if (!updated?.id) throw new Error(`Update matched no row for DR ${dr_announcement_no ?? baseAnnouncementId}`);
 
-  const currentDrNos = new Set(
-    uniqueRows
-      .map((r) => r.dr_announcement_no)
-      .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
-      .map((v) => v.trim()),
-  );
+      if (versionSummary.changes.length > 0) {
+        const { error: versionError } = await supabase
+          .from("announcement_versions")
+          .insert({
+            tenant_id,
+            announcement_id: existing.id,
+            raw_payload: updateFields.raw_payload,
+            raw_hash,
+            change_summary: versionSummary,
+          });
 
-  const publicationDates = Array.from(
-    new Set(
-      uniqueRows
-        .map((r) => r.publication_date)
-        .filter((v): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v)),
-    ),
-  );
-
-  if (publicationDates.length > 0) {
-    const { data: dateRows, error: dateRowsErr } = await supabase
-      .from("announcements")
-      .select("id, dr_announcement_no, cpv_main")
-      .eq("tenant_id", tenantId)
-      .eq("source", "DR_SCRAPE")
-      .in("publication_date", publicationDates);
-
-    if (dateRowsErr) {
-      throw new Error(`Failed loading DR rows for stale cleanup: ${dateRowsErr.message}`);
-    }
-
-    const staleIds = (dateRows ?? [])
-      .filter((row) => {
-        const drNo = String(row.dr_announcement_no ?? "").trim();
-        const cpv = String(row.cpv_main ?? "").trim();
-        const hasValidCpv = /\b\d{8}(?:-\d)?\b/.test(cpv);
-        return !hasValidCpv && !!drNo && !currentDrNos.has(drNo);
-      })
-      .map((row) => String(row.id))
-      .filter(Boolean);
-
-    for (let i = 0; i < staleIds.length; i += 200) {
-      const chunk = staleIds.slice(i, i + 200);
-      const { error: deleteErr } = await supabase
-        .from("announcements")
-        .delete()
-        .eq("tenant_id", tenantId)
-        .in("id", chunk);
-
-      if (deleteErr) {
-        throw new Error(`Failed deleting stale DR rows: ${deleteErr.message}`);
+        if (versionError) {
+          throw new Error(`Version insert failed for DR ${dr_announcement_no ?? baseAnnouncementId}: ${versionError.message}`);
+        }
       }
-    }
+
+      updatedCount += 1;
+    }));
   }
 
   return {
     inserted: toInsert.length,
-    updated: toUpdate.length,
-    skipped: duplicateRowsSkipped + uniqueRows.length - toInsert.length - toUpdate.length,
+    updated: updatedCount,
+    skipped: duplicateRowsSkipped + unchangedCount,
   };
 }
 
@@ -1590,6 +1769,8 @@ async function main() {
   const toDate = isIsoDate(args.toDate) ? args.toDate : null;
 
   let candidates: DrContractCandidate[] = [];
+  let enrichment: DrEnrichmentStats = { requested: 0, enriched: 0, incomplete: 0 };
+  let upsert: DrUpsertStats = { inserted: 0, updated: 0, skipped: 0 };
 
   if (fromDate && toDate && !args.dailyUrl) {
     console.log(`[dr-scrape] from_date=${fromDate} to_date=${toDate} wait_ms=${args.maxWaitMs} max_results=${args.maxResults} upsert=${args.upsert}`);
@@ -1607,7 +1788,7 @@ async function main() {
   }
 
   if (candidates.length > 0) {
-    await enrichCandidatesFromDetail(candidates, args.maxWaitMs);
+    enrichment = await enrichCandidatesFromDetail(candidates, args.maxWaitMs);
   }
 
   console.log(`[dr-scrape] normalized candidates: ${candidates.length}`);
@@ -1622,9 +1803,17 @@ async function main() {
   console.log(`[dr-scrape] wrote: ${args.outputPath}`);
 
   if (args.upsert) {
-    const stats = await upsertIntoSupabase(candidates);
-    console.log(`[dr-scrape] inserted=${stats.inserted} updated=${stats.updated} skipped=${stats.skipped}`);
+    upsert = await upsertIntoSupabase(candidates);
+    console.log(`[dr-scrape] inserted=${upsert.inserted} updated=${upsert.updated} skipped=${upsert.skipped}`);
   }
+
+  console.log(`[dr-scrape] result-json: ${JSON.stringify({
+    from_date: fromDate,
+    to_date: toDate,
+    normalized_candidates: candidates.length,
+    enrichment,
+    upsert: args.upsert ? upsert : null,
+  })}`);
 }
 
 main().catch((err) => {

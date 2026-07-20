@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { cleanAnnouncementText } from "@/lib/announcements";
 import {
   CircleAlert,
   CircleCheckBig,
@@ -154,13 +155,13 @@ export default function NotificationsManager({
   return (
     <div className="space-y-4">
       {/* Status filter tabs */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
           {STATUS_OPTIONS.map((s) => (
             <Link
               key={s}
               href={`/notifications?status=${s}&page=1`}
-              className={`inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium transition-all ${
+              className={`inline-flex shrink-0 items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium transition-all ${
                 statusFilter === s
                   ? "bg-brand-600 text-white shadow-sm"
                   : s === ""
@@ -178,10 +179,10 @@ export default function NotificationsManager({
           ))}
         </div>
 
-        <div className="ml-4 shrink-0">
+        <div className="shrink-0 sm:ml-4">
           <Link
             href="/notifications/history"
-            className="inline-flex items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium bg-brand-600 text-white shadow-sm"
+            className="inline-flex w-full items-center justify-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium bg-brand-600 text-white shadow-sm sm:w-auto"
           >
             <Mail className="h-4 w-4" />
             Histórico de envios
@@ -229,6 +230,7 @@ export default function NotificationsManager({
                   title: string;
                   publication_date: string;
                 } | null;
+                const announcementTitle = cleanAnnouncementText(ann?.title) || "—";
 
                 return (
                   <tr key={n.id} className="hover:bg-surface-50 transition-colors">
@@ -242,7 +244,7 @@ export default function NotificationsManager({
                     </td>
                     <td className="px-4 py-3 max-w-[220px]">
                       <p className="text-gray-700 truncate">
-                        {ann?.title ?? "—"}
+                        {announcementTitle}
                       </p>
                       <p className="text-xs text-gray-400">
                         {ann?.publication_date ?? ""}

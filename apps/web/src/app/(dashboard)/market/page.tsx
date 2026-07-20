@@ -1,11 +1,12 @@
 ﻿import { createClient } from "../../../lib/supabase/server";
-import { TrendingUp } from "lucide-react";
+import { FileSignature, Megaphone, TrendingUp } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader";
 import MarketInsightPanel from "../../../components/market/MarketInsightPanel";
 import CpvCarouselHints from "../../../components/market/CpvCarouselHints";
 import MarketChartsLoader from "../../../components/market/MarketChartsLoader";
 import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel";
-import MercadoCpvInput from "../../../components/MercadoCpvInput";
+import { cleanAnnouncementText } from "@/lib/announcements";
+import MarketFiltersForm from "../../../components/market/MarketFiltersForm";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,22 @@ type ContractForStats = {
   publication_date: string | null;
   contracting_entities: unknown;
   winners: unknown;
+};
+
+type ContractForResults = {
+  id: string;
+  object: string | null;
+  act_type?: string | null;
+  procedure_type: string | null;
+  contract_type?: string | null;
+  signing_date: string | null;
+  proposal_deadline_at?: string | null;
+  contract_price: number | null;
+  base_price?: number | null;
+  execution_locations: unknown;
+  contracting_entities: unknown;
+  winners: unknown;
+  cpv_main: string | null;
 };
 
 type ContractForOverview = {
@@ -104,6 +121,11 @@ const CPV_STATS_PAGE_SIZE = 5000;
 const MARKET_CACHE_TTL_MS = 30_000;
 const MARKET_CACHE_MAX_ENTRIES = 200;
 const MARKET_PERF_LOG_ENABLED = process.env.MARKET_PERF_LOG === "true";
+
+function parseMultiValues(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
 
 const marketPageCache = new Map<string, { expiresAt: number; data: MarketCacheData }>();
 
@@ -196,6 +218,33 @@ function normalizeCpvInput(input: string): string {
   return input.trim().toUpperCase();
 }
 
+function parseCpvFilters(input: string): string[] {
+  return Array.from(new Set(
+    input
+      .split(/[;,\n]+/)
+      .map((item) => normalizeCpvInput(item))
+      .filter(Boolean),
+  ));
+}
+
+function buildCpvIlikePatterns(filters: string[]): string[] {
+  const patterns = new Set<string>();
+
+  for (const raw of filters) {
+    const normalized = normalizeCpvInput(raw);
+    if (!normalized) continue;
+
+    patterns.add(`${normalized}%`);
+
+    const digits = normalized.replace(/\D/g, "");
+    if (digits.length >= 8) {
+      patterns.add(`${digits.slice(0, 8)}%`);
+    }
+  }
+
+  return Array.from(patterns);
+}
+
 function normalizeCpvCode(raw: string | null | undefined): string {
   if (!raw) return "";
   const trimmed = raw.trim().toUpperCase();
@@ -256,6 +305,61 @@ function toDateOrNull(dateLike: string | null | undefined): Date | null {
   if (!dateLike) return null;
   const date = new Date(dateLike);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatCurrency(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(Number(value))) return "--";
+  return new Intl.NumberFormat("pt-PT", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(Number(value));
+}
+
+function formatCount(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(Number(value))) return "0";
+  return new Intl.NumberFormat("pt-PT").format(Number(value));
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "--";
+  const date = toDateOrNull(value);
+  if (!date) return "--";
+  return new Intl.DateTimeFormat("pt-PT").format(date);
+}
+
+function daysRemaining(deadlineAt: string | null | undefined): number | null {
+  if (!deadlineAt) return null;
+  const deadline = new Date(String(deadlineAt));
+  if (Number.isNaN(deadline.getTime())) return null;
+
+  const now = new Date();
+  const start = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = Date.UTC(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
+  return Math.ceil((end - start) / 86_400_000);
+}
+
+function matchesDeadlineBucket(days: number | null, bucket: string): boolean {
+  if (!bucket) return true;
+  if (days == null) return false;
+  if (days < 0) return false;
+  if (bucket === "1_5") return days >= 1 && days <= 5;
+  if (bucket === "5_14") return days >= 5 && days <= 14;
+  if (bucket === "15_plus") return days >= 15;
+  return true;
+}
+
+function firstDistrictFromLocations(raw: unknown): string {
+  if (!Array.isArray(raw)) return "--";
+  for (const item of raw) {
+    if (typeof item !== "string") continue;
+    const parts = item.split(", ");
+    if (parts.length >= 2) {
+      const district = parts[1].trim();
+      if (district) return district;
+    }
+  }
+  return "--";
 }
 
 function computeFallbackInsight(cpvCode: string, cpvDescription: string | null, rows: ContractForStats[]) {
@@ -369,12 +473,146 @@ function computeFallbackInsight(cpvCode: string, cpvDescription: string | null, 
 export default async function MarketPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cpv?: string }>;
+  searchParams: Promise<{
+    analysis?: string;
+    apply?: string;
+    cpv?: string;
+    date_from?: string;
+    date_to?: string;
+    deadline_bucket?: string;
+    act_type?: string;
+    contract_type?: string;
+    model_type?: string;
+    year?: string;
+    month?: string;
+    district?: string;
+    cpv_family?: string;
+    sort?: string;
+  }>;
 }) {
   const params = await searchParams;
-  const cpvFilter = normalizeCpvInput(params.cpv ?? "");
+  const analysisParam = (params.analysis ?? "").trim().toLowerCase();
+  const selectedAnalysis = analysisParam === "announcements" || analysisParam === "contracts"
+    ? analysisParam
+    : null;
+  const hasAppliedFilters = params.apply === "1" && Boolean(selectedAnalysis);
+
+  const cpvFilters = parseCpvFilters(params.cpv ?? "");
+  const cpvFilter = cpvFilters[0] ?? "";
+  const cpvFiltersRaw = cpvFilters.join(", ");
+  const dateFromFilter = (params.date_from ?? "").trim();
+  const dateToFilter = (params.date_to ?? "").trim();
+  const deadlineBucketFilter = (params.deadline_bucket ?? "").trim();
+  const actTypeFilters = parseMultiValues(params.act_type);
+  const contractTypeFilters = parseMultiValues(params.contract_type);
+  const modelTypeFilters = parseMultiValues(params.model_type);
+  const districtFilters = parseMultiValues(params.district);
+  const yearFilter = (params.year ?? "").trim();
+  const monthFilter = (params.month ?? "").trim();
+  const cpvFamilyFilter = (params.cpv_family ?? "").trim();
+  const cpvFamilyPrefixFilter = deriveCpvFamilyPrefix(cpvFamilyFilter);
+  const cpvFamilyLikeFilter = cpvFamilyPrefixFilter ? `${cpvFamilyPrefixFilter}%` : "";
+  const sortFilter = (params.sort ?? "").trim() || "relevance";
+
   const cpvFamilyPrefix = deriveCpvFamilyPrefix(cpvFilter);
   const cpvFamilyLike = cpvFamilyPrefix ? `${cpvFamilyPrefix}%` : "";
+
+  const baseParams = new URLSearchParams();
+  if (cpvFiltersRaw) baseParams.set("cpv", cpvFiltersRaw);
+  if (dateFromFilter) baseParams.set("date_from", dateFromFilter);
+  if (dateToFilter) baseParams.set("date_to", dateToFilter);
+  if (actTypeFilters.length > 0) baseParams.set("act_type", actTypeFilters.join(","));
+  if (contractTypeFilters.length > 0) baseParams.set("contract_type", contractTypeFilters.join(","));
+  if (modelTypeFilters.length > 0) baseParams.set("model_type", modelTypeFilters.join(","));
+  if (districtFilters.length > 0) baseParams.set("district", districtFilters.join(","));
+  if (yearFilter) baseParams.set("year", yearFilter);
+  if (monthFilter) baseParams.set("month", monthFilter);
+  if (sortFilter && sortFilter !== "relevance") baseParams.set("sort", sortFilter);
+
+  const contractsHref = (() => {
+    const p = new URLSearchParams(baseParams);
+    p.set("analysis", "contracts");
+    p.delete("apply");
+    return `/market?${p.toString()}`;
+  })();
+
+  const announcementsHref = (() => {
+    const p = new URLSearchParams(baseParams);
+    p.set("analysis", "announcements");
+    p.delete("apply");
+    return `/market?${p.toString()}`;
+  })();
+
+  const cpvCarouselQuery = (() => {
+    const p = new URLSearchParams(baseParams);
+    p.delete("cpv");
+    p.set("analysis", selectedAnalysis ?? "contracts");
+    p.set("apply", "1");
+    return p.toString();
+  })();
+
+  const observatoryHref = (() => {
+    const p = new URLSearchParams(baseParams);
+    p.set("analysis", selectedAnalysis ?? "contracts");
+    p.set("apply", "1");
+    return `/estatisticas-privado?${p.toString()}`;
+  })();
+
+  const analysisButtons = (
+    <div className="mx-auto w-full max-w-3xl rounded-2xl border border-surface-200 bg-white p-4 shadow-card">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <a
+          href={announcementsHref}
+          className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border px-6 py-3 text-base font-semibold transition-all ${selectedAnalysis === "announcements"
+            ? "border-brand-200 bg-brand-50 text-brand-600"
+            : "border-surface-200 bg-white text-gray-700 hover:bg-brand-50 hover:text-brand-600"}`}
+        >
+          <Megaphone className="h-5 w-5" />
+          <span>Anúncios</span>
+        </a>
+        <a
+          href={contractsHref}
+          className={`inline-flex min-h-14 items-center justify-center gap-2 rounded-xl border px-6 py-3 text-base font-semibold transition-all ${selectedAnalysis === "contracts"
+            ? "border-brand-200 bg-brand-50 text-brand-600"
+            : "border-surface-200 bg-white text-gray-700 hover:bg-brand-50 hover:text-brand-600"}`}
+        >
+          <FileSignature className="h-5 w-5" />
+          <span>Contratos</span>
+        </a>
+      </div>
+    </div>
+  );
+
+  const filtersFormEl = selectedAnalysis ? (
+    <MarketFiltersForm
+      analysisType={selectedAnalysis}
+      defaultActTypes={actTypeFilters}
+      defaultContractTypes={contractTypeFilters}
+      defaultModelTypes={modelTypeFilters}
+      defaultDistricts={districtFilters}
+      defaultDateFrom={dateFromFilter}
+      defaultDateTo={dateToFilter}
+      defaultCpv={cpvFiltersRaw}
+      defaultSort={sortFilter}
+      observatoryHref={observatoryHref}
+    />
+  ) : null;
+
+  if (!hasAppliedFilters) {
+    return (
+      <div className="space-y-8">
+        <PageHeader
+          icon={TrendingUp}
+          title="Mercado"
+          description="Inteligência de mercado da contratação pública portuguesa -- análise por sector CPV, tendências, preços e oportunidades"
+        />
+
+        {analysisButtons}
+
+        {filtersFormEl}
+      </div>
+    );
+  }
 
   const supabase = await createClient();
   const {
@@ -413,6 +651,11 @@ export default async function MarketPage({
   let cpvCatalogMatch: { id: string; descricao: string } | null = null;
   let isRealtimeFallback = false;
   let cpvInsight: CpvInsightData | null = null;
+  let cpvCatalogRelated: Array<{ id: string; descricao: string }> = [];
+  let cpvCatalogFamilyCount: number | null = null;
+  let resultRows: ContractForResults[] = [];
+  let announcementsUnitCount: number | null = null;
+  let contractsUnitCount: number | null = null;
 
   if (cachedData) {
     totalCpvStats = cachedData.totalCpvStats;
@@ -515,7 +758,7 @@ export default async function MarketPage({
       }
     }
 
-    if (cpvFilter) {
+    if (cpvFilter && selectedAnalysis === "contracts") {
       const { data } = await supabase
         .from("cpv_stats")
         .select("cpv_code, cpv_description, cpv_division, total_contracts, contracts_last_365d, total_value, avg_contract_value, avg_discount_pct, yoy_growth_pct, min_contract_value, median_contract_value, max_contract_value, top_entities, top_companies, computed_at")
@@ -600,7 +843,7 @@ export default async function MarketPage({
     }
   }
 
-  if (cpvFilter && !cpvInsight) {
+  if (cpvFilter && selectedAnalysis === "contracts" && !cpvInsight) {
     const { data: exactCatalogMatch } = await supabase
       .from("cpv_codes")
       .select("id, descricao")
@@ -670,14 +913,421 @@ export default async function MarketPage({
     }
   }
 
+  if (cpvFilter && selectedAnalysis === "contracts" && cpvCatalogMatch) {
+    const familyPrefix = deriveCpvFamilyPrefix(cpvCatalogMatch.id || cpvFilter);
+    const familyLike = familyPrefix ? `${familyPrefix}%` : "";
+
+    if (familyLike) {
+      const [familyCountResult, relatedRowsResult, familyStatsResult] = await Promise.all([
+        supabase
+          .from("cpv_codes")
+          .select("*", { count: "exact", head: true })
+          .like("id", familyLike),
+        supabase
+          .from("cpv_codes")
+          .select("id, descricao")
+          .like("id", familyLike)
+          .order("id", { ascending: true })
+          .limit(12),
+        tenantId
+          ? supabase
+            .from("cpv_stats")
+            .select("cpv_code, total_contracts, total_value")
+            .eq("tenant_id", tenantId)
+            .like("cpv_code", familyLike)
+            .order("total_contracts", { ascending: false })
+            .limit(24)
+          : Promise.resolve({ data: [] as Array<{ cpv_code: string; total_contracts: number; total_value: number }> }),
+      ]);
+
+      cpvCatalogFamilyCount = familyCountResult.count ?? 0;
+      cpvCatalogRelated = (relatedRowsResult.data ?? []) as Array<{ id: string; descricao: string }>;
+
+      const statsMap = new Map<string, { contracts: number; totalValue: number }>();
+      for (const row of (familyStatsResult.data ?? [])) {
+        const item = row as { cpv_code: string; total_contracts: number; total_value: number };
+        statsMap.set(item.cpv_code, {
+          contracts: Number(item.total_contracts ?? 0),
+          totalValue: Number(item.total_value ?? 0),
+        });
+      }
+
+      if (cpvCatalogRelated.length > 0) {
+        cpvCarouselItems = cpvCatalogRelated.map((item) => {
+          const stats = statsMap.get(item.id);
+          return {
+            code: item.id,
+            description: item.descricao,
+            contracts: stats?.contracts ?? 0,
+            totalValue: stats?.totalValue ?? 0,
+          };
+        });
+      }
+    }
+  }
+
+  if (cpvFilter && selectedAnalysis === "contracts" && tenantId && cpvCarouselItems.length > 0) {
+    const needsRealtimeFamilyStats = cpvCarouselItems.every(
+      (item) => item.contracts <= 0 && item.totalValue <= 0,
+    );
+
+    if (needsRealtimeFamilyStats) {
+      const targetCodes = new Set(cpvCarouselItems.map((item) => normalizeCpvInput(item.code)));
+      const agg = new Map<string, { contracts: number; totalValue: number }>();
+      for (const code of Array.from(targetCodes)) {
+        agg.set(code, { contracts: 0, totalValue: 0 });
+      }
+
+      const contractRows = await fetchAllContractsForTenant<Pick<ContractForStats, "cpv_main" | "cpv_list" | "contract_price">>(
+        supabase,
+        tenantId,
+        "cpv_main, cpv_list, contract_price",
+      );
+
+      for (const row of contractRows) {
+        const main = normalizeCpvInput(row.cpv_main ?? "");
+        const list = parseCpvArray(row.cpv_list);
+        const value = row.contract_price == null ? 0 : Number(row.contract_price);
+        const valueToAdd = Number.isFinite(value) && value > 0 ? value : 0;
+
+        const presentCodes = new Set<string>();
+        if (main) presentCodes.add(main);
+        for (const code of list) {
+          if (code) presentCodes.add(code);
+        }
+
+        for (const code of Array.from(presentCodes)) {
+          if (!targetCodes.has(code)) continue;
+          const current = agg.get(code);
+          if (!current) continue;
+          current.contracts += 1;
+          current.totalValue += valueToAdd;
+          agg.set(code, current);
+        }
+      }
+
+      cpvCarouselItems = cpvCarouselItems.map((item) => {
+        const fallback = agg.get(normalizeCpvInput(item.code));
+        if (!fallback) return item;
+        return {
+          ...item,
+          contracts: fallback.contracts,
+          totalValue: fallback.totalValue,
+        };
+      });
+    }
+  }
+
+  if (cpvFilter && selectedAnalysis === "contracts" && !cpvInsight && cpvCatalogMatch) {
+    const familyContracts = cpvCarouselItems.reduce((sum, item) => sum + Math.max(0, item.contracts), 0);
+    const familyValue = cpvCarouselItems.reduce((sum, item) => sum + Math.max(0, item.totalValue), 0);
+
+    if (familyContracts > 0 || familyValue > 0) {
+      const avgContractValue = familyContracts > 0 ? familyValue / familyContracts : null;
+      cpvInsight = {
+        cpv_code: cpvCatalogMatch.id,
+        cpv_description: cpvCatalogMatch.descricao,
+        cpv_division: deriveCpvFamilyPrefix(cpvCatalogMatch.id).slice(0, 2) || null,
+        total_contracts: familyContracts,
+        contracts_last_365d: familyContracts,
+        total_value: familyValue,
+        avg_contract_value: avgContractValue,
+        avg_discount_pct: null,
+        yoy_growth_pct: null,
+        min_contract_value: null,
+        median_contract_value: null,
+        max_contract_value: null,
+        top_entities: [],
+        top_companies: [],
+        computed_at: new Date().toISOString(),
+      };
+      isRealtimeFallback = true;
+    }
+  }
+
+  if (tenantId) {
+    const now = new Date();
+    const selectedYear = Number(yearFilter || 0);
+    const validYear = Number.isFinite(selectedYear) && selectedYear >= 2000 ? selectedYear : null;
+    const monthNum = Number(monthFilter || 0);
+    const validMonth = Number.isFinite(monthNum) && monthNum >= 1 && monthNum <= 12 ? monthNum : null;
+
+    let dateStart: string | null = dateFromFilter || null;
+    let dateEnd: string | null = dateToFilter || null;
+
+    // Backward compatibility for old links using year/month.
+    if (!dateStart && !dateEnd) {
+      if (validYear && validMonth) {
+        const start = new Date(Date.UTC(validYear, validMonth - 1, 1));
+        const end = new Date(Date.UTC(validYear, validMonth, 1));
+        dateStart = start.toISOString().slice(0, 10);
+        dateEnd = end.toISOString().slice(0, 10);
+      } else if (validYear) {
+        const start = new Date(Date.UTC(validYear, 0, 1));
+        const end = new Date(Date.UTC(validYear + 1, 0, 1));
+        dateStart = start.toISOString().slice(0, 10);
+        dateEnd = end.toISOString().slice(0, 10);
+      } else if (validMonth) {
+        const start = new Date(Date.UTC(now.getUTCFullYear(), validMonth - 1, 1));
+        const end = new Date(Date.UTC(now.getUTCFullYear(), validMonth, 1));
+        dateStart = start.toISOString().slice(0, 10);
+        dateEnd = end.toISOString().slice(0, 10);
+      }
+    }
+
+    // Make end date inclusive for the selected day.
+    if (dateEnd) {
+      const endDate = new Date(`${dateEnd}T00:00:00Z`);
+      if (!Number.isNaN(endDate.getTime())) {
+        endDate.setUTCDate(endDate.getUTCDate() + 1);
+        dateEnd = endDate.toISOString().slice(0, 10);
+      }
+    }
+
+    if (selectedAnalysis === "announcements") {
+      let announcementsQuery = supabase
+        .from("announcements")
+        .select("id, title, act_type, procedure_type, contract_type, publication_date, proposal_deadline_at, base_price, entity_name, cpv_main")
+        .eq("tenant_id", tenantId)
+        .order("publication_date", { ascending: false })
+        .limit(400);
+
+      if (cpvFilters.length > 0) {
+        const cpvPatterns = buildCpvIlikePatterns(cpvFilters);
+        if (cpvPatterns.length > 0) {
+          announcementsQuery = announcementsQuery.or(
+            cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(","),
+          );
+        }
+      }
+      if (actTypeFilters.length > 0) {
+        announcementsQuery = announcementsQuery.or(actTypeFilters.map(f => `act_type.ilike.${f}`).join(","));
+      }
+      if (contractTypeFilters.length > 0) {
+        announcementsQuery = announcementsQuery.or(contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(","));
+      }
+      if (modelTypeFilters.length > 0) {
+        announcementsQuery = announcementsQuery.or(modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(","));
+      }
+      if (cpvFamilyLikeFilter) {
+        announcementsQuery = announcementsQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+      }
+      if (dateStart) {
+        announcementsQuery = announcementsQuery.gte("publication_date", dateStart);
+      }
+      if (dateEnd) {
+        announcementsQuery = announcementsQuery.lt("publication_date", dateEnd);
+      }
+
+      const { data: rawAnnouncements } = await announcementsQuery;
+      const mappedRows = (rawAnnouncements ?? []).map((row) => {
+        const ann = row as {
+          id: string;
+          title: string | null;
+          act_type: string | null;
+          procedure_type: string | null;
+          contract_type: string | null;
+          publication_date: string | null;
+          proposal_deadline_at: string | null;
+          base_price: number | null;
+          entity_name: string | null;
+          cpv_main: string | null;
+        };
+
+        return {
+          id: ann.id,
+          object: cleanAnnouncementText(ann.title) || null,
+          act_type: cleanAnnouncementText(ann.act_type) || null,
+          procedure_type: cleanAnnouncementText(ann.procedure_type) || null,
+          contract_type: cleanAnnouncementText(ann.contract_type) || null,
+          signing_date: ann.publication_date,
+          proposal_deadline_at: ann.proposal_deadline_at,
+          contract_price: ann.base_price,
+          execution_locations: [],
+          contracting_entities: ann.entity_name ? [{ name: cleanAnnouncementText(ann.entity_name) || ann.entity_name }] : [],
+          winners: [],
+          cpv_main: ann.cpv_main,
+        } as ContractForResults;
+      });
+
+      resultRows = mappedRows.filter((row) =>
+        matchesDeadlineBucket(daysRemaining(row.proposal_deadline_at ?? null), deadlineBucketFilter),
+      );
+      announcementsUnitCount = resultRows.length;
+    } else {
+      let resultsQuery = supabase
+        .from("contracts")
+        .select("id, object, procedure_type, contract_type, signing_date, contract_price, base_price, execution_locations, contracting_entities, winners, cpv_main")
+        .eq("tenant_id", tenantId)
+        .order("signing_date", { ascending: false })
+        .limit(200);
+
+      let contractsCountQ = supabase
+        .from("contracts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      if (cpvFilters.length > 0) {
+        const cpvPatterns = buildCpvIlikePatterns(cpvFilters);
+        if (cpvPatterns.length > 0) {
+          const cpvOr = cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(",");
+          resultsQuery = resultsQuery.or(cpvOr);
+          contractsCountQ = contractsCountQ.or(cpvOr);
+        }
+      }
+      if (contractTypeFilters.length > 0) {
+        const ctOr = contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(",");
+        resultsQuery = resultsQuery.or(ctOr);
+        contractsCountQ = contractsCountQ.or(ctOr);
+      }
+      if (modelTypeFilters.length > 0) {
+        const mtOr = modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(",");
+        resultsQuery = resultsQuery.or(mtOr);
+        contractsCountQ = contractsCountQ.or(mtOr);
+      }
+      if (cpvFamilyLikeFilter) {
+        resultsQuery = resultsQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+        contractsCountQ = contractsCountQ.ilike("cpv_main", cpvFamilyLikeFilter);
+      }
+      if (dateStart) {
+        resultsQuery = resultsQuery.gte("signing_date", dateStart);
+        contractsCountQ = contractsCountQ.gte("signing_date", dateStart);
+      }
+      if (dateEnd) {
+        resultsQuery = resultsQuery.lt("signing_date", dateEnd);
+        contractsCountQ = contractsCountQ.lt("signing_date", dateEnd);
+      }
+
+      const [{ data: rawResultRows }, { count: dbContractsCount }] = await Promise.all([resultsQuery, contractsCountQ]);
+      const rows = (rawResultRows ?? []) as ContractForResults[];
+      const districtFilteredRows = districtFilters.length > 0
+        ? rows.filter((row) => {
+          const d = firstDistrictFromLocations(row.execution_locations).toLowerCase();
+          return districtFilters.some(df => d.includes(df.toLowerCase()));
+        })
+        : rows;
+
+      resultRows = districtFilteredRows.filter((row) =>
+        matchesDeadlineBucket(daysRemaining(row.proposal_deadline_at ?? null), deadlineBucketFilter),
+      );
+      contractsUnitCount = dbContractsCount ?? 0;
+    }
+
+    if (sortFilter === "value_desc") {
+      resultRows.sort((a, b) => Number(b.contract_price ?? 0) - Number(a.contract_price ?? 0));
+    } else if (sortFilter === "value_asc") {
+      resultRows.sort((a, b) => Number(a.contract_price ?? 0) - Number(b.contract_price ?? 0));
+    } else if (sortFilter === "recent") {
+      resultRows.sort((a, b) => String(b.signing_date ?? "").localeCompare(String(a.signing_date ?? "")));
+    } else if (sortFilter === "detail_desc") {
+      resultRows.sort((a, b) => String(b.object ?? "").length - String(a.object ?? "").length);
+    }
+
+    if (announcementsUnitCount == null) {
+      let announcementsCountQuery = supabase
+        .from("announcements")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      if (cpvFilters.length > 0) {
+        const cpvPatterns = buildCpvIlikePatterns(cpvFilters);
+        if (cpvPatterns.length > 0) {
+          announcementsCountQuery = announcementsCountQuery.or(
+            cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(","),
+          );
+        }
+      }
+      if (actTypeFilters.length > 0) announcementsCountQuery = announcementsCountQuery.or(actTypeFilters.map(f => `act_type.ilike.${f}`).join(","));
+      if (contractTypeFilters.length > 0) announcementsCountQuery = announcementsCountQuery.or(contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(","));
+      if (modelTypeFilters.length > 0) announcementsCountQuery = announcementsCountQuery.or(modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(","));
+      if (cpvFamilyLikeFilter) announcementsCountQuery = announcementsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+      if (dateStart) announcementsCountQuery = announcementsCountQuery.gte("publication_date", dateStart);
+      if (dateEnd) announcementsCountQuery = announcementsCountQuery.lt("publication_date", dateEnd);
+
+      const { count } = await announcementsCountQuery;
+      announcementsUnitCount = count ?? 0;
+    }
+
+    if (contractsUnitCount == null) {
+      let contractsCountQuery = supabase
+        .from("contracts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
+      if (cpvFilters.length > 0) {
+        const cpvPatterns = buildCpvIlikePatterns(cpvFilters);
+        if (cpvPatterns.length > 0) {
+          contractsCountQuery = contractsCountQuery.or(
+            cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(","),
+          );
+        }
+      }
+      if (contractTypeFilters.length > 0) contractsCountQuery = contractsCountQuery.or(contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(","));
+      if (modelTypeFilters.length > 0) contractsCountQuery = contractsCountQuery.or(modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(","));
+      if (cpvFamilyLikeFilter) contractsCountQuery = contractsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+      if (dateStart) contractsCountQuery = contractsCountQuery.gte("signing_date", dateStart);
+      if (dateEnd) contractsCountQuery = contractsCountQuery.lt("signing_date", dateEnd);
+
+      const { count } = await contractsCountQuery;
+      contractsUnitCount = count ?? 0;
+    }
+  }
+
   perf.total_ms = Number((performance.now() - requestStart).toFixed(2));
   if (MARKET_PERF_LOG_ENABLED) {
     console.info("[market][server]", {
       tenantId,
+      analysis: selectedAnalysis,
+      dateFrom: dateFromFilter || null,
+      dateTo: dateToFilter || null,
+      deadlineBucket: deadlineBucketFilter || null,
+      actType: actTypeFilters.length > 0 ? actTypeFilters : null,
+      contractType: contractTypeFilters.length > 0 ? contractTypeFilters : null,
+      modelType: modelTypeFilters.length > 0 ? modelTypeFilters : null,
+      year: yearFilter || null,
+      month: monthFilter || null,
+      district: districtFilters.length > 0 ? districtFilters : null,
+      cpvFamily: cpvFamilyFilter || null,
+      sort: sortFilter || null,
       cpvFilter: cpvFilter || null,
       ...perf,
     });
   }
+
+  const totalResults = cpvFilters.length > 1
+    ? resultRows.length
+    : cpvFilter
+      ? (selectedAnalysis === "contracts"
+        ? (cpvInsight?.total_contracts ?? cpvCarouselItems.reduce((sum, item) => sum + Math.max(0, item.contracts), 0))
+        : resultRows.length)
+    : (selectedAnalysis === "announcements" ? resultRows.length : (contractsUnitCount ?? marketOverview?.totalContracts ?? 0));
+  const resultLabel = selectedAnalysis === "announcements" ? "anúncios" : "contratos";
+  const hasOverviewData = Boolean(marketOverview && marketOverview.totalContracts > 0);
+  const kpiContracts = cpvInsight?.total_contracts ?? (
+    selectedAnalysis === "contracts" && contractsUnitCount != null
+      ? contractsUnitCount
+      : (resultRows.length > 0 ? resultRows.length : marketOverview?.totalContracts ?? 0)
+  );
+  const kpiTotalValue = cpvInsight?.total_value ?? (resultRows.length > 0
+    ? resultRows.reduce((sum, row) => sum + Math.max(0, Number(row.contract_price ?? 0)), 0)
+    : marketOverview?.totalValue ?? 0);
+  const kpiAvgValue = kpiContracts > 0 ? kpiTotalValue / kpiContracts : 0;
+  const kpiDiscountFromRows = (() => {
+    const pairs = resultRows.filter(row => {
+      const bp = Number(row.base_price ?? 0);
+      const cp = Number(row.contract_price ?? 0);
+      return bp > 0 && cp >= 0 && cp <= bp;
+    });
+    if (pairs.length === 0) return null;
+    const sum = pairs.reduce((acc, row) => acc + (1 - Number(row.contract_price) / Number(row.base_price)) * 100, 0);
+    return sum / pairs.length;
+  })();
+  const kpiDiscount = cpvInsight?.avg_discount_pct ?? kpiDiscountFromRows ?? marketOverview?.avgDiscountPct ?? null;
+  const unitAnnouncements = Math.max(0, announcementsUnitCount ?? 0);
+  const unitContracts = Math.max(0, contractsUnitCount ?? 0);
+  const unitTotal = unitAnnouncements + unitContracts;
+  const unitAnnouncementsPct = unitTotal > 0 ? (unitAnnouncements / unitTotal) * 100 : null;
+  const unitContractsPct = unitTotal > 0 ? (unitContracts / unitTotal) * 100 : null;
 
   return (
     <div className="space-y-8">
@@ -695,91 +1345,177 @@ export default async function MarketPage({
         }
       />
 
-      {/* Visão de mercado por CPV */}
-      <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-        <h2 className="font-semibold text-gray-900 mb-4">Visão de mercado por CPV</h2>
+      {analysisButtons}
 
-        <form className="mb-4 flex flex-wrap items-end gap-3">
-          <div className="min-w-[260px] flex-1">
-            <MercadoCpvInput
-              defaultValue={cpvFilter}
-              label="Código CPV"
-              placeholder="Ex: 71240000-2"
-              infoText="Digite números para ver CPVs correspondentes e escolher um deles."
-              inputClassName="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+      {filtersFormEl}
+
+      <p className="text-sm font-medium text-gray-700">
+        Foram encontrados {totalResults.toLocaleString("pt-PT")} {resultLabel}.
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Valor total</p>
+          <p className="mt-1 text-2xl font-extrabold text-gray-900">{formatCurrency(kpiTotalValue)}</p>
+        </div>
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Nº contratos</p>
+          <p className="mt-1 text-2xl font-extrabold text-gray-900">{formatCount(kpiContracts)}</p>
+        </div>
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Valor médio</p>
+          <p className="mt-1 text-2xl font-extrabold text-gray-900">{formatCurrency(kpiAvgValue)}</p>
+        </div>
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Desconto médio</p>
+          <p className="mt-1 text-2xl font-extrabold text-gray-900">{kpiDiscount == null ? "--" : `${kpiDiscount.toFixed(1)}%`}</p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Anúncios (unidade)</p>
+          <p className="mt-1 text-xl font-extrabold text-gray-900">
+            {formatCount(unitAnnouncements)}
+            <span className="ml-2 text-base font-semibold text-brand-600">
+              {unitAnnouncementsPct == null ? "--" : `${unitAnnouncementsPct.toFixed(1)}%`}
+            </span>
+          </p>
+        </div>
+        <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
+          <p className="text-xs uppercase tracking-wider text-gray-500">Contratos (unidade)</p>
+          <p className="mt-1 text-xl font-extrabold text-gray-900">
+            {formatCount(unitContracts)}
+            <span className="ml-2 text-base font-semibold text-brand-600">
+              {unitContractsPct == null ? "--" : `${unitContractsPct.toFixed(1)}%`}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {selectedAnalysis === "contracts" && cpvFilter && cpvFilters.length === 1 && (
+        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+          <h2 className="font-semibold text-gray-900 mb-4">Visão de mercado por CPV</h2>
+
+          {cpvCatalogMatch && !cpvInsight && (
+            <div className="mb-4 rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm text-gray-700">
+              <p>
+                <strong>{cpvCatalogMatch.id}</strong> -- {cpvCatalogMatch.descricao}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Família CPV: <strong>{deriveCpvFamilyPrefix(cpvCatalogMatch.id)}</strong>
+                {cpvCatalogFamilyCount != null ? ` · ${cpvCatalogFamilyCount} códigos relacionados` : ""}
+              </p>
+            </div>
+          )}
+
+          {!cpvInsight && cpvCarouselItems.length > 0 && (
+            <div className="mb-4">
+              <CpvCarouselHints items={cpvCarouselItems} linkQuery={cpvCarouselQuery} />
+            </div>
+          )}
+
+          {cpvFilter && !cpvInsight && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
+              {cpvCatalogMatch ? (
+                <>
+                  O CPV <strong>{cpvFilter}</strong> existe (<strong>{cpvCatalogMatch.descricao}</strong>),
+                  mas não foram encontrados contratos suficientes para calcular indicadores para este filtro.
+                </>
+              ) : (
+                <>
+                  Não foi encontrado nenhum CPV com o código <strong>{cpvFilter}</strong>.
+                </>
+              )}
+            </div>
+          )}
+
+          {cpvInsight && (
+            <MarketInsightPanel
+              cpvCode={cpvInsight.cpv_code}
+              cpvDescription={cpvInsight.cpv_description}
+              cpvDivision={cpvInsight.cpv_division}
+              isRealtimeFallback={isRealtimeFallback}
+              totalContracts={cpvInsight.total_contracts}
+              contractsLast365d={cpvInsight.contracts_last_365d}
+              totalValue={cpvInsight.total_value}
+              avgContractValue={cpvInsight.avg_contract_value}
+              avgDiscountPct={cpvInsight.avg_discount_pct}
+              yoyGrowthPct={cpvInsight.yoy_growth_pct}
+              minContractValue={cpvInsight.min_contract_value}
+              medianContractValue={cpvInsight.median_contract_value}
+              maxContractValue={cpvInsight.max_contract_value}
+              topEntities={parseTopParties(cpvInsight.top_entities)}
+              topCompanies={parseTopParties(cpvInsight.top_companies)}
+              computedAt={cpvInsight.computed_at}
+            />
+          )}
+        </div>
+      )}
+
+      {hasOverviewData && (
+        <>
+          {/* Visão geral */}
+          <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+            <h2 className="font-semibold text-gray-900 mb-4">Visão geral de mercado</h2>
+            <MarketOverviewPanel
+              totalContracts={marketOverview!.totalContracts}
+              totalValue={marketOverview!.totalValue}
+              activeCpvs={marketOverview!.activeCpvs}
+              avgDiscountPct={marketOverview!.avgDiscountPct}
+              items={marketOverview!.items}
             />
           </div>
-          <button
-            type="submit"
-            className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-brand-700 hover:shadow-md"
-          >
-            Ver estatística
-          </button>
-        </form>
 
-        {!cpvFilter && (
-          <CpvCarouselHints items={cpvCarouselItems} />
-        )}
-
-        {cpvFilter && !cpvInsight && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-700">
-            {cpvCatalogMatch ? (
-              <>
-                O CPV <strong>{cpvFilter}</strong> existe (<strong>{cpvCatalogMatch.descricao}</strong>),
-                mas ainda não tem estatísticas calculadas na tabela <strong>cpv_stats</strong> nem contratos suficientes para cálculo em tempo real.
-              </>
-            ) : (
-              <>
-                Não foi encontrado nenhum CPV com o código <strong>{cpvFilter}</strong>.
-              </>
-            )}
+          {/* Tendências: evolução mensal, procedimentos, distritos */}
+          <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+            <h2 className="font-semibold text-gray-900 mb-4">Tendências e distribuição</h2>
+            <MarketChartsLoader />
           </div>
-        )}
+        </>
+      )}
 
-        {cpvInsight && (
-          <MarketInsightPanel
-            cpvCode={cpvInsight.cpv_code}
-            cpvDescription={cpvInsight.cpv_description}
-            cpvDivision={cpvInsight.cpv_division}
-            isRealtimeFallback={isRealtimeFallback}
-            totalContracts={cpvInsight.total_contracts}
-            contractsLast365d={cpvInsight.contracts_last_365d}
-            totalValue={cpvInsight.total_value}
-            avgContractValue={cpvInsight.avg_contract_value}
-            avgDiscountPct={cpvInsight.avg_discount_pct}
-            yoyGrowthPct={cpvInsight.yoy_growth_pct}
-            minContractValue={cpvInsight.min_contract_value}
-            medianContractValue={cpvInsight.median_contract_value}
-            maxContractValue={cpvInsight.max_contract_value}
-            topEntities={parseTopParties(cpvInsight.top_entities)}
-            topCompanies={parseTopParties(cpvInsight.top_companies)}
-            computedAt={cpvInsight.computed_at}
-          />
-        )}
-      </div>
-
-      {/* Visão geral */}
       <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-        <h2 className="font-semibold text-gray-900 mb-4">Visão geral de mercado</h2>
-        {marketOverview ? (
-          <MarketOverviewPanel
-            totalContracts={marketOverview.totalContracts}
-            totalValue={marketOverview.totalValue}
-            activeCpvs={marketOverview.activeCpvs}
-            avgDiscountPct={marketOverview.avgDiscountPct}
-            items={marketOverview.items}
-          />
-        ) : (
-          <div className="rounded-xl border border-surface-200 bg-surface-50 p-5 text-sm text-gray-500">
-            Ainda não existem contratos suficientes para comparar CPVs no mercado.
-          </div>
-        )}
-      </div>
-
-      {/* Tendências: evolução mensal, procedimentos, distritos */}
-      <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-        <h2 className="font-semibold text-gray-900 mb-4">Tendências e distribuição</h2>
-        <MarketChartsLoader />
+        <h2 className="font-semibold text-gray-900 mb-4">Tabela de Resultados</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-sm">
+            <thead className="border-b border-surface-200 text-xs uppercase tracking-wider text-gray-500">
+              <tr>
+                <th className="px-3 py-2 text-left">Objeto</th>
+                <th className="px-3 py-2 text-left">Entidade</th>
+                <th className="px-3 py-2 text-left">Empresa</th>
+                <th className="px-3 py-2 text-left">Valor</th>
+                <th className="px-3 py-2 text-left">Procedimento</th>
+                <th className="px-3 py-2 text-left">Data</th>
+                <th className="px-3 py-2 text-left">Distrito</th>
+              </tr>
+            </thead>
+            <tbody>
+              {resultRows.slice(0, 30).map((row) => {
+                const entity = toPartyArray(row.contracting_entities)[0]?.name ?? "--";
+                const winner = toPartyArray(row.winners)[0]?.name ?? "--";
+                return (
+                  <tr key={row.id} className="border-b border-surface-100">
+                    <td className="px-3 py-2 text-gray-900">{row.object ?? "Sem objeto"}</td>
+                    <td className="px-3 py-2 text-gray-700">{entity}</td>
+                    <td className="px-3 py-2 text-gray-700">{winner}</td>
+                    <td className="px-3 py-2 text-gray-900">{formatCurrency(row.contract_price)}</td>
+                    <td className="px-3 py-2 text-gray-700">{row.procedure_type ?? "--"}</td>
+                    <td className="px-3 py-2 text-gray-700">{formatDate(row.signing_date)}</td>
+                    <td className="px-3 py-2 text-gray-700">{firstDistrictFromLocations(row.execution_locations)}</td>
+                  </tr>
+                );
+              })}
+              {resultRows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-3 py-10 text-center text-gray-500">
+                    Sem resultados para os filtros selecionados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

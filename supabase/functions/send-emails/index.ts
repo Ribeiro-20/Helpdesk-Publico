@@ -11,7 +11,7 @@
  *  }
  *
  * Response:
- *  { processed, sent, failed, errors }
+ *  { claimed, processed, sent, failed, skipped, rate_limited, errors }
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -20,11 +20,6 @@ import {
   buildAnnouncementEmailOutlook,
   createEmailProvider,
 } from "../_shared/emailProvider.ts";
-import {
-  getLisbonDayRangeUtc,
-  getNextBusinessDay10am,
-} from "../_shared/scheduling.ts";
-
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -169,8 +164,7 @@ Deno.serve(async (req: Request) => {
         clients (
           name,
           email,
-          is_active,
-          max_emails_per_day
+          is_active
         ),
         announcements (*)
       `)
@@ -180,35 +174,6 @@ Deno.serve(async (req: Request) => {
       .order("created_at", { ascending: true });
 
     if (fetchErr) throw fetchErr;
-
-    const { startIso, endIso } = getLisbonDayRangeUtc(new Date());
-    const claimedClientIds = Array.from(new Set(
-      (notifications ?? [])
-        .map((notif) => String((notif as Record<string, unknown>).client_id ?? ""))
-        .filter(Boolean),
-    ));
-
-    const sentTodayByClient = new Map<string, number>();
-    if (claimedClientIds.length > 0) {
-      const { data: sentTodayRows, error: sentTodayErr } = await supabase
-        .from("notifications")
-        .select("client_id")
-        .eq("tenant_id", tenantId)
-        .eq("status", "SENT")
-        .gte("sent_at", startIso)
-        .lt("sent_at", endIso)
-        .in("client_id", claimedClientIds);
-
-      if (sentTodayErr) {
-        console.warn("[send-emails] could not load today's sent counters:", sentTodayErr);
-      } else {
-        for (const row of sentTodayRows ?? []) {
-          const clientId = String((row as Record<string, unknown>).client_id ?? "");
-          if (!clientId) continue;
-          sentTodayByClient.set(clientId, (sentTodayByClient.get(clientId) ?? 0) + 1);
-        }
-      }
-    }
 
     const cpvCodes = Array.from(new Set(
       (notifications ?? [])
@@ -247,22 +212,20 @@ Deno.serve(async (req: Request) => {
         name: string;
         email: string;
         is_active: boolean;
-        max_emails_per_day: number;
       } | null;
-      const clientId = String((notif as Record<string, unknown>).client_id ?? "");
 
       const announcement = (notif as Record<string, unknown>)
         .announcements as {
-        title: string;
-        entity_name: string | null;
-        publication_date: string;
-        cpv_main: string | null;
-        cpv_description?: string | null;
-        base_price: number | null;
-        currency: string;
-        detail_url: string | null;
-        proposal_deadline_at?: string | null;
-      } | null;
+          title: string;
+          entity_name: string | null;
+          publication_date: string;
+          cpv_main: string | null;
+          cpv_description?: string | null;
+          base_price: number | null;
+          currency: string;
+          detail_url: string | null;
+          proposal_deadline_at?: string | null;
+        } | null;
 
       if (!client || !announcement) {
         await supabase
@@ -296,36 +259,6 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      const maxEmailsPerDay = Number(client.max_emails_per_day ?? 0);
-      const sentToday = sentTodayByClient.get(clientId) ?? 0;
-      if (Number.isFinite(maxEmailsPerDay) && maxEmailsPerDay >= 0 && sentToday >= maxEmailsPerDay) {
-        const postponedTo = getNextBusinessDay10am(new Date());
-        await supabase
-          .from("notifications")
-          .update({
-            status: "PENDING",
-            scheduled_for: postponedTo,
-            error: `Rate limit reached (${maxEmailsPerDay}/day); postponed`,
-          })
-          .eq("id", notif.id)
-          .eq("status", "PROCESSING");
-
-        try {
-          await supabase.from("email_histories").insert({
-            tenant_id: tenantId,
-            notification_id: notif.id,
-            status: "RATE_LIMITED",
-            payload: { client, announcement, postponed_to: postponedTo },
-            error: `Rate limit reached (${maxEmailsPerDay}/day)`,
-          });
-        } catch (e) {
-          console.error("[send-emails] could not insert email_history for rate limit:", e);
-        }
-
-        stats.rate_limited++;
-        continue;
-      }
-
       try {
         const cpvDescription = announcement.cpv_main
           ? cpvDescriptionMap.get(announcement.cpv_main) ?? null
@@ -349,13 +282,38 @@ Deno.serve(async (req: Request) => {
             cpv_description: cpvDescription,
           },
         });
+        // Try to fetch the PDF version of the announcement and attach it
+        const attachments: Array<{ name: string; content: string; contentType?: string }> = [];
+        try {
+          const pdfUrl = `${appBaseUrl.replace(/\/$/, "")}/api/announcements/${notif.announcement_id}/pdf`;
+          const pdfRes = await fetch(pdfUrl);
+          if (pdfRes.ok) {
+            const arr = await pdfRes.arrayBuffer();
+            // convert ArrayBuffer to base64 (Deno-friendly)
+            const bytes = new Uint8Array(arr);
+            let binary = "";
+            const chunkSize = 0x8000; // 32KB chunks
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              const chunk = bytes.subarray(i, i + chunkSize);
+              binary += String.fromCharCode.apply(null, Array.from(chunk));
+            }
+            const b64 = typeof btoa === "function" ? btoa(binary) : Buffer.from(bytes).toString("base64");
+            const filename = `anuncio-${String(notif.announcement_id)}.pdf`;
+            attachments.push({ name: filename, content: b64, contentType: "application/pdf" });
+          } else {
+            console.warn(`[send-emails] could not fetch pdf (${pdfRes.status}) for announcement ${notif.announcement_id}`);
+          }
+        } catch (e) {
+          console.warn("[send-emails] error fetching announcement pdf:", e);
+        }
 
-          const result = await emailProvider.send({
-            to: client.email,
-            subject,
-            html,
-            text,
-          });
+        const result = await emailProvider.send({
+          to: client.email,
+          subject,
+          html,
+          text,
+          ...(attachments.length > 0 ? { attachments } : {}),
+        });
 
         if (result.success) {
           await supabase
@@ -380,7 +338,6 @@ Deno.serve(async (req: Request) => {
           }
 
           stats.sent++;
-          sentTodayByClient.set(clientId, sentToday + 1);
         } else {
           await supabase
             .from("notifications")

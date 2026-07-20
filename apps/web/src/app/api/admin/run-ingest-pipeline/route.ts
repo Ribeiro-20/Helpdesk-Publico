@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getSupabaseAdminEnv } from "@/lib/supabase/env";
 
 export const runtime = "nodejs";
@@ -9,6 +9,13 @@ type FunctionResult = {
   ok: boolean;
   status: number;
   data: unknown;
+};
+
+type AdminContext = {
+  userId: string;
+  tenantId: string | null;
+  systemAlertEmail: string | null;
+  tenantName: string | null;
 };
 
 function isIsoDate(value: unknown): value is string {
@@ -63,7 +70,7 @@ async function requireAdmin() {
 
   const { data: appUser, error: appUserError } = await supabase
     .from("app_users")
-    .select("role")
+    .select("role, tenant_id")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -75,7 +82,146 @@ async function requireAdmin() {
     return { ok: false as const, response: NextResponse.json({ error: "Acesso negado: apenas admin." }, { status: 403 }) };
   }
 
-  return { ok: true as const };
+  const tenantId = appUser.tenant_id ?? null;
+  let systemAlertEmail: string | null = null;
+  let tenantName: string | null = null;
+
+  if (tenantId) {
+    const admin = await createAdminClient();
+    const { data: tenant } = await admin
+      .from("tenants")
+      .select("name, system_alert_email")
+      .eq("id", tenantId)
+      .maybeSingle();
+
+    systemAlertEmail = tenant?.system_alert_email ?? null;
+    tenantName = tenant?.name ?? null;
+  }
+
+  return {
+    ok: true as const,
+    context: {
+      userId: user.id,
+      tenantId,
+      systemAlertEmail,
+      tenantName,
+    } as AdminContext,
+  };
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function sendSystemEmail(to: string, subject: string, text: string) {
+  const provider = (process.env.EMAIL_PROVIDER ?? (process.env.BREVO_API_KEY ? "brevo" : "dev")).trim().toLowerCase();
+  const fromEmail = process.env.EMAIL_FROM ?? process.env.MAIL_FROM ?? "noreply@example.com";
+  const fromName = process.env.EMAIL_FROM_NAME ?? "BASE Monitor";
+  const html = `<!doctype html><html><body style="font-family:Arial,sans-serif;background:#f8fafc;padding:24px;color:#0f172a;"><div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;"><h1 style="margin:0 0 16px;font-size:20px;">${escapeHtml(subject)}</h1><pre style="white-space:pre-wrap;word-break:break-word;background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;padding:16px;font-size:13px;line-height:1.55;">${escapeHtml(text)}</pre></div></body></html>`;
+
+  // ----- BREVO PROVIDER -----
+  if (provider === "brevo") {
+    const apiKey = process.env.BREVO_API_KEY;
+    if (!apiKey) throw new Error("EMAIL_PROVIDER=brevo but BREVO_API_KEY is not set");
+
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        "api-key": apiKey,
+      },
+      body: JSON.stringify({
+        sender: { name: fromName, email: fromEmail },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Brevo ${response.status}: ${await response.text()}`);
+    }
+    return;
+  }
+
+  if (provider === "mailpit") {
+    const mailpitUrl = process.env.MAILPIT_URL ?? "http://127.0.0.1:55324";
+    const response = await fetch(`${mailpitUrl}/api/v1/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        From: { Email: fromEmail, Name: fromName },
+        To: [{ Email: to }],
+        Subject: subject,
+        HTML: html,
+        Text: text,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Mailpit ${response.status}: ${await response.text()}`);
+    }
+    return;
+  }
+
+  if (provider === "sendgrid") {
+    const apiKey = process.env.SENDGRID_API_KEY;
+    if (!apiKey) throw new Error("EMAIL_PROVIDER=sendgrid but SENDGRID_API_KEY is not set");
+
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: fromEmail, name: fromName },
+        subject,
+        content: [
+          { type: "text/html", value: html },
+          { type: "text/plain", value: text },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`SendGrid ${response.status}: ${await response.text()}`);
+    }
+    return;
+  }
+
+  console.log("─────────────────────────────────────────");
+  console.log(`[SYSTEM ALERT] To      : ${to}`);
+  console.log(`[SYSTEM ALERT] Subject : ${subject}`);
+  console.log(`[SYSTEM ALERT] Body    :\n${text}`);
+  console.log("─────────────────────────────────────────");
+}
+
+async function notifySystemAlert(context: AdminContext, subject: string, payload: Record<string, unknown>) {
+  if (!context.systemAlertEmail) return;
+
+  const text = [
+    `Tenant: ${context.tenantName ?? context.tenantId ?? "—"}`,
+    `Utilizador admin: ${context.userId}`,
+    `Assunto: ${subject}`,
+    "",
+    "Detalhe técnico (JSON):",
+    JSON.stringify(payload, null, 2),
+  ].join("\n");
+
+  try {
+    await sendSystemEmail(context.systemAlertEmail, subject, text);
+  } catch (error) {
+    console.error("[run-ingest-pipeline] failed to send system alert:", error);
+  }
 }
 
 async function callFunction(name: string, body: Record<string, unknown>): Promise<FunctionResult> {
@@ -102,9 +248,9 @@ async function callFunction(name: string, body: Record<string, unknown>): Promis
   return { ok: res.ok, status: res.status, data };
 }
 
-async function callInternalDr(req: NextRequest, body: Record<string, unknown>): Promise<FunctionResult> {
+async function callInternalDr(origin: string, body: Record<string, unknown>): Promise<FunctionResult> {
   const { serviceRoleKey } = getSupabaseAdminEnv("Run ingest pipeline");
-  const res = await fetch(new URL("/api/admin/ingest-dr", req.nextUrl.origin), {
+  const res = await fetch(new URL("/api/admin/ingest-dr", origin), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${serviceRoleKey}`,
@@ -117,6 +263,47 @@ async function callInternalDr(req: NextRequest, body: Record<string, unknown>): 
   return { ok: res.ok, status: res.status, data };
 }
 
+async function runPipeline(origin: string, fromDate: string, toDate: string, dryRun: boolean) {
+  const rangeBody = { from_date: fromDate, to_date: toDate };
+  const baseBody = dryRun ? { ...rangeBody, dry_run: true } : rangeBody;
+  const baseRes = await callFunction("ingest-base", baseBody);
+  const baseError = formatError(baseRes);
+
+  if (dryRun) {
+    return {
+      ok: baseRes.ok,
+      dry_run: true,
+      from_date: fromDate,
+      to_date: toDate,
+      ingest_base: baseRes.data,
+      ingest_base_error: baseError,
+    };
+  }
+
+  const fetched = baseRes.ok ? numericField(baseRes.data, "fetched") : 0;
+  const shouldRunDr = fetched > 0 || fromDate === todayIso() || toDate === todayIso() || !!baseError;
+  const drRes = shouldRunDr
+    ? await callInternalDr(origin, rangeBody)
+    : {
+        ok: true,
+        status: 200,
+        data: { skipped: true, reason: "no_new_base_announcements" },
+      };
+
+  const mqRes = await callFunction("match-and-queue", rangeBody);
+  const ok = baseRes.ok && drRes.ok && mqRes.ok;
+
+  return {
+    ok,
+    from_date: fromDate,
+    to_date: toDate,
+    ingest_base: baseRes.data,
+    ingest_base_error: baseError,
+    ingest_dr: drRes.data,
+    match_and_queue: mqRes.data,
+  };
+}
+
 export async function POST(req: NextRequest) {
   const admin = await requireAdmin();
   if (!admin.ok) return admin.response;
@@ -127,6 +314,7 @@ export async function POST(req: NextRequest) {
     const fromDate = isIsoDate(parsedBody.from_date) ? parsedBody.from_date : defaults.fromDate;
     const toDate = isIsoDate(parsedBody.to_date) ? parsedBody.to_date : defaults.toDate;
     const dryRun = parsedBody.dry_run === true;
+    const asyncMode = parsedBody.async === true && !dryRun;
     const days = daysInclusive(fromDate, toDate);
 
     if (days <= 0) {
@@ -137,47 +325,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "So e possivel ingerir anuncios ate 31 dias por pedido." }, { status: 400 });
     }
 
-    const rangeBody = { from_date: fromDate, to_date: toDate };
-    const baseBody = dryRun ? { ...rangeBody, dry_run: true } : rangeBody;
-    const baseRes = await callFunction("ingest-base", baseBody);
-    const baseError = formatError(baseRes);
+    if (asyncMode) {
+      const origin = req.nextUrl.origin;
+      void runPipeline(origin, fromDate, toDate, false).catch((error) => {
+        console.error("[run-ingest-pipeline] background pipeline failed:", error);
+      });
 
-    if (dryRun) {
-      return NextResponse.json({
-        ok: baseRes.ok,
-        dry_run: true,
-        from_date: fromDate,
-        to_date: toDate,
-        ingest_base: baseRes.data,
-        ingest_base_error: baseError,
-      }, { status: baseRes.ok ? 200 : 502 });
+      return NextResponse.json(
+        {
+          ok: true,
+          queued: true,
+          from_date: fromDate,
+          to_date: toDate,
+          message: "Pipeline de anuncios iniciado no servidor.",
+        },
+        { status: 202 },
+      );
     }
 
-    const fetched = baseRes.ok ? numericField(baseRes.data, "fetched") : 0;
-    const shouldRunDr = fetched > 0 || fromDate === todayIso() || toDate === todayIso() || !!baseError;
-    const drRes = shouldRunDr
-      ? await callInternalDr(req, rangeBody)
-      : {
-          ok: true,
-          status: 200,
-          data: { skipped: true, reason: "no_new_base_announcements" },
-        };
+    const result = await runPipeline(req.nextUrl.origin, fromDate, toDate, dryRun);
 
-    const mqRes = await callFunction("match-and-queue", rangeBody);
-    const ok = drRes.ok && mqRes.ok;
+    if (!dryRun && !result.ok && admin.context) {
+      await notifySystemAlert(
+        admin.context,
+        "Alerta do sistema: falha na ingestão manual de anúncios",
+        {
+          source: "backoffice_ingest_button",
+          from_date: fromDate,
+          to_date: toDate,
+          ingest_base: result.ingest_base,
+          ingest_base_error: result.ingest_base_error,
+          ingest_dr: result.ingest_dr,
+          match_and_queue: result.match_and_queue,
+        },
+      );
+    }
 
-    return NextResponse.json(
-      {
-        ok,
-        from_date: fromDate,
-        to_date: toDate,
-        ingest_base: baseRes.data,
-        ingest_base_error: baseError,
-        ingest_dr: drRes.data,
-        match_and_queue: mqRes.data,
-      },
-      { status: ok ? 200 : 502 },
-    );
+    return NextResponse.json(result, { status: result.ok ? 200 : 502 });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: `Falha a executar pipeline de anuncios: ${message}` }, { status: 500 });

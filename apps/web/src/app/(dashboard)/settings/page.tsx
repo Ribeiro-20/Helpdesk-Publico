@@ -14,9 +14,9 @@ function Field({
   mono?: boolean;
 }) {
   return (
-    <div className="flex gap-4 text-sm py-2 border-b border-surface-100 last:border-0">
-      <span className="text-gray-400 w-32 shrink-0 font-medium">{label}</span>
-      <span className={`text-gray-900 ${mono ? "font-mono text-xs bg-surface-50 px-2 py-0.5 rounded" : ""}`}>
+    <div className="flex flex-col gap-1 py-2 text-sm border-b border-surface-100 last:border-0 sm:flex-row sm:gap-4">
+      <span className="text-gray-400 font-medium sm:w-32 sm:shrink-0">{label}</span>
+      <span className={`text-gray-900 min-w-0 ${mono ? "inline-block max-w-full break-all font-mono text-xs bg-surface-50 px-2 py-1 rounded" : "break-words"}`}>
         {value}
       </span>
     </div>
@@ -47,9 +47,9 @@ export default async function SettingsPage() {
         description="Informações do sistema e ações de administração"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {/* User info */}
-        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+        <div className="bg-white border border-surface-200 rounded-xl p-4 sm:p-6 shadow-card">
           <h2 className="text-sm font-semibold text-gray-900 mb-1">
             Utilizador
           </h2>
@@ -63,7 +63,7 @@ export default async function SettingsPage() {
         </div>
 
         {/* System info */}
-        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
+        <div className="bg-white border border-surface-200 rounded-xl p-4 sm:p-6 shadow-card">
           <h2 className="text-sm font-semibold text-gray-900 mb-4">
             Ambiente
           </h2>
@@ -98,7 +98,7 @@ export default async function SettingsPage() {
 
       {/* Admin actions */}
       {isAdmin && (
-        <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card space-y-4">
+        <div className="bg-white border border-surface-200 rounded-xl p-4 sm:p-6 shadow-card space-y-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-gray-900 mb-1">
@@ -109,16 +109,16 @@ export default async function SettingsPage() {
               </p>
             </div>
 
-            <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:w-auto md:justify-end">
               <Link
                 href="/settings/historico-ingestao"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand-700 shadow-sm hover:shadow-md"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-brand-700 shadow-sm hover:shadow-md sm:w-auto"
               >
                 Registo de Sistema
               </Link>
               <Link
                 href="/settings/alertas-sistema"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:border-brand-200 hover:text-brand-700"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:border-brand-200 hover:text-brand-700 sm:w-auto"
               >
                 <BellRing className="h-4 w-4" />
                 Alertas do sistema
@@ -154,11 +154,13 @@ export default async function SettingsPage() {
                 fn: "extract-entities",
                 label: "Extrair Entidades",
                 variant: "primary",
+                body: { since_hours: 72 },
               },
               {
                 fn: "extract-companies",
                 label: "Extrair Empresas",
                 variant: "primary",
+                body: { since_hours: 72 },
               },
               {
                 fn: "match-and-queue",

@@ -541,16 +541,15 @@ export default async function OutrosPage({
       ? municipalityFilter
       : "all";
 
-  // Build the DB query
+  // Build the DB query to pull from the calculated view
   let q = supabase
-    .from("contracts")
+    .from("mi_high_progress_contracts")
     .select(
-      "id, object, procedure_type, contract_type, signing_date, publication_date, cpv_main, contract_price, base_price, status, contracting_entities, winners, execution_deadline_days, execution_locations"
+      "id, object, procedure_type, contract_type, signing_date, publication_date, cpv_main, contract_price, base_price, status, contracting_entities, winners, execution_deadline_days, execution_locations, progress"
     )
     .eq("tenant_id", tenantId)
-    .eq("status", "active")
-    .not("signing_date", "is", null)
-    .not("execution_deadline_days", "is", null);
+    .gte("progress", 0.75)
+    .lte("progress", 1.0);
 
   // Apply DB-level filters
   if (contractTypeFilters.length > 0)
@@ -564,8 +563,15 @@ export default async function OutrosPage({
   if (minValue) q = q.gte("contract_price", parseFloat(minValue));
   if (maxValue) q = q.lte("contract_price", parseFloat(maxValue));
 
-  // Fetch candidate contracts
-  const { data: contractsRaw } = await q.limit(5000);
+  // Apply DB-level sorting for optimal performance
+  if (sortField === "menos_proximo") {
+    q = q.order("progress", { ascending: true });
+  } else {
+    q = q.order("progress", { ascending: false });
+  }
+
+  // Fetch candidate contracts (limit to 10000 pre-filtered matches)
+  const { data: contractsRaw } = await q.limit(10000);
 
   // Normalizer to ignore capitalization, spacing, accents, and punctuation
   function normalizeCompanyName(name: string): string {
@@ -662,7 +668,7 @@ export default async function OutrosPage({
 
   // Filter in JS for progress >= 75%, locations, and closing_date range
   const contractsFiltered = enrichedContractsRaw
-    .map((c) => {
+    .map((c: any) => {
       const signingDate = new Date(c.signing_date!);
       signingDate.setHours(0, 0, 0, 0);
 
@@ -670,9 +676,8 @@ export default async function OutrosPage({
       const diffTime = Math.max(0, today.getTime() - signingDate.getTime());
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
-      // Calcular progresso
-      const totalDays = c.execution_deadline_days || 1;
-      const progress = diffDays / totalDays;
+      // Use progress from database view directly
+      const progress = typeof c.progress === "number" ? c.progress : parseFloat(c.progress || "0");
 
       return {
         ...c,
@@ -683,8 +688,9 @@ export default async function OutrosPage({
       };
     })
     .filter((c) => {
-      // 1. Progress constraint (only >= 75%)
+      // 1. Progress constraint (only >= 75% and <= 100%)
       if (c.progress < 0.75) return false;
+      if (c.progress > 1.0) return false;
 
       // 2. Location filter
       const matchesLoc = locationMatches(

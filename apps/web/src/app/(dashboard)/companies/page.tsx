@@ -65,6 +65,35 @@ export default async function CompaniesPage({
   if (locationFilter) q = q.ilike("location", `%${locationFilter}%`);
 
   const { data: companies, count } = await q;
+  const companyRows = companies ?? [];
+
+  const liveWinsByCompanyId = new Map<string, number>();
+  if (appUser?.tenant_id && companyRows.length > 0) {
+    const liveCounts = await Promise.all(
+      companyRows.map(async (company) => {
+        const nif = String(company.nif ?? "").trim();
+        if (!nif || nif === "-" || nif === "—") {
+          return { id: company.id, count: null as number | null };
+        }
+
+        const { data } = await supabase.rpc("count_contracts_by_winner_nif", {
+          p_tenant_id: appUser.tenant_id,
+          p_nif: nif,
+        });
+
+        return {
+          id: company.id,
+          count: typeof data === "number" && Number.isFinite(data) ? data : null,
+        };
+      }),
+    );
+
+    for (const item of liveCounts) {
+      if (item.count != null) {
+        liveWinsByCompanyId.set(item.id, item.count);
+      }
+    }
+  }
   const totalPages = Math.ceil((count ?? 0) / PAGE_SIZE);
 
   function buildQs(overrides: Record<string, string | number> = {}) {
@@ -96,18 +125,18 @@ export default async function CompaniesPage({
             name="name"
             defaultValue={nameFilter}
             placeholder="Nome ou NIPC..."
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-52"
+            className="w-full sm:w-52 border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
           <input
             name="location"
             defaultValue={locationFilter}
             placeholder="Localização..."
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all w-44"
+            className="w-full sm:w-44 border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all"
           />
           <select
             name="sort"
             defaultValue={sortField}
-            className="border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
+            className="w-full sm:w-auto border border-surface-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
           >
             <option value="total_value_won">Maior valor</option>
             <option value="contracts_won">Mais contratos</option>
@@ -116,14 +145,14 @@ export default async function CompaniesPage({
           </select>
           <button
             type="submit"
-            className="bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
+            className="w-full sm:w-auto bg-brand-600 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
           >
             Filtrar
           </button>
           {hasFilters && (
             <Link
               href="/companies"
-              className="text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
+              className="w-full sm:w-auto text-center text-gray-500 text-sm font-medium px-4 py-2 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
             >
               Limpar
             </Link>
@@ -158,7 +187,14 @@ export default async function CompaniesPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
-              {(companies ?? []).map((comp) => (
+              {companyRows.map((comp) => {
+                const liveWins = liveWinsByCompanyId.get(comp.id);
+                const displayWins = liveWins ?? comp.contracts_won;
+                const displayWinRate = comp.contracts_participated > 0
+                  ? (displayWins / comp.contracts_participated) * 100
+                  : comp.win_rate;
+
+                return (
                 <tr key={comp.id} className="hover:bg-surface-50 transition-colors">
                   <td className="px-4 py-3 max-w-xs">
                     <Link
@@ -173,21 +209,21 @@ export default async function CompaniesPage({
                     {comp.location ?? "\u2014"}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-700 font-medium tabular-nums">
-                    {comp.contracts_won > 0 ? comp.contracts_won : "\u2014"}
+                    {displayWins > 0 ? displayWins : "\u2014"}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
                     {comp.contracts_participated > 0 ? comp.contracts_participated : "\u2014"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {comp.win_rate != null ? (
+                    {displayWinRate != null ? (
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        comp.win_rate >= 50
-                          ? "bg-brand-50 text-brand-700"
-                          : comp.win_rate >= 25
+                        displayWinRate >= 50
+                          ? "bg-green-50 text-green-700"
+                          : displayWinRate >= 25
                           ? "bg-amber-50 text-amber-700"
                           : "bg-gray-100 text-gray-600"
                       }`}>
-                        {Number(comp.win_rate).toFixed(0)}%
+                        {Number(displayWinRate).toFixed(0)}%
                       </span>
                     ) : (
                       <span className="text-gray-300 text-xs">&mdash;</span>
@@ -197,8 +233,8 @@ export default async function CompaniesPage({
                     {formatEur(comp.total_value_won)}
                   </td>
                 </tr>
-              ))}
-              {(companies ?? []).length === 0 && (
+              );})}
+              {companyRows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
                     {hasFilters

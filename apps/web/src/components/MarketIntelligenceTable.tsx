@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import ContractModal from "./ContractModal";
 import { createClient } from "@/lib/supabase/client";
 import InfoPopover from "./InfoPopover";
@@ -55,6 +56,20 @@ export default function MarketIntelligenceTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [cpvDescriptions, setCpvDescriptions] = useState<Record<string, string>>({});
   const supabase = createClient();
+  const searchParams = useSearchParams();
+
+  // Auto-open modal if ?contract=<id> is present in the URL (e.g. from email link)
+  useEffect(() => {
+    const contractParam = searchParams.get("contract");
+    if (contractParam) {
+      setSelectedId(contractParam);
+    }
+  }, [searchParams]);
+
+  // Reset to page 1 whenever the contract list or page size changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [contracts, itemsPerPage]);
 
   // Get unique CPV codes on the current page to fetch descriptions
   const cpvCodesOnPage = useMemo(
@@ -93,9 +108,9 @@ export default function MarketIntelligenceTable({
     };
   }, [cpvCodesOnPage, cpvDescriptions, supabase]);
 
-  // Filter out contracts that have reached 105% or more
+  // Filter out contracts that have reached > 100%
   const visibleContracts = useMemo(
-    () => contracts.filter((c) => c.progress < 1.05),
+    () => contracts.filter((c) => c.progress <= 1.00),
     [contracts]
   );
 

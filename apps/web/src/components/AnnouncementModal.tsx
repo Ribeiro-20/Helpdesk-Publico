@@ -394,10 +394,11 @@ export default function AnnouncementModal({
   const displayDescription = cleanAnnouncementText(announcement?.description) || "-";
   const announcementTypeLabel = cleanAnnouncementText(announcement?.procedure_type ?? announcement?.act_type);
   const contractTypeLabel = cleanAnnouncementText(announcement?.contract_type);
-  const entityDisplay = announcement?.entity_name
-    ? announcement.entity_nif
-      ? `${announcement.entity_name} (${announcement.entity_nif})`
-      : announcement.entity_name
+  const entityName = cleanAnnouncementText(announcement?.entity_name);
+  const entityDisplay = entityName
+    ? announcement?.entity_nif
+      ? `${entityName} (${announcement.entity_nif})`
+      : entityName
     : null;
 
   function CpvValue({ item }: { item: CpvDisplayItem }) {
@@ -415,21 +416,21 @@ export default function AnnouncementModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-[100] flex items-stretch justify-center p-0 sm:items-center sm:p-4"
       style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)" }}
       onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
-        <div className="shrink-0 px-6 pt-5 pb-5 pr-16" style={{ background: "rgba(26, 27, 31, 1)" }}>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: "#3f6f27" }}>
+      <div className="relative h-screen h-[100dvh] min-h-screen w-screen max-w-none flex flex-col overflow-hidden rounded-none shadow-2xl sm:h-auto sm:min-h-0 sm:w-full sm:max-h-[94vh] sm:max-w-4xl sm:rounded-2xl">
+        <div className="shrink-0 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 pr-14 sm:px-6 sm:pt-5 sm:pb-5 sm:pr-16" style={{ background: "rgba(26, 27, 31, 1)" }}>
+          <p className="text-xs font-semibold mb-1.5" style={{ color: "rgba(74, 222, 128, 1)" }}>
             {announcement?.dr_announcement_no ? `Anúncio #${announcement.dr_announcement_no}` : "Anúncio"}
           </p>
           {loading ? (
             <div className="h-6 w-3/4 bg-white/10 rounded animate-pulse" />
           ) : (
-            <h2 className="text-white text-lg font-bold leading-snug">
+            <h2 className="text-white text-base font-bold leading-snug line-clamp-3 sm:text-lg" title={displayTitle}>
               {displayTitle}
             </h2>
           )}
@@ -442,7 +443,7 @@ export default function AnnouncementModal({
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-white px-6 py-5 space-y-6">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain bg-white px-4 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-6 sm:px-6 sm:py-5">
           {loading && (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-gray-300" />
@@ -465,7 +466,7 @@ export default function AnnouncementModal({
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                       Tipo de anúncio
@@ -494,12 +495,12 @@ export default function AnnouncementModal({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     Preço Base
                   </p>
-                  <p className="text-xl font-bold text-green-500">
+                  <p className="text-lg font-bold text-green-500 sm:text-xl break-words">
                     {announcement.base_price == null ? (
                       <MissingValue />
                     ) : (
@@ -511,7 +512,7 @@ export default function AnnouncementModal({
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     DATA DE PUBLICAÇÃO
                   </p>
-                  <p className="text-xl font-medium text-gray-700">
+                  <p className="text-lg font-medium text-gray-700 sm:text-xl">
                     {announcement.publication_date ? fmtDate(announcement.publication_date) : <MissingValue />}
                   </p>
                 </div>
@@ -519,7 +520,7 @@ export default function AnnouncementModal({
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     DATA LIMITE PROPOSTAS
                   </p>
-                  <p className="text-xl font-medium text-gray-700">
+                  <p className="text-lg font-medium text-gray-700 sm:text-xl">
                     {announcement.proposal_deadline_at ? (
                       fmtDate(announcement.proposal_deadline_at)
                     ) : announcement.proposal_deadline_days != null ? (
@@ -542,7 +543,7 @@ export default function AnnouncementModal({
                 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   <div className="col-span-1">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
                       PRAZO DE EXECUÇÃO
                     </p>
                     <p className="text-sm text-gray-800">
@@ -551,10 +552,10 @@ export default function AnnouncementModal({
                   </div>
 
                   <div className="col-span-1 sm:col-span-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1 whitespace-nowrap">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
                       DESCRIÇÃO
                     </p>
-                    <p className="text-sm text-gray-800 leading-relaxed">
+                    <p className="text-sm text-gray-800 leading-relaxed line-clamp-6" title={displayDescription}>
                       {displayDescription}
                     </p>
                   </div>
@@ -587,7 +588,7 @@ export default function AnnouncementModal({
                     )}
                   </InfoCard>
                   <InfoCard title="Referências">
-                    <Field label="Nº DR / Base" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
+                    <Field label="Nº DRE" value={announcement.dr_announcement_no ?? announcement.base_announcement_id} mono />
                     {showSource && <Field label="Fonte" value={announcement.source} />}
                     {showVersionHistory && <Field label="Versões" value={versions.length} />}
                   </InfoCard>
@@ -680,14 +681,14 @@ export default function AnnouncementModal({
                 </InfoCard>
               )}
 
-              <div className="flex justify-between items-center gap-3 pt-1">
-                <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-col-reverse items-stretch gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-stretch gap-2 sm:items-center sm:gap-3">
                   {drLink && (
                     <Link
                       href={drLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 sm:w-auto"
                     >
                       Ligação para anúncio no Diário da República →
                     </Link>
@@ -697,7 +698,7 @@ export default function AnnouncementModal({
                       href={piecesUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100 sm:w-auto"
                     >
                       Aceda às peças de procedimento
                     </Link>
@@ -705,7 +706,7 @@ export default function AnnouncementModal({
                 </div>
                 <button
                   onClick={onClose}
-                  className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 sm:w-auto"
                 >
                   Fechar
                 </button>
