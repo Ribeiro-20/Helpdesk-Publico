@@ -9,7 +9,9 @@ export default function PublicFooter() {
         
         <div className="flex flex-col items-center text-center gap-12 md:flex-row md:items-start md:text-left md:justify-between md:gap-6">
           
-          <div className="flex flex-col items-center md:items-start gap-5">
+          {/* Coluna 1: Logo, Redes Sociais e Destaque da Agência */}
+          <div className="flex flex-col items-start gap-6">
+            {/* Logo */}
             <a 
               href="https://www.helpdeskpublico.pt/" 
               target="_blank" 
@@ -27,7 +29,8 @@ export default function PublicFooter() {
               />
             </a>
             
-            <div className="flex items-center justify-center md:justify-start gap-4 text-gray-500">
+            {/* Ícones das Redes Sociais */}
+            <div className="flex items-center gap-4 pl-0 sm:pl-2 text-gray-500">
               <Link
                 href="https://linkedin.com/company/helpdeskpublico/"
                 target="_blank"
@@ -73,6 +76,21 @@ export default function PublicFooter() {
               >
                 <Youtube className="w-5 h-5" />
               </Link>
+            </div>
+
+            {/* Secção de Destaque da TBubble apenas com o texto solicitado */}
+            <div className="mt-2 pl-0 sm:pl-2 border-t border-gray-800 pt-4 w-full md:w-auto">
+              <span className="text-gray-400 text-[14px]">
+                Design by{" "}
+                <Link 
+                  href="https://www.tbubble.pt/" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="text-white hover:text-sky-400 font-semibold transition-colors duration-300 underline underline-offset-4 decoration-gray-600 hover:decoration-sky-400"
+                >
+                  TBubble Marketing &amp; Comunicação
+                </Link>
+              </span>
             </div>
           </div>
 

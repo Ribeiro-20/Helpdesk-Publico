@@ -10,6 +10,7 @@
     "test:hubspot-sync": "tsx --test preview-hubspot-subscribers.test.ts",
     "scrape-dr": "tsx scrape-dr-contracts.ts",
     "scrape-dr:upsert": "tsx scrape-dr-contracts.ts --upsert",
+    "backfill:announcements": "tsx backfill-announcements.ts",
     "ingest-contracts:direct": "node ingest-direct.js"
   },
   "dependencies": {

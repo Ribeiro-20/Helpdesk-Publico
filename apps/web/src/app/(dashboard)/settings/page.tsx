@@ -154,11 +154,13 @@ export default async function SettingsPage() {
                 fn: "extract-entities",
                 label: "Extrair Entidades",
                 variant: "primary",
+                body: { since_hours: 72 },
               },
               {
                 fn: "extract-companies",
                 label: "Extrair Empresas",
                 variant: "primary",
+                body: { since_hours: 72 },
               },
               {
                 fn: "match-and-queue",

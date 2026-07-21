@@ -394,10 +394,11 @@ export default function AnnouncementModal({
   const displayDescription = cleanAnnouncementText(announcement?.description) || "-";
   const announcementTypeLabel = cleanAnnouncementText(announcement?.procedure_type ?? announcement?.act_type);
   const contractTypeLabel = cleanAnnouncementText(announcement?.contract_type);
-  const entityDisplay = announcement?.entity_name
-    ? announcement.entity_nif
-      ? `${announcement.entity_name} (${announcement.entity_nif})`
-      : announcement.entity_name
+  const entityName = cleanAnnouncementText(announcement?.entity_name);
+  const entityDisplay = entityName
+    ? announcement?.entity_nif
+      ? `${entityName} (${announcement.entity_nif})`
+      : entityName
     : null;
 
   function CpvValue({ item }: { item: CpvDisplayItem }) {

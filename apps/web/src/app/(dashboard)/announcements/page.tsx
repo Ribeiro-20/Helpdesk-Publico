@@ -8,7 +8,7 @@ import CurrencyValueField from "@/components/CurrencyValueField";
 import EntitySearchInput from "@/components/EntitySearchInput";
 import Link from "next/link";
 import { Megaphone, ArrowUp, ArrowDown, ArrowUpDown, FileSpreadsheet, Filter } from "lucide-react";
-import { effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
+import { cleanAnnouncementText, effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -790,6 +790,8 @@ export default async function AnnouncementsPage({
               {(announcements ?? []).map((ann) => {
                 const effective = effectiveStatus(ann, now);
                 const cpvDisplay = displayCpv(ann.cpv_main);
+                const title = cleanAnnouncementText(ann.title) || "Sem titulo";
+                const entityName = cleanAnnouncementText(ann.entity_name) || "—";
 
                 return (
                   <tr key={ann.id} className="hover:bg-surface-50 transition-colors">
@@ -798,11 +800,11 @@ export default async function AnnouncementsPage({
                         href={`/announcements/${ann.id}`}
                         className="text-brand-600 hover:underline font-medium line-clamp-2"
                       >
-                        {ann.title}
+                        {title}
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate">
-                      {ann.entity_name ?? "—"}
+                      {entityName}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
                       {ann.publication_date}

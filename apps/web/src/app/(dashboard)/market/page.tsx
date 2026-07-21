@@ -5,9 +5,8 @@ import MarketInsightPanel from "../../../components/market/MarketInsightPanel";
 import CpvCarouselHints from "../../../components/market/CpvCarouselHints";
 import MarketChartsLoader from "../../../components/market/MarketChartsLoader";
 import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel";
-import BaseHistoricalIngestButton from "@/components/market/BaseHistoricalIngestButton";
-import CpvMultiSearchInput from "../../../components/CpvMultiSearchInput";
-import SingleDatePicker from "../../../components/SingleDatePicker";
+import { cleanAnnouncementText } from "@/lib/announcements";
+import MarketFiltersForm from "../../../components/market/MarketFiltersForm";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +37,7 @@ type ContractForResults = {
   signing_date: string | null;
   proposal_deadline_at?: string | null;
   contract_price: number | null;
+  base_price?: number | null;
   execution_locations: unknown;
   contracting_entities: unknown;
   winners: unknown;
@@ -122,66 +122,10 @@ const MARKET_CACHE_TTL_MS = 30_000;
 const MARKET_CACHE_MAX_ENTRIES = 200;
 const MARKET_PERF_LOG_ENABLED = process.env.MARKET_PERF_LOG === "true";
 
-const ACT_TYPE_OPTIONS = [
-  "Anúncio de procedimento",
-  "Anúncio de concurso urgente",
-  "Declaração de retificação de anúncio",
-  "Aviso de prorrogação de prazo",
-  "Anúncio de Alteração",
-] as const;
-
-const CONTRACT_TYPE_OPTIONS = [
-  "Aquisição de bens móveis",
-  "Aquisição de serviços",
-  "Concessão de obras públicas",
-  "Concessão de serviços públicos",
-  "Empreitadas de obras públicas",
-  "Locação de bens móveis",
-  "Sociedade",
-  "Outros",
-] as const;
-
-const MODEL_TYPE_OPTIONS = [
-  "Concurso público",
-  "Concurso público urgente",
-  "Concurso limitado por prévia qualificação",
-  "Procedimento de negociação",
-  "Diálogo concorrencial",
-  "Concurso de conceção",
-  "Anúncio simplificado",
-  "Instituição de sistema de qualificação",
-  "Parceria para a inovação",
-  "Concurso de ideias",
-  "Instituição de sistema de aquisição dinâmico",
-  "Hasta Pública de Alienação de Bens Móveis",
-  "Aquisição de Serviços Sociais e de Outros Serviços Específicos",
-  "Anúncio de Adjudicação de Aquisição de Serviços Sociais e de Outros Serviços Específicos",
-  "Concurso público simplificado",
-  "Concurso limitado por prévia qualificação simplificado",
-] as const;
-
-const DISTRICT_OPTIONS = [
-  "Aveiro",
-  "Beja",
-  "Braga",
-  "Bragança",
-  "Castelo Branco",
-  "Coimbra",
-  "Évora",
-  "Faro",
-  "Guarda",
-  "Leiria",
-  "Lisboa",
-  "Portalegre",
-  "Porto",
-  "Região Autónoma da Madeira",
-  "Região Autónoma dos Açores",
-  "Santarém",
-  "Setúbal",
-  "Viana do Castelo",
-  "Vila Real",
-  "Viseu",
-] as const;
+function parseMultiValues(raw: string | undefined): string[] {
+  if (!raw?.trim()) return [];
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
 
 const marketPageCache = new Map<string, { expiresAt: number; data: MarketCacheData }>();
 
@@ -559,15 +503,12 @@ export default async function MarketPage({
   const dateFromFilter = (params.date_from ?? "").trim();
   const dateToFilter = (params.date_to ?? "").trim();
   const deadlineBucketFilter = (params.deadline_bucket ?? "").trim();
-  const actTypeFilter = (params.act_type ?? "").trim();
-  const contractTypeFilter = (params.contract_type ?? "").trim();
-  const modelTypeFilter = (params.model_type ?? "").trim();
+  const actTypeFilters = parseMultiValues(params.act_type);
+  const contractTypeFilters = parseMultiValues(params.contract_type);
+  const modelTypeFilters = parseMultiValues(params.model_type);
+  const districtFilters = parseMultiValues(params.district);
   const yearFilter = (params.year ?? "").trim();
   const monthFilter = (params.month ?? "").trim();
-  const districtFilter = (params.district ?? "").trim();
-  const districtSelectValue = DISTRICT_OPTIONS.includes(districtFilter as (typeof DISTRICT_OPTIONS)[number])
-    ? districtFilter
-    : "";
   const cpvFamilyFilter = (params.cpv_family ?? "").trim();
   const cpvFamilyPrefixFilter = deriveCpvFamilyPrefix(cpvFamilyFilter);
   const cpvFamilyLikeFilter = cpvFamilyPrefixFilter ? `${cpvFamilyPrefixFilter}%` : "";
@@ -580,14 +521,12 @@ export default async function MarketPage({
   if (cpvFiltersRaw) baseParams.set("cpv", cpvFiltersRaw);
   if (dateFromFilter) baseParams.set("date_from", dateFromFilter);
   if (dateToFilter) baseParams.set("date_to", dateToFilter);
-  if (deadlineBucketFilter) baseParams.set("deadline_bucket", deadlineBucketFilter);
-  if (actTypeFilter) baseParams.set("act_type", actTypeFilter);
-  if (contractTypeFilter) baseParams.set("contract_type", contractTypeFilter);
-  if (modelTypeFilter) baseParams.set("model_type", modelTypeFilter);
+  if (actTypeFilters.length > 0) baseParams.set("act_type", actTypeFilters.join(","));
+  if (contractTypeFilters.length > 0) baseParams.set("contract_type", contractTypeFilters.join(","));
+  if (modelTypeFilters.length > 0) baseParams.set("model_type", modelTypeFilters.join(","));
+  if (districtFilters.length > 0) baseParams.set("district", districtFilters.join(","));
   if (yearFilter) baseParams.set("year", yearFilter);
   if (monthFilter) baseParams.set("month", monthFilter);
-  if (districtFilter) baseParams.set("district", districtFilter);
-  if (cpvFamilyFilter) baseParams.set("cpv_family", cpvFamilyFilter);
   if (sortFilter && sortFilter !== "relevance") baseParams.set("sort", sortFilter);
 
   const contractsHref = (() => {
@@ -644,163 +583,19 @@ export default async function MarketPage({
     </div>
   );
 
-  const filtersForm = selectedAnalysis ? (
-    <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
-      <h2 className="font-semibold text-gray-900 mb-4">Filtros de mercado</h2>
-      <form className="space-y-4">
-        <input type="hidden" name="analysis" value={selectedAnalysis} />
-        <input type="hidden" name="apply" value="1" />
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="block">
-            <span className="mb-1 block text-xs text-gray-400">Tipo de ato</span>
-            <select
-              name="act_type"
-              defaultValue={actTypeFilter}
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            >
-              <option value="">Todos</option>
-              {ACT_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs text-gray-400">Tipo de contrato</span>
-            <select
-              name="contract_type"
-              defaultValue={contractTypeFilter}
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            >
-              <option value="">Todos</option>
-              {CONTRACT_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs text-gray-400">Tipo de modelo</span>
-            <select
-              name="model_type"
-              defaultValue={modelTypeFilter}
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            >
-              <option value="">Todos</option>
-              {MODEL_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs text-gray-400">Prazo de resposta</span>
-            <select
-              name="deadline_bucket"
-              defaultValue={deadlineBucketFilter}
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            >
-              <option value="">Todos</option>
-              <option value="1_5">1-5 dias</option>
-              <option value="5_14">5-14 dias</option>
-              <option value="15_plus">15+ dias</option>
-            </select>
-          </label>
-
-          <div className="block">
-            <span className="mb-1 block text-xs text-gray-400">Data inicial</span>
-            <SingleDatePicker
-              name="date_from"
-              defaultValue={dateFromFilter}
-              placeholder="Selecionar data"
-              className="w-full"
-              buttonClassName="w-full justify-start"
-            />
-          </div>
-
-          <div className="block">
-            <span className="mb-1 block text-xs text-gray-400">Data final</span>
-            <SingleDatePicker
-              name="date_to"
-              defaultValue={dateToFilter}
-              min={dateFromFilter || undefined}
-              placeholder="Selecionar data"
-              className="w-full"
-              buttonClassName="w-full justify-start"
-            />
-          </div>
-
-          <label className="block">
-            <span className="mb-1 block text-xs text-gray-400">Distrito</span>
-            <select
-              name="district"
-              defaultValue={districtSelectValue}
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            >
-              <option value="">Todos</option>
-              {DISTRICT_OPTIONS.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="mb-1 block text-xs text-gray-400">Família de Serviço</span>
-            <input
-              name="cpv_family"
-              defaultValue={cpvFamilyFilter}
-              placeholder="Ex: 71"
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            />
-          </label>
-
-          <div>
-            <CpvMultiSearchInput
-              name="cpv"
-              defaultValue={cpvFiltersRaw}
-              label="CPV"
-              placeholder="Ex: 71240000-2"
-              compact
-            />
-          </div>
-
-          <label className="block sm:col-span-2 lg:col-span-1">
-            <span className="mb-1 block text-xs text-gray-400">Ordenação</span>
-            <select
-              name="sort"
-              defaultValue={sortFilter}
-              className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-            >
-              <option value="relevance">Mais relevantes</option>
-              <option value="detail_desc">Maior pormenor</option>
-              <option value="recent">Mais recentes</option>
-              <option value="value_desc">Maior valor</option>
-              <option value="value_asc">Menor valor</option>
-            </select>
-          </label>
-        </div>
-
-        <div>
-          <button
-            type="submit"
-            className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-brand-700 hover:shadow-md"
-          >
-            Filtrar
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={observatoryHref}
-            className="rounded-xl border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-card transition-all hover:bg-surface-50"
-          >
-            Abrir observatório com estes filtros
-          </a>
-          <BaseHistoricalIngestButton />
-        </div>
-      </form>
-    </div>
+  const filtersFormEl = selectedAnalysis ? (
+    <MarketFiltersForm
+      analysisType={selectedAnalysis}
+      defaultActTypes={actTypeFilters}
+      defaultContractTypes={contractTypeFilters}
+      defaultModelTypes={modelTypeFilters}
+      defaultDistricts={districtFilters}
+      defaultDateFrom={dateFromFilter}
+      defaultDateTo={dateToFilter}
+      defaultCpv={cpvFiltersRaw}
+      defaultSort={sortFilter}
+      observatoryHref={observatoryHref}
+    />
   ) : null;
 
   if (!hasAppliedFilters) {
@@ -814,7 +609,7 @@ export default async function MarketPage({
 
         {analysisButtons}
 
-        {filtersForm}
+        {filtersFormEl}
       </div>
     );
   }
@@ -1305,14 +1100,14 @@ export default async function MarketPage({
           );
         }
       }
-      if (actTypeFilter) {
-        announcementsQuery = announcementsQuery.ilike("act_type", `%${actTypeFilter}%`);
+      if (actTypeFilters.length > 0) {
+        announcementsQuery = announcementsQuery.or(actTypeFilters.map(f => `act_type.ilike.${f}`).join(","));
       }
-      if (contractTypeFilter) {
-        announcementsQuery = announcementsQuery.ilike("contract_type", `%${contractTypeFilter}%`);
+      if (contractTypeFilters.length > 0) {
+        announcementsQuery = announcementsQuery.or(contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(","));
       }
-      if (modelTypeFilter) {
-        announcementsQuery = announcementsQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
+      if (modelTypeFilters.length > 0) {
+        announcementsQuery = announcementsQuery.or(modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(","));
       }
       if (cpvFamilyLikeFilter) {
         announcementsQuery = announcementsQuery.ilike("cpv_main", cpvFamilyLikeFilter);
@@ -1341,15 +1136,15 @@ export default async function MarketPage({
 
         return {
           id: ann.id,
-          object: ann.title,
-          act_type: ann.act_type,
-          procedure_type: ann.procedure_type,
-          contract_type: ann.contract_type,
+          object: cleanAnnouncementText(ann.title) || null,
+          act_type: cleanAnnouncementText(ann.act_type) || null,
+          procedure_type: cleanAnnouncementText(ann.procedure_type) || null,
+          contract_type: cleanAnnouncementText(ann.contract_type) || null,
           signing_date: ann.publication_date,
           proposal_deadline_at: ann.proposal_deadline_at,
           contract_price: ann.base_price,
           execution_locations: [],
-          contracting_entities: ann.entity_name ? [{ name: ann.entity_name }] : [],
+          contracting_entities: ann.entity_name ? [{ name: cleanAnnouncementText(ann.entity_name) || ann.entity_name }] : [],
           winners: [],
           cpv_main: ann.cpv_main,
         } as ContractForResults;
@@ -1362,45 +1157,60 @@ export default async function MarketPage({
     } else {
       let resultsQuery = supabase
         .from("contracts")
-        .select("id, object, procedure_type, contract_type, signing_date, proposal_deadline_at, contract_price, execution_locations, contracting_entities, winners, cpv_main")
+        .select("id, object, procedure_type, contract_type, signing_date, contract_price, base_price, execution_locations, contracting_entities, winners, cpv_main")
         .eq("tenant_id", tenantId)
         .order("signing_date", { ascending: false })
         .limit(200);
 
+      let contractsCountQ = supabase
+        .from("contracts")
+        .select("id", { count: "exact", head: true })
+        .eq("tenant_id", tenantId);
+
       if (cpvFilters.length > 0) {
         const cpvPatterns = buildCpvIlikePatterns(cpvFilters);
         if (cpvPatterns.length > 0) {
-          resultsQuery = resultsQuery.or(
-            cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(","),
-          );
+          const cpvOr = cpvPatterns.map((pattern) => `cpv_main.ilike.${pattern}`).join(",");
+          resultsQuery = resultsQuery.or(cpvOr);
+          contractsCountQ = contractsCountQ.or(cpvOr);
         }
       }
-      if (contractTypeFilter) {
-        resultsQuery = resultsQuery.ilike("contract_type", `%${contractTypeFilter}%`);
+      if (contractTypeFilters.length > 0) {
+        const ctOr = contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(",");
+        resultsQuery = resultsQuery.or(ctOr);
+        contractsCountQ = contractsCountQ.or(ctOr);
       }
-      if (modelTypeFilter) {
-        resultsQuery = resultsQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
+      if (modelTypeFilters.length > 0) {
+        const mtOr = modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(",");
+        resultsQuery = resultsQuery.or(mtOr);
+        contractsCountQ = contractsCountQ.or(mtOr);
       }
       if (cpvFamilyLikeFilter) {
         resultsQuery = resultsQuery.ilike("cpv_main", cpvFamilyLikeFilter);
+        contractsCountQ = contractsCountQ.ilike("cpv_main", cpvFamilyLikeFilter);
       }
       if (dateStart) {
         resultsQuery = resultsQuery.gte("signing_date", dateStart);
+        contractsCountQ = contractsCountQ.gte("signing_date", dateStart);
       }
       if (dateEnd) {
         resultsQuery = resultsQuery.lt("signing_date", dateEnd);
+        contractsCountQ = contractsCountQ.lt("signing_date", dateEnd);
       }
 
-      const { data: rawResultRows } = await resultsQuery;
+      const [{ data: rawResultRows }, { count: dbContractsCount }] = await Promise.all([resultsQuery, contractsCountQ]);
       const rows = (rawResultRows ?? []) as ContractForResults[];
-      const districtFilteredRows = districtFilter
-        ? rows.filter((row) => firstDistrictFromLocations(row.execution_locations).toLowerCase().includes(districtFilter.toLowerCase()))
+      const districtFilteredRows = districtFilters.length > 0
+        ? rows.filter((row) => {
+          const d = firstDistrictFromLocations(row.execution_locations).toLowerCase();
+          return districtFilters.some(df => d.includes(df.toLowerCase()));
+        })
         : rows;
 
       resultRows = districtFilteredRows.filter((row) =>
         matchesDeadlineBucket(daysRemaining(row.proposal_deadline_at ?? null), deadlineBucketFilter),
       );
-      contractsUnitCount = resultRows.length;
+      contractsUnitCount = dbContractsCount ?? 0;
     }
 
     if (sortFilter === "value_desc") {
@@ -1427,9 +1237,9 @@ export default async function MarketPage({
           );
         }
       }
-      if (actTypeFilter) announcementsCountQuery = announcementsCountQuery.ilike("act_type", `%${actTypeFilter}%`);
-      if (contractTypeFilter) announcementsCountQuery = announcementsCountQuery.ilike("contract_type", `%${contractTypeFilter}%`);
-      if (modelTypeFilter) announcementsCountQuery = announcementsCountQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
+      if (actTypeFilters.length > 0) announcementsCountQuery = announcementsCountQuery.or(actTypeFilters.map(f => `act_type.ilike.${f}`).join(","));
+      if (contractTypeFilters.length > 0) announcementsCountQuery = announcementsCountQuery.or(contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(","));
+      if (modelTypeFilters.length > 0) announcementsCountQuery = announcementsCountQuery.or(modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(","));
       if (cpvFamilyLikeFilter) announcementsCountQuery = announcementsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
       if (dateStart) announcementsCountQuery = announcementsCountQuery.gte("publication_date", dateStart);
       if (dateEnd) announcementsCountQuery = announcementsCountQuery.lt("publication_date", dateEnd);
@@ -1452,8 +1262,8 @@ export default async function MarketPage({
           );
         }
       }
-      if (contractTypeFilter) contractsCountQuery = contractsCountQuery.ilike("contract_type", `%${contractTypeFilter}%`);
-      if (modelTypeFilter) contractsCountQuery = contractsCountQuery.ilike("procedure_type", `%${modelTypeFilter}%`);
+      if (contractTypeFilters.length > 0) contractsCountQuery = contractsCountQuery.or(contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(","));
+      if (modelTypeFilters.length > 0) contractsCountQuery = contractsCountQuery.or(modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(","));
       if (cpvFamilyLikeFilter) contractsCountQuery = contractsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
       if (dateStart) contractsCountQuery = contractsCountQuery.gte("signing_date", dateStart);
       if (dateEnd) contractsCountQuery = contractsCountQuery.lt("signing_date", dateEnd);
@@ -1471,12 +1281,12 @@ export default async function MarketPage({
       dateFrom: dateFromFilter || null,
       dateTo: dateToFilter || null,
       deadlineBucket: deadlineBucketFilter || null,
-      actType: actTypeFilter || null,
-      contractType: contractTypeFilter || null,
-      modelType: modelTypeFilter || null,
+      actType: actTypeFilters.length > 0 ? actTypeFilters : null,
+      contractType: contractTypeFilters.length > 0 ? contractTypeFilters : null,
+      modelType: modelTypeFilters.length > 0 ? modelTypeFilters : null,
       year: yearFilter || null,
       month: monthFilter || null,
-      district: districtFilter || null,
+      district: districtFilters.length > 0 ? districtFilters : null,
       cpvFamily: cpvFamilyFilter || null,
       sort: sortFilter || null,
       cpvFilter: cpvFilter || null,
@@ -1490,15 +1300,29 @@ export default async function MarketPage({
       ? (selectedAnalysis === "contracts"
         ? (cpvInsight?.total_contracts ?? cpvCarouselItems.reduce((sum, item) => sum + Math.max(0, item.contracts), 0))
         : resultRows.length)
-    : (selectedAnalysis === "announcements" ? resultRows.length : (marketOverview?.totalContracts ?? 0));
+    : (selectedAnalysis === "announcements" ? resultRows.length : (contractsUnitCount ?? marketOverview?.totalContracts ?? 0));
   const resultLabel = selectedAnalysis === "announcements" ? "anúncios" : "contratos";
   const hasOverviewData = Boolean(marketOverview && marketOverview.totalContracts > 0);
-  const kpiContracts = cpvInsight?.total_contracts ?? (resultRows.length > 0 ? resultRows.length : marketOverview?.totalContracts ?? 0);
+  const kpiContracts = cpvInsight?.total_contracts ?? (
+    selectedAnalysis === "contracts" && contractsUnitCount != null
+      ? contractsUnitCount
+      : (resultRows.length > 0 ? resultRows.length : marketOverview?.totalContracts ?? 0)
+  );
   const kpiTotalValue = cpvInsight?.total_value ?? (resultRows.length > 0
     ? resultRows.reduce((sum, row) => sum + Math.max(0, Number(row.contract_price ?? 0)), 0)
     : marketOverview?.totalValue ?? 0);
   const kpiAvgValue = kpiContracts > 0 ? kpiTotalValue / kpiContracts : 0;
-  const kpiDiscount = cpvInsight?.avg_discount_pct ?? marketOverview?.avgDiscountPct ?? null;
+  const kpiDiscountFromRows = (() => {
+    const pairs = resultRows.filter(row => {
+      const bp = Number(row.base_price ?? 0);
+      const cp = Number(row.contract_price ?? 0);
+      return bp > 0 && cp >= 0 && cp <= bp;
+    });
+    if (pairs.length === 0) return null;
+    const sum = pairs.reduce((acc, row) => acc + (1 - Number(row.contract_price) / Number(row.base_price)) * 100, 0);
+    return sum / pairs.length;
+  })();
+  const kpiDiscount = cpvInsight?.avg_discount_pct ?? kpiDiscountFromRows ?? marketOverview?.avgDiscountPct ?? null;
   const unitAnnouncements = Math.max(0, announcementsUnitCount ?? 0);
   const unitContracts = Math.max(0, contractsUnitCount ?? 0);
   const unitTotal = unitAnnouncements + unitContracts;
@@ -1523,7 +1347,7 @@ export default async function MarketPage({
 
       {analysisButtons}
 
-      {filtersForm}
+      {filtersFormEl}
 
       <p className="text-sm font-medium text-gray-700">
         Foram encontrados {totalResults.toLocaleString("pt-PT")} {resultLabel}.

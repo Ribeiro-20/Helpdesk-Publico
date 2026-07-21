@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/layout/PageHeader";
 import { notFound } from "next/navigation";
 import { ArrowDownToLine, CalendarDays, ExternalLink, Megaphone } from "lucide-react";
-import { effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
+import { cleanAnnouncementText, effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
 
 function normalizeLabel(label: string): string {
   return label
@@ -127,7 +127,11 @@ function DetailRow({
   mono?: boolean;
 }) {
   const display =
-    value == null || value === "" ? "" : typeof value === "boolean" ? (value ? "Sim" : "Não") : String(value);
+    value == null || value === ""
+      ? ""
+      : typeof value === "boolean"
+        ? (value ? "Sim" : "Não")
+        : cleanAnnouncementText(String(value));
 
   return (
     <div className="detail-row flex items-baseline justify-between gap-6 rounded-md border border-[#e1e6eb] px-4 py-2.5">
@@ -314,6 +318,11 @@ export default async function AnnouncementDetalhesPage({
     pick(payloadRoot, ["codigoObrigacaoSubcontratacao"]) ??
     fromDetail(["Código da Obrigação de Subcontratação"]);
 
+  const displayTitle = cleanAnnouncementText(ann.title);
+  const displayDescription = cleanAnnouncementText(
+    ann.description ?? pick(payloadRoot, ["descricaoContrato", "Sumario"]) ?? fromDetail(["Descricao"]) ?? "",
+  );
+
   return (
     <div className="space-y-6 max-w-6xl">
       <PageHeader
@@ -415,8 +424,8 @@ export default async function AnnouncementDetalhesPage({
         <SectionTitle number={6} title="Objeto do contrato" />
         <div className="space-y-2 detail-rows">
           <DetailRow label="Número de referência interna" value={pick(payloadRoot, ["numeroReferenciaInterna", "refInterna"]) ?? fromDetail(["Número de referência interna"]) ?? ""} />
-          <DetailRow label="Designação do contrato" value={ann.title ?? ""} />
-          <DetailRow label="Descrição" value={ann.description ?? pick(payloadRoot, ["descricaoContrato", "Sumario"]) ?? fromDetail(["Descrição"]) ?? ""} />
+          <DetailRow label="Designação do contrato" value={displayTitle} />
+          <DetailRow label="Descrição" value={displayDescription} />
           <DetailRow label="Tipo de contrato principal" value={pick(payloadRoot, ["tipoContratoPrincipal"]) ?? fromDetail(["Tipo de Contrato Principal"]) ?? ""} />
           <DetailRow label="Tipo de contrato" value={ann.contract_type ?? pick(payloadRoot, ["tiposContrato"]) ?? fromDetail(["Tipo de Contrato"]) ?? ""} />
           <DetailRow label="CPV (objeto principal)" value={cpvDisplay ?? ""} mono />
