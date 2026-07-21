@@ -1,0 +1,14 @@
+[Unit]
+Description=HelpDesk Django Application
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/diogo/Documents/Github/estagio2026HelpDesk
+Environment="PATH=/home/diogo/Documents/Github/estagio2026HelpDesk/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/usr/bin/make run
+Restart=always
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

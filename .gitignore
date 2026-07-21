@@ -11,3 +11,5 @@ scripts/
 *.docx
 *.word
 *.doc
+*.directory
+*.env
