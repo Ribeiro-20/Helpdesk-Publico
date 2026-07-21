@@ -215,7 +215,7 @@ Deno.serve(async (req) => {
     // ──────────────────────────────────────────────────────────────────────────
     // SEND STEP: fetch and send the appropriate batch status
     // ──────────────────────────────────────────────────────────────────────────
-    const targetStatus = batch === "morning" ? "PENDING_MORNING" : "PENDING_EVENING";
+    const targetStatuses = batch === "morning" ? ["PENDING_MORNING", "PENDING"] : ["PENDING_EVENING"];
 
     const { data: pendingNotifications, error: notifErr } = await supabase
       .from("mi_contract_notifications")
@@ -239,13 +239,13 @@ Deno.serve(async (req) => {
           cpv_main
         )
       `)
-      .eq("status", targetStatus)
+      .in("status", targetStatuses)
       .order("created_at", { ascending: true });
 
     if (notifErr) throw notifErr;
 
     const notifications = pendingNotifications ?? [];
-    console.log(`[mi-contract-alerts] Processing ${notifications.length} ${targetStatus} notifications.`);
+    console.log(`[mi-contract-alerts] Processing ${notifications.length} ${targetStatuses.join("/")} notifications.`);
 
     const emailProvider = createMiEmailProvider();
     let emailsSent = 0;
@@ -346,9 +346,10 @@ Deno.serve(async (req) => {
       { status: 200, headers: CORS },
     );
   } catch (err) {
-    console.error("[mi-contract-alerts] Fatal error:", err);
+    const errorDetails = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : String(err);
+    console.error("[mi-contract-alerts] Fatal error:", errorDetails);
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: errorDetails }),
       { status: 500, headers: CORS },
     );
   }

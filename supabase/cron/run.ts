@@ -107,7 +107,8 @@ async function callFunction(
     }
 
     if (!res.ok) {
-      console.error(`[cron] ✗ ${name} HTTP ${res.status}: ${String(parsed).slice(0, 300)}`);
+      const errStr = typeof parsed === "object" && parsed !== null ? JSON.stringify(parsed) : String(parsed);
+      console.error(`[cron] ✗ ${name} HTTP ${res.status}: ${errStr.slice(0, 300)}`);
       return { ok: false, status: res.status, data: parsed };
     }
 
@@ -983,6 +984,8 @@ async function runMiEveningJob(): Promise<void> {
 
 const isOnce = process.argv.includes("--once");
 const isHubspotOnce = process.argv.includes("--hubspot-once");
+const isMiMorningOnce = process.argv.includes("--mi-morning");
+const isMiEveningOnce = process.argv.includes("--mi-evening");
 const hubspotSegmentIdOverride = getCliArgValue("--segment-id");
 
 if (isHubspotOnce) {
@@ -990,6 +993,24 @@ if (isHubspotOnce) {
   try {
     await runHubspotSyncJob(hubspotSegmentIdOverride);
     console.log("[cron] HubSpot sync done.");
+  } catch (err) {
+    console.error("[cron] Fatal:", err);
+    process.exitCode = 1;
+  }
+} else if (isMiMorningOnce) {
+  console.log("[cron] Running MI morning job once ...");
+  try {
+    await runMiMorningJob();
+    console.log("[cron] MI morning job done.");
+  } catch (err) {
+    console.error("[cron] Fatal:", err);
+    process.exitCode = 1;
+  }
+} else if (isMiEveningOnce) {
+  console.log("[cron] Running MI evening job once ...");
+  try {
+    await runMiEveningJob();
+    console.log("[cron] MI evening job done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
     process.exitCode = 1;
