@@ -13,3 +13,4 @@ scripts/
 *.doc
 *.directory
 *.env
+.temp/

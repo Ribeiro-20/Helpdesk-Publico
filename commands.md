@@ -153,11 +153,31 @@ python manage.py create_creditcard_payment \
   --identifier "order-456" \
   --amount 25.50 \
   --currency "EUR" \
-  --success-url "[https://omeusite.pt/pagamento/sucesso](https://omeusite.pt/pagamento/sucesso)" \
-  --fail-url "[https://omeusite.pt/pagamento/falhou](https://omeusite.pt/pagamento/falhou)" \
-  --back-url "[https://omeusite.pt/pagamento/cancelado](https://omeusite.pt/pagamento/cancelado)" \
+  --success-url "https://omeusite.pt/pagamento/sucesso" \
+  --fail-url "https://omeusite.pt/pagamento/falhou" \
+  --back-url "https://omeusite.pt/pagamento/cancelado" \
   --lang "PT" \
   --minutes-form-up 60 \
   --notify \
   --customer-email "cliente@email.com"
+```
+
+---
+
+### 4. `get_toconline_customers`
+
+> **Internal Method:** `TOCOnlineService.get_customers` / `TOCOnlineService.get_customer`
+
+* `--customer-id` **(str, opcional)**: ID específico de um cliente a obter. Se omitido, devolve a lista completa de clientes.
+
+#### Execution Examples
+
+Obter a lista de todos os clientes:
+```shell
+python manage.py get_toconline_customers
+```
+
+Obter um cliente específico por ID:
+```shell
+python manage.py get_toconline_customers --customer-id "62"
 ```
