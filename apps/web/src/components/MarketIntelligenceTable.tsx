@@ -150,7 +150,7 @@ export default function MarketIntelligenceTable({
     <>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden">
         <div className="overflow-x-auto w-full">
-          <table className="w-full min-w-full text-left border-collapse table-auto">
+          <table className="w-full min-w-[850px] table-fixed text-left border-collapse">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr className="bg-gray-50">
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider w-[35%] min-w-[280px]">
