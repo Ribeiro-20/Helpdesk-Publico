@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import ContractModal from "./ContractModal";
 import { createClient } from "@/lib/supabase/client";
@@ -55,7 +55,9 @@ export default function MarketIntelligenceTable({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [cpvDescriptions, setCpvDescriptions] = useState<Record<string, string>>({});
-  const supabase = createClient();
+  // Use a ref to track which codes have already been fetched to avoid infinite re-render loops
+  const fetchedCodesRef = useRef<Set<string>>(new Set());
+  const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
   // Auto-open modal if ?contract=<id> is present in the URL (e.g. from email link)
@@ -80,8 +82,12 @@ export default function MarketIntelligenceTable({
   useEffect(() => {
     if (cpvCodesOnPage.length === 0) return;
 
-    const missing = cpvCodesOnPage.filter((code) => !cpvDescriptions[code]);
+    // Only fetch codes we haven't fetched yet (avoids infinite loops)
+    const missing = cpvCodesOnPage.filter((code) => !fetchedCodesRef.current.has(code));
     if (missing.length === 0) return;
+
+    // Mark as fetched immediately to prevent concurrent duplicate requests
+    missing.forEach((code) => fetchedCodesRef.current.add(code));
 
     let cancelled = false;
 
@@ -106,7 +112,7 @@ export default function MarketIntelligenceTable({
     return () => {
       cancelled = true;
     };
-  }, [cpvCodesOnPage, cpvDescriptions, supabase]);
+  }, [cpvCodesOnPage, supabase]);
 
   // Filter out contracts that have reached > 100%
   const visibleContracts = useMemo(
@@ -181,18 +187,20 @@ export default function MarketIntelligenceTable({
             <tbody className="divide-y divide-gray-50">
               {currentItems.map((c) => {
                 let barColor = "bg-green-400";
-                let textColor = "text-gray-700";
+                let textColor = "text-green-700 font-bold";
                 const progressPct = (c.progress * 100).toFixed(0);
-                let progressLabel = `${progressPct}%`;
+                const progressLabel = `${progressPct}%`;
 
                 if (c.progress >= 1.0) {
-                  barColor = "bg-rose-500";
-                  textColor = "text-rose-600 font-bold";
-                  progressLabel = `${progressPct}%`;
+                  // 100% or over — red: contract has expired
+                  barColor = "bg-red-500";
+                  textColor = "text-red-600 font-bold";
                 } else if (c.progress >= 0.9) {
-                  barColor = "bg-yellow-400";
+                  // 90%-99% — amber: contract nearing end
+                  barColor = "bg-amber-400";
                   textColor = "text-amber-600 font-bold";
                 } else {
+                  // 75%-89% — green: contract in progress
                   barColor = "bg-green-400";
                   textColor = "text-green-700 font-bold";
                 }

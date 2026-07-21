@@ -11,6 +11,7 @@ import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
+import PriceInput from "@/components/PriceInput";
 
 export const metadata = {
   title: "Market Intelligence em Contratação Pública | Helpdesk Público",
@@ -113,7 +114,7 @@ export default async function OutrosPage({
   const maxValue = (params.max_value ?? "").trim();
   const durationFilter = (params.duration ?? "").trim();
   const statusFilter = (params.status ?? "").trim();
-  const sortField = params.sort ?? "mais_proximo";
+  const sortField = params.sort ?? "menos_proximo";
   const countryFilter = params.country ?? "all";
   const districtFilter = params.district ?? "all";
   const municipalityFilter = params.municipality ?? "all";
@@ -830,7 +831,7 @@ export default async function OutrosPage({
                 label="Duração de contrato"
                 defaultValue={durationFilter}
                 options={[
-                  { value: "", label: "Todas as durações" },
+                  { value: "", label: "Todos os contratos" },
                   { value: "1_mes", label: "Até 1 mês" },
                   { value: "6_meses", label: "Até 6 meses" },
                   { value: "1_ano", label: "Até 1 ano" },
@@ -852,35 +853,17 @@ export default async function OutrosPage({
             </div>
 
             <div className="w-full">
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Valor mínimo
-                </label>
-                <InfoPopover text="Valor mínimo do contrato em euros." />
-              </div>
-              <input
-                name="min_value"
-                type="number"
-                defaultValue={minValue}
-                placeholder="0"
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              />
+              <label className="block text-xs text-gray-400 mb-1">
+                Preço mínimo (€)
+              </label>
+              <PriceInput name="min_value" defaultValue={minValue} placeholder="0" />
             </div>
 
             <div className="w-full">
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Valor máximo
-                </label>
-                <InfoPopover text="Valor máximo do contrato em euros." />
-              </div>
-              <input
-                name="max_value"
-                type="number"
-                defaultValue={maxValue}
-                placeholder="10000000"
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              />
+              <label className="block text-xs text-gray-400 mb-1">
+                Preço máximo (€)
+              </label>
+              <PriceInput name="max_value" defaultValue={maxValue} placeholder="10000000" />
             </div>
           </div>
 
