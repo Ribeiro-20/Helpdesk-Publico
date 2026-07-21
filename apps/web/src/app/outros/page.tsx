@@ -860,7 +860,7 @@ export default async function OutrosPage({
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
               />
             </div>
-            <div className="relative z-20">
+            <div>
               <MercadoMultiSelect
                 name="procedure"
                 label="Tipo de procedimento"
@@ -868,7 +868,7 @@ export default async function OutrosPage({
                 defaultSelected={procedureFilters}
               />
             </div>
-            <div className="relative z-10">
+            <div>
               <MercadoMultiSelect
                 name="contract_type"
                 label="Tipo de contrato"
@@ -879,7 +879,7 @@ export default async function OutrosPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="relative z-30">
+            <div>
               <MercadoSingleSelect
                 name="duration"
                 label="Duração de contrato"
@@ -894,7 +894,7 @@ export default async function OutrosPage({
               />
             </div>
 
-            <div className="relative z-20">
+            <div>
               <MercadoSingleSelect
                 name="status"
                 label="Estado do contrato"

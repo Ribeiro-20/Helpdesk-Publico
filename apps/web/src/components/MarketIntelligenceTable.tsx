@@ -194,12 +194,12 @@ export default function MarketIntelligenceTable({
 
                 if (c.progress >= 1.0) {
                   // 100% or over — red: contract has expired
-                  barColor = "bg-red-500";
-                  textColor = "text-red-600 font-bold";
+                  barColor = "bg-rose-500";
+                  textColor = "text-rose-600 font-bold";
                 } else if (c.progress >= 0.9) {
                   // 90%-99% — amber: contract nearing end
-                  barColor = "bg-amber-400";
-                  textColor = "text-amber-600 font-bold";
+                  barColor = "bg-yellow-400";
+                  textColor = "text-yellow-600 font-bold";
                 } else {
                   // 75%-89% — green: contract in progress
                   barColor = "bg-green-400";
