@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 class MBWayService:
 
-    def __init__(self, client: EupagoClient):
+    def __init__(self, client: EupagoClient, mapper: MBWayMapper | None = None):
         self._client = client
-        self._mapper = MBWayMapper()
+        self._mapper = mapper or MBWayMapper()
 
     def create_payment(self, dto: MBWayRequest) -> MBWayResponse:
         logger.info("Initiating MBWay payment for identifier=%s phone=%s", dto.identifier, dto.customer_phone)

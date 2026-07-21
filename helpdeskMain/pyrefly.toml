@@ -1,16 +1,10 @@
-search_paths = ["."]
+project-includes = [
+    "**/*.py*",
+]
 
-exclude = [
+project-excludes = [
     "**/migrations/*.py",
     "**/apps.py",
     "**/settings.py",
-    "manage.py"
+    "manage.py",
 ]
-
-[rules]
-ignore_codes = [
-    "bad-override",
-    "bad-override-mutable-attribute"
-]
-
-fail_on_warnings = false

@@ -6,9 +6,9 @@ logger = logging.getLogger(__name__)
 
 class DirectDebitService:
 
-    def __init__(self, client: EupagoClient):
+    def __init__(self, client: EupagoClient, mapper: DirectDebitMapper | None = None):
         self._client = client
-        self._mapper = DirectDebitMapper()
+        self._mapper = mapper or DirectDebitMapper()
 
     def create_payment(self):
         logger.debug("DirectDebitService.create_payment called (not yet implemented)")

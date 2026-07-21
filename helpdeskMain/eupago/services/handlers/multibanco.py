@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 class MultibancoService:
 
-    def __init__(self, client: EupagoClient):
+    def __init__(self, client: EupagoClient, mapper: MultibancoMapper | None = None):
         self._client = client
-        self._mapper = MultibancoMapper()
+        self._mapper = mapper or MultibancoMapper()
 
     def create_payment(self, dto: MultibancoRequest) -> MultibancoResponse:
         logger.info("Creating Multibanco reference for id=%s valor=%s", dto.id, dto.valor)

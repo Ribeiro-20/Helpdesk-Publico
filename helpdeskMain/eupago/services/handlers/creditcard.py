@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 class CreditCardService:
 
-    def __init__(self, client: EupagoClient):
+    def __init__(self, client: EupagoClient, mapper: CreditCardMapper | None = None):
         self._client = client
-        self._mapper = CreditCardMapper()
+        self._mapper = mapper or CreditCardMapper()
 
     def create_payment(self, dto: CreditCardRequest) -> CreditCardResponse:
         logger.info("Initiating Credit Card payment for identifier=%s", dto.identifier)
