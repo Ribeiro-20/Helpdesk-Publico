@@ -41,32 +41,32 @@ export default function Header() {
         background: NAV_BG,
       }}
     >
-      <div className="max-w-screen-2xl mx-auto flex items-center px-4 sm:px-6 lg:px-12 py-0 h-[80px] sm:h-[92px] lg:h-[104px] min-w-0">
-        <a
-          href="https://www.helpdeskpublico.pt/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="shrink-0 mr-3 sm:mr-8 lg:mr-12"
+      <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-2 px-4 py-3 sm:px-6 lg:px-12 lg:py-0 lg:h-[104px]">
+        <a 
+          href="https://www.helpdeskpublico.pt/" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="shrink-0"
         >
           <Image
             src="/logo.png"
             alt="Helpdesk Público"
             width={300}
             height={110}
-            className="h-auto w-[170px] sm:w-[220px] lg:w-[300px] object-contain"
+            className="shrink-0 object-contain w-[180px] sm:w-[220px] lg:w-[300px] h-auto"
             priority
           />
         </a>
 
         <div className="flex-1" />
 
-        {/* ── Right menu & Actions ── */}
-        <div className="relative shrink-0 flex items-center gap-2 ml-2 sm:ml-4 lg:ml-8" ref={menuRef}>
+        <div className="relative shrink-0 flex items-center gap-1 sm:gap-2" ref={menuRef}>
+          
           <a
             href="https://www.helpdeskpublico.pt"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 active:scale-95"
+            className="hidden sm:inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 active:scale-95"
           >
             <Home className="w-4 h-4" strokeWidth={2} />
             <span>Helpdesk Público</span>
@@ -77,7 +77,7 @@ export default function Header() {
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg text-gray-200 hover:text-white hover:bg-white/5 transition-colors"
+            className="inline-flex items-center gap-1 sm:gap-2 rounded-lg px-2 sm:px-3 py-2 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
           >
             <span className="text-xs sm:text-sm font-medium">Menu</span>
             <ChevronDown
@@ -91,7 +91,6 @@ export default function Header() {
               role="menu"
               className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-60 rounded-xl border border-white/10 bg-[#202329] p-1.5 shadow-xl top-full"
             >
-              {/* Se também quiseres que os Contactos abram em novo separador, podes aplicar o mesmo target="_blank" aqui */}
               <a
                 href="https://www.helpdeskpublico.pt/contactos"
                 role="menuitem"
