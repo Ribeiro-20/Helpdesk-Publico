@@ -1,10 +1,14 @@
+import logging
 from eupago.dto.input.multibanco_response import MultibancoResponse
 from dataclasses import dataclass
 from eupago.dto.out.multibanco_request import MultibancoRequest
 
+logger = logging.getLogger(__name__)
+
 @dataclass
 class MultibancoMapper:
     def to_payload(self, dto: MultibancoRequest) -> dict:
+        logger.debug("Mapping MultibancoRequest to payload for id=%s", dto.id)
         return {
             "valor": dto.valor,
             "id": dto.id,

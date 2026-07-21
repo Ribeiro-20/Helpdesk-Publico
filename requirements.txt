@@ -15,3 +15,4 @@ djangorestframework-stubs
 types-requests
 requests-oauthlib
 types-requests-oauthlib
+PyYAML

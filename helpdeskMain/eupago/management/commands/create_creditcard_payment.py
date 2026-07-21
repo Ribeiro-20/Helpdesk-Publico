@@ -1,3 +1,4 @@
+import logging
 from eupago.domain.money import Money
 from eupago.dto.input.creditcard_response import CreditCardResponse
 from eupago.dto.out.creditcard_request import CreditCardRequest
@@ -5,6 +6,8 @@ from eupago.services.handlers.creditcard import CreditCardService
 from eupago.mapper.creditcard_mapper import CreditCardMapper
 from eupago.client import EupagoClient
 from django.core.management import BaseCommand
+
+logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     help = 'Create a credit card payment for testing purposes'
@@ -23,21 +26,30 @@ class Command(BaseCommand):
         parser.add_argument('--customer-email', type=str, required=True, help='Customer email address for notifications')
 
     def handle(self, *args, **options):
-        client = EupagoClient()
-        mapper = CreditCardMapper()
-        service = CreditCardService(client, mapper)
-
-        dto = CreditCardRequest(
-            identifier=options['identifier'],
-            amount=Money(options['amount'], options['currency']),
-            success_url=options['success_url'],
-            fail_url=options['fail_url'],
-            back_url=options['back_url'],
-            lang=options['lang'],
-            minutesFormUp=options['minutes_form_up'],
-            notify=options['notify'],
-            customer_email=options['customer_email']
+        logger.info(
+            "Creating Credit Card payment: identifier=%s amount=%s email=%s",
+            options['identifier'], options['amount'], options['customer_email']
         )
+        try:
+            client = EupagoClient()
+            mapper = CreditCardMapper()
+            service = CreditCardService(client, mapper)
 
-        result: CreditCardResponse = service.create_payment(dto)
-        self.stdout.write(str(result))
+            dto = CreditCardRequest(
+                identifier=options['identifier'],
+                amount=Money(options['amount'], options['currency']),
+                success_url=options['success_url'],
+                fail_url=options['fail_url'],
+                back_url=options['back_url'],
+                lang=options['lang'],
+                minutesFormUp=options['minutes_form_up'],
+                notify=options['notify'],
+                customer_email=options['customer_email']
+            )
+
+            result: CreditCardResponse = service.create_payment(dto)
+            logger.info("Credit Card payment created successfully: %s", result)
+            self.stdout.write(str(result))
+        except Exception as e:
+            logger.error("Failed to create Credit Card payment: %s", e)
+            raise

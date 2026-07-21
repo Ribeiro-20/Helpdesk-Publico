@@ -1,6 +1,9 @@
+import logging
 from requests import Response
 import os
 import requests
+
+logger = logging.getLogger(__name__)
 
 class HubspotClient:
     def __init__(self):
@@ -9,6 +12,7 @@ class HubspotClient:
 
     def _getHeadersAuth(self, path: str, payload: dict) -> Response:
         url = f"{self._endpoint}{path}"
+        logger.debug("GET (headers auth) to %s", url)
 
         headers = {
             "Authorization": f"Bearer {self._apikey}",
@@ -17,4 +21,5 @@ class HubspotClient:
 
         response = requests.get(url, headers=headers)
         response.raise_for_status()
+        logger.debug("Response from %s: status %s", url, response.status_code)
         return response

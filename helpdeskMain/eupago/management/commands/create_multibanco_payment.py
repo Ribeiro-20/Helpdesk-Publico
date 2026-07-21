@@ -27,24 +27,33 @@ class Command(BaseCommand):
         parser.add_argument("--userID", required=True, type=str)
 
     def handle(self, *args, **options) -> None:
-        client = EupagoClient()
-        mapper = MultibancoMapper()
-        service = MultibancoService(client, mapper)
-
-        dto = MultibancoRequest(
-            valor=options["valor"],
-            id=options["id"],
-            data_inicio=datetime.strptime(options["data_inicio"], "%Y-%m-%d"),
-            data_fim=datetime.strptime(options["data_fim"], "%Y-%m-%d"),
-            valor_maximo=options["valor_maximo"],
-            valor_minimo=options["valor_minimo"],
-            per_dup=options["per_dup"],
-            extrafields=options["extrafields"],
-            failOver=options["failOver"],
-            email=options["email"],
-            contacto=options["contacto"],
-            userID=options["userID"],
+        logger.info(
+            "Creating Multibanco payment: id=%s valor=%s data_inicio=%s data_fim=%s",
+            options["id"], options["valor"], options["data_inicio"], options["data_fim"]
         )
+        try:
+            client = EupagoClient()
+            mapper = MultibancoMapper()
+            service = MultibancoService(client, mapper)
 
-        result: MultibancoResponse = service.create_payment(dto)
-        self.stdout.write(str(result))
+            dto = MultibancoRequest(
+                valor=options["valor"],
+                id=options["id"],
+                data_inicio=datetime.strptime(options["data_inicio"], "%Y-%m-%d"),
+                data_fim=datetime.strptime(options["data_fim"], "%Y-%m-%d"),
+                valor_maximo=options["valor_maximo"],
+                valor_minimo=options["valor_minimo"],
+                per_dup=options["per_dup"],
+                extrafields=options["extrafields"],
+                failOver=options["failOver"],
+                email=options["email"],
+                contacto=options["contacto"],
+                userID=options["userID"],
+            )
+
+            result: MultibancoResponse = service.create_payment(dto)
+            logger.info("Multibanco payment created successfully: %s", result)
+            self.stdout.write(str(result))
+        except Exception as e:
+            logger.error("Failed to create Multibanco payment: %s", e)
+            raise

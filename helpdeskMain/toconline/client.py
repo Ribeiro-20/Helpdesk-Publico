@@ -48,6 +48,7 @@ class TOCOnlineClient:
         res = parse_qs(redirect.split("?")[1])
 
         self._authorization = res['code'][0]
+        logger.info("Authorization code obtained for TOCOnline OAuth")
 
     def _get_accesscode(self)-> None:
         url: str = f"{self._endpointoauth}/token"
@@ -70,3 +71,4 @@ class TOCOnlineClient:
         }
 
         # Add post later
+        logger.debug("TOCOnline _get_accesscode: preparing token request (POST not yet implemented)")

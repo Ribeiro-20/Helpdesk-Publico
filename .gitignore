@@ -7,3 +7,7 @@ venv/
 helpdeskMain/db.sqlite3
 .idea/
 .vscode/settings.json
+scripts/
+*.docx
+*.word
+*.doc

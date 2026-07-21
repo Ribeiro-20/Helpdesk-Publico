@@ -28,7 +28,8 @@ def CheckoutEntry(request):
 
 
         payment_data = serialized.validated_data["dados_pagamento"]
-        uidentifier = serialized.validated_data["email_subscricao"]
+        uidentifier = serialized.validated_data["pedido_id"]
+        customer_email = serialized.validated_data["email_subscricao"]
 
         if serialized.validated_data["metodo_pagamento"] == "mbway":
             processed_payment_data = mapper.MBWayPaymentData(payment_data)
@@ -41,7 +42,14 @@ def CheckoutEntry(request):
             return JsonResponse({"message": "Invalid payment option provided"}, status=400)
 
         try:
-            service.process(processed_payment_data, uidentifier, serialized.validated_data["codigo_produto"])
+            service.process(
+                processed_payment_data,
+                uidentifier,
+                serialized.validated_data["codigo_produto"],
+                serialized.validated_data["metodo_pagamento"],
+                serialized.validated_data["resumo_apresentado"],
+                customer_email,
+            )
         except Exception as e:
             logger.error("Error occurred while processing checkout form: %s", str(e))
             return JsonResponse({"message": "Erro interno do servidor"}, status=500)
@@ -50,7 +58,7 @@ def CheckoutEntry(request):
         logger.warning("Invalid JSON received in checkout form")
         return JsonResponse({"message": "Invalid JSON provided"}, status=400)
     
-    return JsonResponse(data= {
+    return JsonResponse(data={
         "ok": True,
         "success": True
         }, status=200)

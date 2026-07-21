@@ -1,0 +1,14 @@
+products:
+
+  PROD-99:
+    nome: "Serviço Teste"
+    tipo_servico: "TESTE"
+    codigo_produto: "TEST-99"
+    payment_method: "mbway"
+    pvp_base: 120.00
+    acresce_iva: true
+    modalidades:
+      ANUAL:
+        desconto: 0.10
+      MENSAL:
+        desconto: 0.00

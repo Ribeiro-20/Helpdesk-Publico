@@ -1,9 +1,13 @@
 
+import logging
 from eupago.dto.out.creditcard_request import CreditCardRequest
 from eupago.dto.input.creditcard_response import CreditCardResponse
 
+logger = logging.getLogger(__name__)
+
 class CreditCardMapper:
     def to_payload(self, dto: CreditCardRequest) -> dict:
+            logger.debug("Mapping CreditCardRequest to payload for identifier=%s", dto.identifier)
             return { 
                 "payment":{
                     "identifier": dto.identifier,
@@ -25,6 +29,7 @@ class CreditCardMapper:
             }
 
     def to_creditcard_response(self, data: dict) -> CreditCardResponse:
+        logger.debug("Mapping API response to CreditCardResponse: transactionID=%s status=%s", data.get("transactionID"), data.get("transactionStatus"))
         return CreditCardResponse(
             transactionStatus=data["transactionStatus"],
             transactionID=data["transactionID"],
