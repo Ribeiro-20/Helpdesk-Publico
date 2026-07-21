@@ -5,7 +5,7 @@ import { Info } from "lucide-react";
 type InfoPopoverProps = {
   text: string;
   ariaLabel?: string;
-  placement?: "side" | "bottom";
+  placement?: "side" | "bottom" | "bottom-end" | "bottom-start";
   side?: "left" | "right";
   triggerAs?: "button" | "span";
 };
@@ -18,18 +18,26 @@ export default function InfoPopover({
   triggerAs = "button",
 }: InfoPopoverProps) {
   const tooltipPositionClass =
-    placement === "bottom"
-      ? "left-1/2 top-[calc(100%+8px)] -translate-x-1/2"
-      : side === "left"
-        ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
-        : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
+    placement === "bottom-end"
+      ? "right-0 top-[calc(100%+8px)]"
+      : placement === "bottom-start"
+        ? "left-0 top-[calc(100%+8px)]"
+        : placement === "bottom"
+          ? "left-1/2 top-[calc(100%+8px)] -translate-x-1/2"
+          : side === "left"
+            ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
+            : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
 
   const arrowPositionClass =
-    placement === "bottom"
-      ? "left-1/2 -top-1 -translate-x-1/2 border-l border-t"
-      : side === "left"
-        ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
-        : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
+    placement === "bottom-end"
+      ? "right-3 -top-1 border-l border-t"
+      : placement === "bottom-start"
+        ? "left-3 -top-1 border-l border-t"
+        : placement === "bottom"
+          ? "left-1/2 -top-1 -translate-x-1/2 border-l border-t"
+          : side === "left"
+            ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
+            : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
 
   return (
     <div className="relative inline-flex group">

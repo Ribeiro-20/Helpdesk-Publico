@@ -664,6 +664,59 @@ export default async function OutrosPage({
     };
   });
 
+  // Pre-fetch CPV descriptions on server side using admin client (bypasses RLS)
+  const allCpvCodes = Array.from(
+    new Set(
+      enrichedContractsRaw
+        .map((c) => c.cpv_main)
+        .filter((code): code is string => typeof code === "string" && code.trim().length > 0)
+    )
+  );
+
+  const cpvMap = new Map<string, string>();
+  if (allCpvCodes.length > 0) {
+    const { data: exactCpvData } = await supabase
+      .from("cpv_codes")
+      .select("id, descricao")
+      .in("id", allCpvCodes);
+
+    for (const row of exactCpvData ?? []) {
+      if (row.id && row.descricao) {
+        cpvMap.set(row.id, row.descricao);
+      }
+    }
+
+    const missingCodes = allCpvCodes.filter((code) => !cpvMap.has(code));
+    if (missingCodes.length > 0) {
+      const prefixes = Array.from(
+        new Set(
+          missingCodes
+            .map((c) => c.replace(/\D/g, "").slice(0, 8))
+            .filter((p) => p.length >= 2)
+        )
+      );
+      if (prefixes.length > 0) {
+        const { data: prefixCpvData } = await supabase
+          .from("cpv_codes")
+          .select("id, descricao")
+          .or(prefixes.map((p) => `id.ilike.${p}%`).join(","));
+
+        for (const row of prefixCpvData ?? []) {
+          if (!row.id || !row.descricao) continue;
+          const cleanId = row.id.replace(/\D/g, "");
+          for (const code of missingCodes) {
+            const cleanCode = code.replace(/\D/g, "");
+            if (cleanId.startsWith(cleanCode) || cleanCode.startsWith(cleanId)) {
+              if (!cpvMap.has(code)) {
+                cpvMap.set(code, row.descricao);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -682,6 +735,7 @@ export default async function OutrosPage({
 
       return {
         ...c,
+        cpv_description: c.cpv_main ? cpvMap.get(c.cpv_main) ?? null : null,
         days_passed: diffDays,
         progress: progress,
         is_overdue: progress >= 1.0,
