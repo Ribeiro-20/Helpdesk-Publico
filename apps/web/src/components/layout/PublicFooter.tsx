@@ -30,7 +30,7 @@ export default function PublicFooter() {
             </a>
             
             {/* Ícones das Redes Sociais */}
-            <div className="flex items-center gap-4 pl-0 sm:pl-2 text-gray-500">
+            <div className="flex items-center gap-4 pl-0 sm:pl-2 text-[#80889a]">
               <Link
                 href="https://linkedin.com/company/helpdeskpublico/"
                 target="_blank"
@@ -202,7 +202,7 @@ export default function PublicFooter() {
         <hr className="my-10 border-gray-800" />
 
         {/* Rodapé Inferior */}
-        <div className="text-center text-sm text-gray-500">
+        <div className="text-center text-sm text-[#80889a]">
           <p>
             © 2022-2026 Helpdesk Público. Todos os direitos reservados. Contratação Pública Eficiente.
           </p>
