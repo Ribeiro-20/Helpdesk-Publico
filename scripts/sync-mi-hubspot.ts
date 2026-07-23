@@ -26,7 +26,7 @@ const token = process.env.HUBSPOT_MI_ACCESS_TOKEN?.trim();
 const segmentId = process.env.HUBSPOT_MI_SEGMENT_ID?.trim();
 const supabaseUrl = process.env.SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-const cpvsProperty = process.env.HUBSPOT_CPVS_PROPERTY?.trim() || "cpv_s_alerta_concursos_publicos";
+const cpvsProperty = process.env.HUBSPOT_MI_CPVS_PROPERTY?.trim() || "cpv_market_intelligence";
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) throw new Error(`Missing ${name} in .env`);
