@@ -66,29 +66,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Window for yesterday's ingestion (Project C ingests at 23:00)
-    const now = new Date();
-    const todayUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-    const yesterdayStartIso = new Date(todayUtcMidnight.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const todayStartIso = todayUtcMidnight.toISOString();
+    // 2. Fetch contracts from 'mi_contracts' that were ingested by Project C in the last 3 days (72 hours)
+    // Strictly reads from 'mi_contracts' without querying raw 'contracts'.
+    const threeDaysAgoIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
 
-    console.log(`[mi-contract-alerts] Searching mi_contracts ingested yesterday between ${yesterdayStartIso} and ${todayStartIso}...`);
+    console.log(`[mi-contract-alerts] Searching mi_contracts ingested in the last 3 days (since ${threeDaysAgoIso})...`);
 
-    const { data: yesterdayMiContracts, error: miErr } = await supabase
+    const { data: recentMiContracts, error: miErr } = await supabase
       .from("mi_contracts")
       .select("*")
-      .gte("ingested_at", yesterdayStartIso)
-      .lt("ingested_at", todayStartIso);
+      .gte("ingested_at", threeDaysAgoIso);
 
     if (miErr) throw miErr;
 
-    const candidateContracts = yesterdayMiContracts ?? [];
-    console.log(`[mi-contract-alerts] Found ${candidateContracts.length} new MI contracts ingested yesterday.`);
+    const candidateContracts = recentMiContracts ?? [];
+    console.log(`[mi-contract-alerts] Found ${candidateContracts.length} recent MI contracts ingested in the last 3 days.`);
 
     if (candidateContracts.length === 0) {
-      console.log("[mi-contract-alerts] No new contracts ingested yesterday. No emails to send.");
+      console.log("[mi-contract-alerts] No contracts ingested in the last 3 days. No emails to send.");
       return new Response(
-        JSON.stringify({ ok: true, message: "No new contracts ingested yesterday.", emails_sent: 0 }),
+        JSON.stringify({ ok: true, message: "No contracts ingested in the last 3 days.", emails_sent: 0 }),
         { status: 200, headers: CORS }
       );
     }
