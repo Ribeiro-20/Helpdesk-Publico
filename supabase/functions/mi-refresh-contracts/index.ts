@@ -1,13 +1,13 @@
 /**
  * Edge Function: mi-refresh-contracts
- * 
+ *
  * Runs daily at 02:00 (after Project C contract ingestion at 23:00).
- * 
- * Responsibilities:
- *   1. Queries active contracts from 'contracts' with execution progress between 75% and 100%.
- *   2. Upserts matching records into 'mi_contracts' table.
- *   3. Populates 'reached_100_at' when a contract hits 100% progress.
- *   4. Purges contracts from 'mi_contracts' that reached 100% more than 30 days ago.
+ *
+ * Logic:
+ *   1. Fetches contracts with 75%-100% progress via RPC (filter in SQL, not in memory).
+ *   2. Checks which contract_ids already exist in mi_contracts.
+ *   3. Inserts only new contracts — skips existing ones.
+ *   4. Purges contracts from mi_contracts that reached 100% more than 30 days ago.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -32,7 +32,11 @@ Deno.serve(async (req) => {
 
     console.log("[mi-refresh-contracts] Starting 02:00 Market Intelligence refresh job...");
 
-    // 1. Fetch active contracts with valid signing dates and execution deadlines using pagination
+    const now = new Date();
+    const todayMs = now.getTime();
+    const thirtyDaysAgoIso = new Date(todayMs - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    // 1. Fetch eligible contracts via RPC — 75%+ filter done in SQL to avoid memory issues
     const allRawContracts: any[] = [];
     const pageSize = 1000;
     let page = 0;
@@ -43,68 +47,72 @@ Deno.serve(async (req) => {
       const to = from + pageSize - 1;
 
       const { data: chunk, error: selectErr } = await supabase
-        .from("contracts")
-        .select("id, object, contracting_entities, winners, contract_price, signing_date, execution_deadline_days, cpv_main, status, created_at")
-        .eq("status", "active")
-        .not("signing_date", "is", null)
-        .not("execution_deadline_days", "is", null)
-        .gt("execution_deadline_days", 0)
+        .rpc("get_high_progress_contracts", { min_pct: 0.75, max_pct: 999 })
         .range(from, to);
 
       if (selectErr) throw selectErr;
 
       if (chunk && chunk.length > 0) {
         allRawContracts.push(...chunk);
-        if (chunk.length < pageSize) {
-          hasMore = false;
-        } else {
-          page++;
-        }
+        hasMore = chunk.length === pageSize;
+        page++;
       } else {
         hasMore = false;
       }
     }
 
-    const rawContracts = allRawContracts;
-    console.log(`[mi-refresh-contracts] Scanned ${rawContracts.length} total active contracts from database.`);
+    console.log(`[mi-refresh-contracts] Fetched ${allRawContracts.length} eligible contracts (75%+) from database.`);
 
-    const now = new Date();
-    const todayMs = now.getTime();
-    const thirtyDaysAgoIso = new Date(todayMs - 30 * 24 * 60 * 60 * 1000).toISOString();
+    if (allRawContracts.length === 0) {
+      return new Response(
+        JSON.stringify({ ok: true, inserted: 0, purged: 0, message: "No eligible contracts found." }),
+        { status: 200, headers: CORS }
+      );
+    }
 
-    const miRowsToUpsert: any[] = [];
+    // 2. Check which contract_ids already exist in mi_contracts — skip those
+    const allContractIds = allRawContracts.map((c: any) => c.id);
+    const existingIds = new Set<string>();
 
-    for (const c of rawContracts ?? []) {
+    for (let i = 0; i < allContractIds.length; i += 500) {
+      const batch = allContractIds.slice(i, i + 500);
+      const { data: existing } = await supabase
+        .from("mi_contracts")
+        .select("contract_id")
+        .in("contract_id", batch);
+
+      for (const row of existing ?? []) {
+        existingIds.add(row.contract_id);
+      }
+    }
+
+    console.log(`[mi-refresh-contracts] ${existingIds.size} contracts already in mi_contracts — will skip.`);
+
+    // 3. Build rows to insert (only new contracts)
+    const rowsToInsert: any[] = [];
+
+    for (const c of allRawContracts) {
+      if (existingIds.has(c.id)) continue;
+
+      const progress = Math.min(Number(c.progress), 1.0);
       const signingMs = new Date(c.signing_date).getTime();
-      const elapsedDays = (todayMs - signingMs) / (24 * 60 * 60 * 1000);
-      const rawProgress = elapsedDays / c.execution_deadline_days;
 
-      // Filter: only contracts between 75% (0.75) and 100% (1.0)
-      if (rawProgress < 0.75) continue;
-
-      const progress = Math.min(Math.round(rawProgress * 10000) / 10000, 1.0);
-
-      // Check if 100% reached
       let reached100At: string | null = null;
       if (progress >= 1.0) {
         const estimatedEnd = new Date(signingMs + c.execution_deadline_days * 24 * 60 * 60 * 1000);
         reached100At = estimatedEnd.toISOString();
 
-        // Exclude if reached 100% more than 30 days ago
+        // Skip if reached 100% more than 30 days ago
         if (estimatedEnd.getTime() < new Date(thirtyDaysAgoIso).getTime()) {
           continue;
         }
       }
 
       const cleanObject = c.object
-        ? c.object
-            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ")
-            .replace(/[\u00AD\u200B-\u200D\u200E\u200F\uFEFF\uFFFD\u001C-\u001F]/g, "")
-            .replace(/[ \t]+/g, " ")
-            .trim()
+        ? c.object.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ").replace(/[ \t]+/g, " ").trim()
         : null;
 
-      miRowsToUpsert.push({
+      rowsToInsert.push({
         contract_id: c.id,
         object: cleanObject,
         contracting_entities: c.contracting_entities,
@@ -115,34 +123,30 @@ Deno.serve(async (req) => {
         cpv_main: c.cpv_main,
         progress,
         reached_100_at: reached100At,
-        ingested_at: c.created_at,
+        ingested_at: new Date().toISOString(),
         last_updated_at: new Date().toISOString(),
       });
     }
 
-    console.log(`[mi-refresh-contracts] Found ${miRowsToUpsert.length} eligible contracts (75-100%). Upserting...`);
+    console.log(`[mi-refresh-contracts] Inserting ${rowsToInsert.length} new contracts...`);
 
-    let upsertedCount = 0;
-    if (miRowsToUpsert.length > 0) {
-      // Chunk upserts in batches of 500 for safety
-      const chunkSize = 500;
-      for (let i = 0; i < miRowsToUpsert.length; i += chunkSize) {
-        const chunk = miRowsToUpsert.slice(i, i + chunkSize);
-        const { data: upsertData, error: upsertErr } = await supabase
-          .from("mi_contracts")
-          .upsert(chunk, { onConflict: "contract_id" })
-          .select("id");
+    let insertedCount = 0;
+    for (let i = 0; i < rowsToInsert.length; i += 500) {
+      const batch = rowsToInsert.slice(i, i + 500);
+      const { data: inserted, error: insertErr } = await supabase
+        .from("mi_contracts")
+        .insert(batch)
+        .select("id");
 
-        if (upsertErr) {
-          console.error("[mi-refresh-contracts] Upsert batch error:", upsertErr);
-        } else if (upsertData) {
-          upsertedCount += upsertData.length;
-        }
+      if (insertErr) {
+        console.error("[mi-refresh-contracts] Insert batch error:", insertErr);
+      } else if (inserted) {
+        insertedCount += inserted.length;
       }
     }
 
-    // 2. Purge contracts that have been at 100% for more than 30 days
-    console.log(`[mi-refresh-contracts] Purging contracts at 100% older than ${thirtyDaysAgoIso}...`);
+    // 4. Purge contracts at 100% for more than 30 days
+    console.log(`[mi-refresh-contracts] Purging contracts at 100% older than 30 days...`);
     const { data: deletedData, error: deleteErr } = await supabase
       .from("mi_contracts")
       .delete()
@@ -155,12 +159,13 @@ Deno.serve(async (req) => {
       console.error("[mi-refresh-contracts] Purge error:", deleteErr);
     }
 
-    console.log(`[mi-refresh-contracts] Job completed. Upserted: ${upsertedCount}, Purged: ${purgedCount}`);
+    console.log(`[mi-refresh-contracts] Job completed. Inserted: ${insertedCount}, Skipped: ${existingIds.size}, Purged: ${purgedCount}`);
 
     return new Response(
       JSON.stringify({
         ok: true,
-        upserted: upsertedCount,
+        inserted: insertedCount,
+        skipped: existingIds.size,
         purged: purgedCount,
         timestamp: new Date().toISOString(),
       }),
