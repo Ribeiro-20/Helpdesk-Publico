@@ -44,8 +44,10 @@ type OpportunityRow = {
   procedure_type: string | null;
   contract_type: string | null;
   publication_date: string | null;
+  proposal_deadline_days: number | null;
   proposal_deadline_at: string | null;
   cpv_main: string | null;
+  cpv_list: string[] | null;
   base_price: number | null;
   currency: string | null;
   status: string;
@@ -302,7 +304,7 @@ export default async function OportunidadesPage({
     let query = supabase
       .from("announcements")
       .select(
-        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_at, cpv_main, base_price, currency, status",
+        "id, title, entity_name, act_type, procedure_type, contract_type, publication_date, proposal_deadline_days, proposal_deadline_at, cpv_main, cpv_list, base_price, currency, status",
         { count: "exact" },
       )
       .eq("tenant_id", tenantId);
@@ -620,10 +622,10 @@ export default async function OportunidadesPage({
               announcement_number: announcementNumber,
               limit: String(PAGE_SIZE),
               sort,
-              act_type: actType,
-              model: modelType,
-              procedure: modelType,
-              contract_type: contractType,
+              act_type: actType ? [actType] : [],
+              model: modelType ? [modelType] : [],
+              procedure: modelType ? [modelType] : [],
+              contract_type: contractType ? [contractType] : [],
               min_value: minValue,
               max_value: maxValue,
               from_day: fromDay,
