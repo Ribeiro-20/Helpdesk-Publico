@@ -2,9 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { Linkedin, Facebook, Instagram, Twitter, Youtube } from "lucide-react";
 
+const SAME_DOMAIN = "mercado.helpdeskpublico.pt";
+
 const externalProps = (href: string): { target?: string; rel?: string } => {
-  const sameDomain = ['mercado.helpdeskpublico.pt'].some((d) => href.includes(d));
-  return sameDomain ? {} : { target: '_blank', rel: 'noopener noreferrer' };
+  try {
+    const url = new URL(href);
+    return url.hostname === SAME_DOMAIN ? {} : { target: '_blank', rel: 'noopener noreferrer' };
+  } catch {
+    return { target: '_blank', rel: 'noopener noreferrer' };
+  }
 };
 
 export default function PublicFooter() {
