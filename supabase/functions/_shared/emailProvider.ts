@@ -987,7 +987,11 @@ export function buildMiContractAlertEmail(params: {
   const subject = `Market Intelligence — ${contracts.length} contrato(s) próximo(s) de renovação`;
 
   const contractRows = contracts.map((c) => {
-    const pct = Math.round((c.progress ?? 0) * 100);
+    let rawProgress = c.progress ?? 0.75;
+    if (rawProgress <= 1.0 && rawProgress > 0) {
+      rawProgress = rawProgress * 100;
+    }
+    const pct = Math.max(75, Math.min(100, Math.round(rawProgress)));
     const price = typeof c.contractPrice === "number"
       ? c.contractPrice.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })
       : "—";
