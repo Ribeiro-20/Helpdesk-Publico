@@ -10,6 +10,27 @@ export const metadata: Metadata = {
   icons: {
     icon: "/android-chrome-57x57.png",
   },
+  openGraph: {
+    title: 'Helpdesk Público | Informação do Mercado Público',
+    description: 'Helpdesk Público | Informação do Mercado Público',
+    url: 'https://mercado.helpdeskpublico.pt',
+    siteName: 'Helpdesk Público',
+    images: [
+      {
+        url: '/og-image.svg',
+        width: 1200,
+        height: 630,
+        alt: 'Helpdesk Público',
+      },
+    ],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Helpdesk Público | Informação do Mercado Público',
+    description: 'Helpdesk Público | Informação do Mercado Público',
+    images: ['/og-image.svg'],
+  },
 };
 
 export const viewport: Viewport = {
