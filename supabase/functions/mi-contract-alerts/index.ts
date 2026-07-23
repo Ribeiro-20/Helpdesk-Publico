@@ -66,27 +66,26 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Fetch contracts from 'mi_contracts' that were ingested by Project C in the last 24 hours
-    // (Project C ingests at 23:00; the 02:00 cron populates 'mi_contracts').
+    // 2. Fetch contracts from 'mi_contracts' that were ingested by Project C in the last 3 days (72 hours)
     // Strictly reads from 'mi_contracts' without querying raw 'contracts'.
-    const twentyFourHoursAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const threeDaysAgoIso = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
 
-    console.log(`[mi-contract-alerts] Searching mi_contracts ingested in the last 24 hours (since ${twentyFourHoursAgoIso})...`);
+    console.log(`[mi-contract-alerts] Searching mi_contracts ingested in the last 3 days (since ${threeDaysAgoIso})...`);
 
     const { data: recentMiContracts, error: miErr } = await supabase
       .from("mi_contracts")
       .select("*")
-      .gte("ingested_at", twentyFourHoursAgoIso);
+      .gte("ingested_at", threeDaysAgoIso);
 
     if (miErr) throw miErr;
 
     const candidateContracts = recentMiContracts ?? [];
-    console.log(`[mi-contract-alerts] Found ${candidateContracts.length} recent MI contracts ingested in the last 24h.`);
+    console.log(`[mi-contract-alerts] Found ${candidateContracts.length} recent MI contracts ingested in the last 3 days.`);
 
     if (candidateContracts.length === 0) {
-      console.log("[mi-contract-alerts] No new contracts ingested yesterday. No emails to send.");
+      console.log("[mi-contract-alerts] No contracts ingested in the last 3 days. No emails to send.");
       return new Response(
-        JSON.stringify({ ok: true, message: "No new contracts ingested yesterday.", emails_sent: 0 }),
+        JSON.stringify({ ok: true, message: "No contracts ingested in the last 3 days.", emails_sent: 0 }),
         { status: 200, headers: CORS }
       );
     }
