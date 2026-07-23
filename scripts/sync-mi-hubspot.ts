@@ -26,7 +26,7 @@ const token = process.env.HUBSPOT_MI_ACCESS_TOKEN?.trim();
 const segmentId = process.env.HUBSPOT_MI_SEGMENT_ID?.trim();
 const supabaseUrl = process.env.SUPABASE_URL?.trim();
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-const cpvsProperty = process.env.HUBSPOT_CPVS_PROPERTY?.trim() || "cpv_s_alerta_concursos_publicos";
+const cpvsProperty = process.env.HUBSPOT_MI_CPVS_PROPERTY?.trim() || "cpvs_market_intelligence";
 
 function requireEnv(name: string, value: string | undefined): string {
   if (!value) throw new Error(`Missing ${name} in .env`);
@@ -252,8 +252,8 @@ async function main() {
         .update({
           name: contactName,
           hubspot_contact_id: contact.id,
-          cpv_codes: JSON.stringify(cpvCodes),
-          cpv_filter: cpvCodes[0] ?? null,  // keep backward compat
+          cpv_codes: cpvCodes,
+          cpv_filter: cpvCodes[0] ?? null,
           is_active: true,
           hubspot_synced_at: syncedAt,
         })
@@ -269,7 +269,7 @@ async function main() {
           email,
           name: contactName,
           hubspot_contact_id: contact.id,
-          cpv_codes: JSON.stringify(cpvCodes),
+          cpv_codes: cpvCodes,
           cpv_filter: cpvCodes[0] ?? null,
           is_active: true,
           min_progress: 0.75,

@@ -63,6 +63,7 @@ export default function LoginPage() {
                 width={160}
                 height={160}
                 className="rounded-lg"
+                style={{ width: "160px", height: "auto" }}
               />
             </div>
             <h1 className="text-xl font-bold text-gray-900">Área Reservada</h1>

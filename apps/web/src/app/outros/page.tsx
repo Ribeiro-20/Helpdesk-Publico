@@ -11,6 +11,7 @@ import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
+import PriceInput from "@/components/PriceInput";
 
 export const metadata = {
   title: "Market Intelligence em Contratação Pública | Helpdesk Público",
@@ -113,7 +114,7 @@ export default async function OutrosPage({
   const maxValue = (params.max_value ?? "").trim();
   const durationFilter = (params.duration ?? "").trim();
   const statusFilter = (params.status ?? "").trim();
-  const sortField = params.sort ?? "mais_proximo";
+  const sortField = params.sort ?? "menos_proximo";
   const countryFilter = params.country ?? "all";
   const districtFilter = params.district ?? "all";
   const municipalityFilter = params.municipality ?? "all";
@@ -541,13 +542,12 @@ export default async function OutrosPage({
       ? municipalityFilter
       : "all";
 
-  // Build the DB query to pull from the calculated view
+  // Build the DB query to pull from mi_contracts table (populated at 02:00 with 75%-100% contracts)
   let q = supabase
-    .from("mi_high_progress_contracts")
+    .from("mi_contracts")
     .select(
-      "id, object, procedure_type, contract_type, signing_date, publication_date, cpv_main, contract_price, base_price, status, contracting_entities, winners, execution_deadline_days, execution_locations, progress"
+      "id, contract_id, object, signing_date, cpv_main, contract_price, contracting_entities, winners, execution_deadline_days, progress, reached_100_at, ingested_at"
     )
-    .eq("tenant_id", tenantId)
     .gte("progress", 0.75)
     .lte("progress", 1.0);
 
@@ -663,6 +663,59 @@ export default async function OutrosPage({
     };
   });
 
+  // Pre-fetch CPV descriptions on server side using admin client (bypasses RLS)
+  const allCpvCodes = Array.from(
+    new Set(
+      enrichedContractsRaw
+        .map((c) => c.cpv_main)
+        .filter((code): code is string => typeof code === "string" && code.trim().length > 0)
+    )
+  );
+
+  const cpvMap = new Map<string, string>();
+  if (allCpvCodes.length > 0) {
+    const { data: exactCpvData } = await supabase
+      .from("cpv_codes")
+      .select("id, descricao")
+      .in("id", allCpvCodes);
+
+    for (const row of exactCpvData ?? []) {
+      if (row.id && row.descricao) {
+        cpvMap.set(row.id, row.descricao);
+      }
+    }
+
+    const missingCodes = allCpvCodes.filter((code) => !cpvMap.has(code));
+    if (missingCodes.length > 0) {
+      const prefixes = Array.from(
+        new Set(
+          missingCodes
+            .map((c) => c.replace(/\D/g, "").slice(0, 8))
+            .filter((p) => p.length >= 2)
+        )
+      );
+      if (prefixes.length > 0) {
+        const { data: prefixCpvData } = await supabase
+          .from("cpv_codes")
+          .select("id, descricao")
+          .or(prefixes.map((p) => `id.ilike.${p}%`).join(","));
+
+        for (const row of prefixCpvData ?? []) {
+          if (!row.id || !row.descricao) continue;
+          const cleanId = row.id.replace(/\D/g, "");
+          for (const code of missingCodes) {
+            const cleanCode = code.replace(/\D/g, "");
+            if (cleanId.startsWith(cleanCode) || cleanCode.startsWith(cleanId)) {
+              if (!cpvMap.has(code)) {
+                cpvMap.set(code, row.descricao);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -679,8 +732,20 @@ export default async function OutrosPage({
       // Use progress from database view directly
       const progress = typeof c.progress === "number" ? c.progress : parseFloat(c.progress || "0");
 
+      // Clean unprintable glyphs / control symbols (e.g. \u001c, \u001d, \u001e, \u001f, \ufffd)
+      const cleanObject = c.object
+        ? c.object
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ")
+            .replace(/[\u00AD\u200B-\u200D\u200E\u200F\uFEFF\uFFFD\u001C-\u001F]/g, "")
+            .replace(/[ \t]+/g, " ")
+            .trim()
+        : null;
+
       return {
         ...c,
+        id: c.contract_id || c.id,
+        object: cleanObject,
+        cpv_description: c.cpv_main ? cpvMap.get(c.cpv_main) ?? null : null,
         days_passed: diffDays,
         progress: progress,
         is_overdue: progress >= 1.0,
@@ -805,7 +870,7 @@ export default async function OutrosPage({
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all"
               />
             </div>
-            <div className="relative z-20">
+            <div>
               <MercadoMultiSelect
                 name="procedure"
                 label="Tipo de procedimento"
@@ -813,7 +878,7 @@ export default async function OutrosPage({
                 defaultSelected={procedureFilters}
               />
             </div>
-            <div className="relative z-10">
+            <div>
               <MercadoMultiSelect
                 name="contract_type"
                 label="Tipo de contrato"
@@ -824,13 +889,13 @@ export default async function OutrosPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="relative z-30">
+            <div>
               <MercadoSingleSelect
                 name="duration"
                 label="Duração de contrato"
                 defaultValue={durationFilter}
                 options={[
-                  { value: "", label: "Todas as durações" },
+                  { value: "", label: "Todos os contratos" },
                   { value: "1_mes", label: "Até 1 mês" },
                   { value: "6_meses", label: "Até 6 meses" },
                   { value: "1_ano", label: "Até 1 ano" },
@@ -839,7 +904,7 @@ export default async function OutrosPage({
               />
             </div>
 
-            <div className="relative z-20">
+            <div>
               <MercadoSingleSelect
                 name="status"
                 label="Estado do contrato"
@@ -852,35 +917,17 @@ export default async function OutrosPage({
             </div>
 
             <div className="w-full">
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Valor mínimo
-                </label>
-                <InfoPopover text="Valor mínimo do contrato em euros." />
-              </div>
-              <input
-                name="min_value"
-                type="number"
-                defaultValue={minValue}
-                placeholder="0"
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              />
+              <label className="block text-xs text-gray-400 mb-1">
+                Preço mínimo (€)
+              </label>
+              <PriceInput name="min_value" defaultValue={minValue} placeholder="0" />
             </div>
 
             <div className="w-full">
-              <div className="flex items-center gap-1 mb-1">
-                <label className="block text-xs text-gray-400">
-                  Valor máximo
-                </label>
-                <InfoPopover text="Valor máximo do contrato em euros." />
-              </div>
-              <input
-                name="max_value"
-                type="number"
-                defaultValue={maxValue}
-                placeholder="10000000"
-                className="border border-gray-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400/30 focus:border-green-400 transition-all w-full"
-              />
+              <label className="block text-xs text-gray-400 mb-1">
+                Preço máximo (€)
+              </label>
+              <PriceInput name="max_value" defaultValue={maxValue} placeholder="10000000" />
             </div>
           </div>
 

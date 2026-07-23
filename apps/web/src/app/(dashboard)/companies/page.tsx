@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic";
 const PAGE_SIZE = 20;
 
 function formatEur(val: number | null): string {
-  if (val == null || val === 0) return "\u2014";
+  if (val == null || val === 0) return "—";
   if (val >= 1_000_000) {
-    return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M \u20AC`;
+    return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M €`;
   }
   if (val >= 1_000) {
-    return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k \u20AC`;
+    return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k €`;
   }
-  return `${val.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} \u20AC`;
+  return `${val.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`;
 }
 
 export default async function CompaniesPage({
@@ -206,13 +206,13 @@ export default async function CompaniesPage({
                     <p className="text-xs text-gray-400 font-mono mt-0.5">{comp.nif}</p>
                   </td>
                   <td className="px-4 py-3 text-gray-600 text-xs max-w-[160px] truncate">
-                    {comp.location ?? "\u2014"}
+                    {comp.location ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-700 font-medium tabular-nums">
-                    {displayWins > 0 ? displayWins : "\u2014"}
+                    {displayWins > 0 ? displayWins : "—"}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
-                    {comp.contracts_participated > 0 ? comp.contracts_participated : "\u2014"}
+                    {comp.contracts_participated > 0 ? comp.contracts_participated : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     {displayWinRate != null ? (
@@ -279,7 +279,7 @@ export default async function CompaniesPage({
               ),
             )}
             {page < totalPages && (
-              <Link href={qs(page + 1)} className={BTN}>Pr&oacute;xima &rarr;</Link>
+              <Link href={qs(page + 1)} className={BTN}>Próxima &rarr;</Link>
             )}
           </div>
         );
