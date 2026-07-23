@@ -943,82 +943,9 @@ export const createMiEmailProvider = createEmailProvider;
 // MI contract alert email template
 // ---------------------------------------------------------------------------
 
-export interface MiContractRow {
-  contractId: string;
-  object: string | null;
-  entity: string;
-  winner: string;
-  progress: number;
-  contractPrice: number | null;
-  signingDate: string;
-  deadlineDays: number;
-  estimatedEndDate: string;
-  cpvMain: string;
-}
-
-export function buildMiContractAlertEmail(params: {
-  subscriberName: string;
-  contracts: MiContractRow[];
-  appBaseUrl: string;
-}): { html: string; text: string } {
-  const { subscriberName, contracts } = params;
+function buildBaseTemplate(innerHtml: string): string {
   const headerLogoUrl = "https://irp.cdn-website.com/e91f0c02/dms3rep/multi/android-chrome-192x192.png";
-
-  const contractCards = contracts.map((c) => {
-    const progressPct = Math.round(c.progress * 100);
-    const priceStr = c.contractPrice != null && Number.isFinite(c.contractPrice)
-      ? `${Number(c.contractPrice).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
-      : "Não especificado";
-    const signingDateStr = c.signingDate ? new Date(c.signingDate).toLocaleDateString("pt-PT") : "-";
-
-    return `
-      <tr><td style="padding:0 0 16px 0;">
-        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
-          <tr><td style="padding:12px 14px; background-color:#eef6e9; border-bottom:1px solid #d7e3c8;">
-            <div style="font-size:14px; line-height:20px; color:#1f3d0f; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.object ?? "—")}</div>
-          </td></tr>
-          <tr><td>
-            <table border="0" cellpadding="0" cellspacing="0" width="100%">
-              <tr>
-                <td width="50%" style="padding:10px 14px; border-bottom:1px solid #f0f0ec; border-right:1px solid #f0f0ec;" valign="top">
-                  <div style="font-size:11px; color:#6b7280; font-weight:700; margin-bottom:3px;">ADJUDICANTE</div>
-                  <div style="font-size:13px; color:#111827; word-break:break-word;">${escapeEmailHtml(c.entity)}</div>
-                </td>
-                <td width="50%" style="padding:10px 14px; border-bottom:1px solid #f0f0ec;" valign="top">
-                  <div style="font-size:11px; color:#6b7280; font-weight:700; margin-bottom:3px;">ADJUDICATÁRIO</div>
-                  <div style="font-size:13px; color:#111827; word-break:break-word;">${escapeEmailHtml(c.winner)}</div>
-                </td>
-              </tr>
-              <tr>
-                <td width="50%" style="padding:10px 14px; border-bottom:1px solid #f0f0ec; border-right:1px solid #f0f0ec;" valign="top">
-                  <div style="font-size:11px; color:#6b7280; font-weight:700; margin-bottom:3px;">VALOR</div>
-                  <div style="font-size:13px; color:#111827; font-weight:700;">${escapeEmailHtml(priceStr)}</div>
-                </td>
-                <td width="50%" style="padding:10px 14px; border-bottom:1px solid #f0f0ec;" valign="top">
-                  <div style="font-size:11px; color:#6b7280; font-weight:700; margin-bottom:3px;">PROGRESSO</div>
-                  <div style="font-size:13px; color:#2d4a1e; font-weight:700;">${progressPct}%</div>
-                </td>
-              </tr>
-              <tr>
-                <td width="50%" style="padding:10px 14px; border-right:1px solid #f0f0ec;" valign="top">
-                  <div style="font-size:11px; color:#6b7280; font-weight:700; margin-bottom:3px;">DATA ASSINATURA</div>
-                  <div style="font-size:13px; color:#111827;">${escapeEmailHtml(signingDateStr)}</div>
-                </td>
-                <td width="50%" style="padding:10px 14px;" valign="top">
-                  <div style="font-size:11px; color:#6b7280; font-weight:700; margin-bottom:3px;">FIM ESTIMADO</div>
-                  <div style="font-size:13px; color:#111827;">${escapeEmailHtml(c.estimatedEndDate || "-")}</div>
-                </td>
-              </tr>
-            </table>
-          </td></tr>
-          <tr><td style="padding:8px 14px; background-color:#f9fafb; border-top:1px solid #f0f0ec;">
-            <div style="font-size:11px; color:#9ca3af;">CPV: ${escapeEmailHtml(c.cpvMain)}</div>
-          </td></tr>
-        </table>
-      </td></tr>`;
-  }).join("");
-
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -1026,103 +953,190 @@ export function buildMiContractAlertEmail(params: {
   <title>Market Intelligence – Alerta de Contratos</title>
   <style type="text/css">
     a, a:link, a:visited, a:hover, a:active { color: #111111 !important; text-decoration: none !important; }
+    .link-white, .link-white:link, .link-white:visited, .link-white:hover, .link-white:active { color: #ffffff !important; }
   </style>
 </head>
-<body style="margin:0; padding:0; font-family:Arial, Helvetica, sans-serif; line-height:1.5; color:#333333; background-color:#f5f5f3;">
+<body style="margin:0; padding:0; box-sizing:border-box; font-family:Arial, Helvetica, sans-serif; line-height:1.5; color:#333333; background-color:#f5f5f3;">
   <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#f5f5f3;">
-    <tr><td align="center" style="padding:12px;">
-      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:700px; background-color:#ffffff; border:1px solid #e0e0dc;">
-
-        <tr><td style="padding:20px 18px; background-color:#2d4a1e;">
-          <table border="0" cellpadding="0" cellspacing="0"><tr>
-            <td width="52" valign="middle" style="width:52px; padding:0 12px 0 0;">
-              <img src="${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
-            </td>
-            <td valign="middle">
-              <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
-              <div style="font-size:14px; line-height:18px; color:#a7c47a; margin-top:4px;">Market Intelligence</div>
-            </td>
-          </tr></table>
-        </td></tr>
-
-        <tr><td style="padding:20px 18px 8px 18px;">
-          <div style="font-size:14px; line-height:21px; color:#4b5563;">
-            Olá <strong>${escapeEmailHtml(subscriberName)}</strong>,<br><br>
-            Identificámos <strong>${contracts.length} contrato${contracts.length !== 1 ? "s" : ""}</strong> com elevado grau de execução nos seus CPVs monitorizados.
-          </div>
-        </td></tr>
-
-        <tr><td style="padding:8px 18px 4px 18px;">
-          <table border="0" cellpadding="0" cellspacing="0" width="100%">
-            ${contractCards}
-          </table>
-        </td></tr>
-
-        <tr><td style="padding:20px 18px; background-color:#edf3e6; border-top:1px solid #d7e3c8;">
-          <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px; text-align:center;">Precisa de apoio para decidir ou preparar uma proposta a este procedimento?</div>
-          <div style="text-align:center; font-size:0;">
-            <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top; padding:0 6px 8px 6px;">
-              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
-                <tr><td height="56" align="center" valign="middle" style="padding:8px 14px;">
-                  <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" style="font-size:14px; font-weight:700; color:#111111 !important; text-decoration:none;">Go / No-Go<br>Concursos Públicos</a>
-                </td></tr>
+    <tr>
+      <td align="center" style="padding:12px;">
+        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:700px; background-color:#ffffff; border:1px solid #e0e0dc;">
+          <tr>
+            <td style="padding:20px 18px; background-color:#2d4a1e;">
+              <table border="0" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="52" valign="middle" style="width:52px; padding:0 12px 0 0;">
+                    <img src="${headerLogoUrl}" width="52" height="52" alt="Helpdesk Público" style="display:block; border:0;">
+                  </td>
+                  <td valign="middle" style="color:#ffffff;">
+                    <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
+                    <div style="font-size:14px; line-height:18px; color:#a7c47a; margin-top:4px;">Market Intelligence</div>
+                  </td>
+                </tr>
               </table>
-            </div>
-            <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top; padding:0 6px 8px 6px;">
-              <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
-                <tr><td height="56" align="center" valign="middle" style="padding:8px 14px;">
-                  <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" style="font-size:14px; font-weight:700; color:#111111 !important; text-decoration:none;">Plataforma de Suporte<br>Contratação Pública</a>
-                </td></tr>
-              </table>
-            </div>
-          </div>
-        </td></tr>
-
-        <tr><td align="center" style="padding:18px; border-top:1px solid #e5e5e0;">
-          <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
-          <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
-            <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Contactos</a>
-            <span style="color:#d1d5db;"> | </span>
-            <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Política de Privacidade</a>
-            <span style="color:#d1d5db;"> | </span>
-            <a href="https://www.helpdeskpublico.pt" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Website</a>
-          </div>
-          <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
-            Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa
-          </div>
-        </td></tr>
-
-      </table>
-    </td></tr>
+            </td>
+          </tr>
+          ${innerHtml}
+          <tr>
+            <td style="padding:20px 18px; background-color:#edf3e6; border-top:1px solid #d7e3c8;">
+              <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px; text-align:center;">Precisa de apoio para decidir ou preparar uma proposta a este procedimento?</div>
+              <div style="text-align:center; font-size:0;">
+                <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
+                  <div style="padding:0 6px 8px 6px;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
+                      <tr><td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
+                        <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; text-decoration:none;">Go / No-Go<br>Concursos Públicos</a>
+                      </td></tr>
+                    </table>
+                  </div>
+                </div>
+                <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
+                  <div style="padding:0 6px 8px 6px;">
+                    <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
+                      <tr><td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
+                        <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; text-decoration:none;">Plataforma de Suporte<br>Contratação Pública</a>
+                      </td></tr>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
+              <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
+              <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
+                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Contactos</a>
+                <span style="color:#d1d5db;"> | </span>
+                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Política de Privacidade</a>
+                <span style="color:#d1d5db;"> | </span>
+                <a href="https://www.helpdeskpublico.pt" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Website</a>
+              </div>
+              <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
+                Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa
+              </div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
   </table>
 </body>
 </html>`;
+}
 
-  const textLines = contracts.map((c) => {
-    const progressPct = Math.round(c.progress * 100);
-    const priceStr = c.contractPrice != null && Number.isFinite(c.contractPrice)
-      ? `${Number(c.contractPrice).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`
-      : "Não especificado";
-    return [
-      `Objeto: ${c.object ?? "—"}`,
-      `Adjudicante: ${c.entity}`,
-      `Adjudicatário: ${c.winner}`,
-      `Valor: ${priceStr}`,
-      `Progresso: ${progressPct}%`,
-      `Data assinatura: ${c.signingDate ? new Date(c.signingDate).toLocaleDateString("pt-PT") : "-"}`,
-      `Fim estimado: ${c.estimatedEndDate || "-"}`,
-      `CPV: ${c.cpvMain}`,
-      "---",
-    ].join("\n");
-  }).join("\n");
+export function buildMiContractAlertEmail(params: {
+  subscriberName: string;
+  contracts: Array<{
+    object: string;
+    entity: string;
+    winner: string;
+    progress: number;
+    contractPrice?: number;
+    signingDate?: string;
+    deadlineDays?: number;
+    estimatedEndDate?: string;
+    cpvMain?: string;
+  }>;
+  appBaseUrl: string;
+}): { subject: string; html: string; text: string } {
+  const { subscriberName, contracts, appBaseUrl } = params;
 
-  const text = `Olá ${subscriberName},
+  const subject = `Market Intelligence — ${contracts.length} contrato(s) próximo(s) de renovação`;
 
-Market Intelligence – ${contracts.length} contrato${contracts.length !== 1 ? "s" : ""} identificado${contracts.length !== 1 ? "s" : ""}
+  const contractRows = contracts.map((c) => {
+    let rawProgress = c.progress ?? 0.75;
+    if (rawProgress <= 1.0 && rawProgress > 0) {
+      rawProgress = rawProgress * 100;
+    }
+    const pct = Math.max(75, Math.min(100, Math.round(rawProgress)));
+    const price = typeof c.contractPrice === "number"
+      ? c.contractPrice.toLocaleString("pt-PT", { style: "currency", currency: "EUR" })
+      : "—";
 
-${textLines}
+    const endDate = c.estimatedEndDate ? new Date(c.estimatedEndDate) : new Date();
+    const today = new Date();
+    const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / 86400000));
 
-Este e-mail e enviado automaticamente em virtude das opcoes ativas no momento da subscricao do servico. Caso pretenda alterar as suas preferencias contacte a nossa equipa: https://www.helpdeskpublico.pt/contactos`;
+    return `
+          <tr>
+            <td style="padding:18px 18px 4px 18px;">
+              <div style="background-color:#f5f5f0; padding:11px 14px; font-size:13px; line-height:19px; color:#2d4a1e; font-weight:700;">
+                &#9888;&#65039; Alerta Market Intelligence — Contrato prestes a terminar
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:18px 18px 8px 18px;">
+              <div style="font-size:12px; line-height:16px; color:#6b7280; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:6px;">Objeto do contrato</div>
+              <div style="font-size:21px; line-height:29px; color:#111827; font-weight:700; word-break:break-word;">${escapeEmailHtml(c.object)}</div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 18px 4px 18px;">
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #e5e5e0;">
+                <tr>
+                  <td style="padding:14px 16px; background-color:#fff7ed; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#9a6a2c; text-transform:uppercase; font-weight:700; letter-spacing:0.3px; margin-bottom:4px;">Progresso de Execução</div>
+                    <div style="font-size:22px; line-height:26px; color:#b45309; font-weight:700;">${pct}% — ${daysRemaining} dias restantes</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Término estimado</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.estimatedEndDate || "—")}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Valor contratual</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(price)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Data de celebração</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.signingDate ? c.signingDate.slice(0, 10) : "—")}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Prazo de execução</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${c.deadlineDays ?? "—"} dias</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Entidade Adjudicante</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.entity)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Adjudicatário</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.winner)}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">CPV(s)</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.cpvMain ?? "—")}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:22px 18px 12px 18px;">
+              <a href="${escapeEmailHtml(appBaseUrl + "/outros")}" target="_blank" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
+                Ver no Market Intelligence
+              </a>
+            </td>
+          </tr>
+    `;
+  });
 
-  return { html, text };
+  const text = `Alerta Market Intelligence\n\n${contracts.map((c) => c.object).join("\n")}`;
+
+  return { subject, html: buildBaseTemplate(contractRows.join("")), text };
 }

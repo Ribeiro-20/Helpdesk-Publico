@@ -134,8 +134,7 @@ Deno.serve(async (req) => {
           endDate.setDate(endDate.getDate() + (c.execution_deadline_days || 0));
 
           const formatted = {
-            contractId: c.contract_id,
-            object: c.object,
+            object: c.object ?? "—",
             entity: cleanEntityName(entityRaw),
             winner: cleanEntityName(winnerRaw),
             progress: c.progress ?? 0.75,
@@ -146,12 +145,7 @@ Deno.serve(async (req) => {
             cpvMain: c.cpv_main || "—",
           };
 
-          const shortObj = formatted.object
-            ? (formatted.object.length > 60 ? formatted.object.substring(0, 60) + "..." : formatted.object)
-            : "Novo contrato";
-          const subject = `Alerta Market Intelligence: ${shortObj}`;
-
-          const { html, text } = buildMiContractAlertEmail({
+          const { subject, html, text } = buildMiContractAlertEmail({
             subscriberName: sub.name || "Subscritor",
             contracts: [formatted],
             appBaseUrl,
