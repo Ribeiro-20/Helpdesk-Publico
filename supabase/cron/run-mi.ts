@@ -19,6 +19,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { createClient } from "@supabase/supabase-js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,7 +39,7 @@ for (const candidate of dotenvCandidates) {
   }
 }
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:55321";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const FUNCTIONS_BASE = `${SUPABASE_URL}/functions/v1`;
 
@@ -46,6 +47,10 @@ if (!SERVICE_ROLE_KEY) {
   console.error("[cron-mi] SUPABASE_SERVICE_ROLE_KEY is not set. Cannot call edge functions.");
   process.exit(1);
 }
+
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 
 // ---------------------------------------------------------------------------
 // HTTP helper
@@ -109,11 +114,101 @@ function findTsxCli(scriptsDir: string): string | null {
 
 /**
  * 02:00 Refresh Job:
- * Calls mi-refresh-contracts to populate mi_contracts with 75-100% contracts and purge 100% > 30 days.
+ * Runs directly via Supabase client (no Edge Function) to avoid memory/timeout limits.
+ * Fetches contracts with 75-100% progress and inserts new ones into mi_contracts.
  */
 async function runMiRefreshJob(): Promise<void> {
-  console.log(`[cron-mi] Starting 02:00 MI refresh job...`);
-  await callFunction("mi-refresh-contracts", {});
+  console.log(`[cron-mi] Starting 02:00 MI refresh job (direct)...`);
+
+  const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // 1. Fetch eligible contracts via RPC
+  const allContracts: any[] = [];
+  const pageSize = 1000;
+  let page = 0;
+  let hasMore = true;
+
+  console.log(`[cron-mi] Fetching eligible contracts (75%+) via RPC...`);
+  while (hasMore) {
+    const from = page * pageSize;
+    const { data: chunk, error } = await supabase
+      .rpc("get_high_progress_contracts", { min_pct: 0.75, max_pct: 999 })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    if (chunk && chunk.length > 0) {
+      allContracts.push(...chunk);
+      hasMore = chunk.length === pageSize;
+      page++;
+    } else {
+      hasMore = false;
+    }
+  }
+  console.log(`[cron-mi] ${allContracts.length} eligible contracts found.`);
+
+  if (allContracts.length === 0) return;
+
+  // 2. Check which already exist in mi_contracts
+  const allIds = allContracts.map((c: any) => c.id);
+  const existingIds = new Set<string>();
+  for (let i = 0; i < allIds.length; i += 500) {
+    const { data: existing } = await supabase
+      .from("mi_contracts")
+      .select("contract_id")
+      .in("contract_id", allIds.slice(i, i + 500));
+    for (const row of existing ?? []) existingIds.add(row.contract_id);
+  }
+  console.log(`[cron-mi] ${existingIds.size} already in mi_contracts — skipping.`);
+
+  // 3. Build rows to insert
+  const rowsToInsert: any[] = [];
+  for (const c of allContracts) {
+    if (existingIds.has(c.id)) continue;
+    const progress = Math.min(Number(c.progress), 1.0);
+    let reached100At: string | null = null;
+    if (progress >= 1.0) {
+      const estimatedEnd = new Date(new Date(c.signing_date).getTime() + c.execution_deadline_days * 86400000);
+      reached100At = estimatedEnd.toISOString();
+      if (estimatedEnd.getTime() < new Date(thirtyDaysAgoIso).getTime()) continue;
+    }
+    rowsToInsert.push({
+      contract_id: c.id,
+      object: c.object ? c.object.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ").replace(/[ \t]+/g, " ").trim() : null,
+      contracting_entities: c.contracting_entities,
+      winners: c.winners,
+      contract_price: c.contract_price,
+      signing_date: c.signing_date,
+      execution_deadline_days: c.execution_deadline_days,
+      cpv_main: c.cpv_main,
+      progress,
+      reached_100_at: reached100At,
+      ingested_at: new Date().toISOString(),
+      last_updated_at: new Date().toISOString(),
+    });
+  }
+
+  // 4. Insert in batches
+  console.log(`[cron-mi] Inserting ${rowsToInsert.length} new contracts...`);
+  let insertedCount = 0;
+  for (let i = 0; i < rowsToInsert.length; i += 500) {
+    const { data: inserted, error: insertErr } = await supabase
+      .from("mi_contracts")
+      .insert(rowsToInsert.slice(i, i + 500))
+      .select("id");
+    if (insertErr) console.error(`[cron-mi] Insert error:`, insertErr.message);
+    else insertedCount += inserted?.length ?? 0;
+  }
+
+  // 5. Purge contracts at 100% for more than 30 days
+  const { data: purged, error: purgeErr } = await supabase
+    .from("mi_contracts")
+    .delete()
+    .not("reached_100_at", "is", null)
+    .lt("reached_100_at", thirtyDaysAgoIso)
+    .select("id");
+  if (purgeErr) console.error(`[cron-mi] Purge error:`, purgeErr.message);
+
+  console.log(`[cron-mi] ✓ Refresh done. Inserted: ${insertedCount}, Skipped: ${existingIds.size}, Purged: ${purged?.length ?? 0}`);
 }
 
 /**
