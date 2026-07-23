@@ -542,13 +542,12 @@ export default async function OutrosPage({
       ? municipalityFilter
       : "all";
 
-  // Build the DB query to pull from the calculated view
+  // Build the DB query to pull from mi_contracts table (populated at 02:00 with 75%-100% contracts)
   let q = supabase
-    .from("mi_high_progress_contracts")
+    .from("mi_contracts")
     .select(
-      "id, object, procedure_type, contract_type, signing_date, publication_date, cpv_main, contract_price, base_price, status, contracting_entities, winners, execution_deadline_days, execution_locations, progress"
+      "id, contract_id, object, signing_date, cpv_main, contract_price, contracting_entities, winners, execution_deadline_days, progress, reached_100_at, ingested_at"
     )
-    .eq("tenant_id", tenantId)
     .gte("progress", 0.75)
     .lte("progress", 1.0);
 

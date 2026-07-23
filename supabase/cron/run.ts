@@ -901,40 +901,45 @@ async function runSendEmailsJob(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// MI HubSpot sync + contract alerts
+// Market Intelligence (MI) Cron Jobs
 // ---------------------------------------------------------------------------
 
-const MI_MORNING_SCHEDULE = "0 8 * * *";  // 08:00 Europe/Lisbon — sync HubSpot + queue + send morning batch
-const MI_EVENING_SCHEDULE = "0 18 * * *"; // 18:00 Europe/Lisbon — send evening batch
+const MI_REFRESH_SCHEDULE = "0 2 * * *";   // 02:00 Europe/Lisbon — populate mi_contracts (75-100%) & purge 100% > 30 days
+const MI_HUBSPOT_SCHEDULE = "0 7,19 * * *"; // 07:00 & 19:00 Europe/Lisbon — sync MI subscribers from HubSpot
+const MI_EMAIL_SCHEDULE   = "0 10 * * *";  // 10:00 Europe/Lisbon — send MI email alerts (yesterday's ingested contracts)
 
 let miSyncRunning = false;
 
 /**
- * Morning MI job (08:00):
- *   1. Sync MI subscribers from HubSpot
- *   2. Queue contracts ingested yesterday (split into PENDING_MORNING / PENDING_EVENING)
- *   3. Send all PENDING_MORNING notifications immediately
+ * 02:00 MI refresh job:
+ * Calls mi-refresh-contracts Edge Function to extract 75-100% contracts from 'contracts'
+ * and purge contracts at 100% for over 30 days.
  */
-async function runMiMorningJob(): Promise<void> {
+async function runMiRefreshJob(): Promise<void> {
+  console.log(`[cron] → mi-refresh-contracts (02:00) ...`);
+  await callFunction("mi-refresh-contracts", {});
+}
+
+/**
+ * 07:00 / 19:00 MI HubSpot sync job:
+ * Syncs MI subscribers from HubSpot segment 2323 into mi_subscribers.
+ */
+async function runMiHubspotSyncJob(): Promise<void> {
   if (miSyncRunning) {
-    console.warn("[cron] MI morning job skipped because a previous run is still active");
+    console.warn("[cron] MI HubSpot sync skipped because a previous run is still active");
     return;
   }
 
   miSyncRunning = true;
-
   try {
     const scriptsDir = findScriptsDir();
-    if (!scriptsDir) throw new Error("Could not locate the scripts directory for MI HubSpot sync");
+    if (!scriptsDir) throw new Error("Could not locate scripts directory for MI HubSpot sync");
 
     const tsxCli = findTsxCli(scriptsDir);
     if (!tsxCli) {
-      throw new Error(
-        `Could not locate tsx in ${scriptsDir}. Run 'npm install --prefix scripts' first.`,
-      );
+      throw new Error(`Could not locate tsx in ${scriptsDir}. Run 'npm install --prefix scripts' first.`);
     }
 
-    // Step 1: sync HubSpot MI subscribers
     console.log(`[cron] → mi-hubspot-sync ...`);
     const { stdout, stderr } = await execFileAsync(
       process.execPath,
@@ -945,36 +950,32 @@ async function runMiMorningJob(): Promise<void> {
         shell: false,
         windowsHide: true,
         maxBuffer: 1024 * 1024 * 5,
-      },
+      }
     );
 
     const output = `${stdout ?? ""}\n${stderr ?? ""}`;
     console.log(`[cron] ✓ mi-hubspot-sync completed`);
     const tail = output.trim().slice(-2000);
     if (tail) console.log(`[cron] MI sync output:\n${tail}`);
-
-    // Step 2 + 3: queue yesterday's ingested contracts and send morning batch
-    console.log(`[cron] → mi-contract-alerts (batch=morning) ...`);
-    await callFunction("mi-contract-alerts", { batch: "morning" });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[cron] MI morning job failed:", message);
+    console.error("[cron] MI HubSpot sync job failed:", message);
   } finally {
     miSyncRunning = false;
   }
 }
 
 /**
- * Evening MI job (18:00):
- *   Send all PENDING_EVENING notifications queued during the morning run.
+ * 10:00 MI email alert job:
+ * Calls mi-contract-alerts Edge Function to send emails for contracts ingested yesterday (23:00 run).
  */
-async function runMiEveningJob(): Promise<void> {
+async function runMiEmailJob(): Promise<void> {
   try {
-    console.log(`[cron] → mi-contract-alerts (batch=evening) ...`);
-    await callFunction("mi-contract-alerts", { batch: "evening" });
+    console.log(`[cron] → mi-contract-alerts (10:00) ...`);
+    await callFunction("mi-contract-alerts", {});
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error("[cron] MI evening job failed:", message);
+    console.error("[cron] MI email job failed:", message);
   }
 }
 
@@ -984,8 +985,9 @@ async function runMiEveningJob(): Promise<void> {
 
 const isOnce = process.argv.includes("--once");
 const isHubspotOnce = process.argv.includes("--hubspot-once");
-const isMiMorningOnce = process.argv.includes("--mi-morning");
-const isMiEveningOnce = process.argv.includes("--mi-evening");
+const isMiRefreshOnce = process.argv.includes("--mi-refresh");
+const isMiSyncOnce = process.argv.includes("--mi-sync");
+const isMiEmailOnce = process.argv.includes("--mi-email");
 const hubspotSegmentIdOverride = getCliArgValue("--segment-id");
 
 if (isHubspotOnce) {
@@ -997,20 +999,29 @@ if (isHubspotOnce) {
     console.error("[cron] Fatal:", err);
     process.exitCode = 1;
   }
-} else if (isMiMorningOnce) {
-  console.log("[cron] Running MI morning job once ...");
+} else if (isMiRefreshOnce) {
+  console.log("[cron] Running MI refresh job (02:00) once ...");
   try {
-    await runMiMorningJob();
-    console.log("[cron] MI morning job done.");
+    await runMiRefreshJob();
+    console.log("[cron] MI refresh done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
     process.exitCode = 1;
   }
-} else if (isMiEveningOnce) {
-  console.log("[cron] Running MI evening job once ...");
+} else if (isMiSyncOnce) {
+  console.log("[cron] Running MI HubSpot subscriber sync once ...");
   try {
-    await runMiEveningJob();
-    console.log("[cron] MI evening job done.");
+    await runMiHubspotSyncJob();
+    console.log("[cron] MI subscriber sync done.");
+  } catch (err) {
+    console.error("[cron] Fatal:", err);
+    process.exitCode = 1;
+  }
+} else if (isMiEmailOnce) {
+  console.log("[cron] Running MI email alert job (10:00) once ...");
+  try {
+    await runMiEmailJob();
+    console.log("[cron] MI email alert job done.");
   } catch (err) {
     console.error("[cron] Fatal:", err);
     process.exitCode = 1;
@@ -1039,16 +1050,22 @@ if (isHubspotOnce) {
     }, { timezone: "Europe/Lisbon" });
   }
 
-  // ── MI morning job: sync HubSpot MI subscribers + queue + send morning batch ─
-  cron.schedule(MI_MORNING_SCHEDULE, () => {
-    console.log(`\n[cron] ${new Date().toISOString()} – MI morning: sync HubSpot + queue contracts + send PENDING_MORNING`);
-    runMiMorningJob().catch(console.error);
+  // ── MI 02:00 refresh job: populate mi_contracts & purge 100% > 30d ───────
+  cron.schedule(MI_REFRESH_SCHEDULE, () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – MI 02:00: Refresh mi_contracts table`);
+    runMiRefreshJob().catch(console.error);
   }, { timezone: "Europe/Lisbon" });
 
-  // ── MI evening job: send PENDING_EVENING batch ────────────────────────────
-  cron.schedule(MI_EVENING_SCHEDULE, () => {
-    console.log(`\n[cron] ${new Date().toISOString()} – MI evening: send PENDING_EVENING`);
-    runMiEveningJob().catch(console.error);
+  // ── MI 07:00 & 19:00 subscriber sync from HubSpot ─────────────────────────
+  cron.schedule(MI_HUBSPOT_SCHEDULE, () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – MI 07:00/19:00: Sync MI subscribers from HubSpot`);
+    runMiHubspotSyncJob().catch(console.error);
+  }, { timezone: "Europe/Lisbon" });
+
+  // ── MI 10:00 email alert job (yesterday's ingested contracts) ─────────────
+  cron.schedule(MI_EMAIL_SCHEDULE, () => {
+    console.log(`\n[cron] ${new Date().toISOString()} – MI 10:00: Send MI contract email alerts`);
+    runMiEmailJob().catch(console.error);
   }, { timezone: "Europe/Lisbon" });
 
   // ── Contract ingestion (BASE) ──────────────────────────────────────────────
@@ -1069,8 +1086,9 @@ if (isHubspotOnce) {
       ? `  hubspot-client-sync (announcements)                -> ${HUBSPOT_SYNC_SCHEDULE} Europe/Lisbon`
       : "  hubspot-client-sync (announcements)                -> disabled",
   );
-  console.log(`  MI morning (hubspot-sync + queue + send morning)   -> ${MI_MORNING_SCHEDULE} Europe/Lisbon`);
-  console.log(`  MI evening (send evening batch)                    -> ${MI_EVENING_SCHEDULE} Europe/Lisbon`);
+  console.log(`  MI 02:00 Refresh (populate mi_contracts & purge)   -> ${MI_REFRESH_SCHEDULE} Europe/Lisbon`);
+  console.log(`  MI Subscriber Sync (HubSpot segment 2323)          -> ${MI_HUBSPOT_SCHEDULE} Europe/Lisbon`);
+  console.log(`  MI Email Alerts (yesterday's ingested contracts)   -> ${MI_EMAIL_SCHEDULE} Europe/Lisbon`);
   console.log("  ingest-base                                        -> weekdays at 13:30 and 23:30 Europe/Lisbon");
   console.log("  send-emails (announcements)                        -> daily at 08:30 Europe/Lisbon");
   console.log("[cron] Press Ctrl+C to stop.\n");

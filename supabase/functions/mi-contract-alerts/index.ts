@@ -1,23 +1,15 @@
 /**
  * Edge Function: mi-contract-alerts
  *
- * Sends Market Intelligence contract alerts to active MI subscribers.
+ * Runs daily at 10:00 (Lisbon time).
  *
- * NEW LOGIC (replaces 75%-100% progress threshold):
- *   - Contracts are selected from those INGESTED THE PREVIOUS DAY (created_at between
- *     yesterday 00:00 and today 00:00, Europe/Lisbon).
- *   - CPV matching is applied: each subscriber only receives contracts whose cpv_main
- *     starts with one of the subscriber's registered CPV codes.
- *   - The matched contracts are split into two equal batches:
- *       PENDING_MORNING → first half  → sent at the 08:00 run
- *       PENDING_EVENING → second half → sent at the 18:00 run
- *   - Deduplication: UNIQUE(subscriber_id, contract_id) prevents re-sending.
- *
- * Request body:
- *   { batch: "morning" | "evening" }
- *
- * Response:
- *   { batch, notifications_created, notifications_queued, emails_sent, emails_failed }
+ * Logic:
+ *   1. Fetches contracts from 'mi_contracts' that were INGESTED YESTERDAY by Project C
+ *      (ingested_at between yesterday 00:00 and today 00:00 UTC).
+ *   2. Fetches active MI subscribers from 'mi_subscribers'.
+ *   3. Matches each subscriber's CPVs against the contracts' cpv_main.
+ *   4. Sends e-mail alerts via Brevo for matched contracts.
+ *   5. Logs sent alerts to 'mi_contract_notifications' to prevent duplicate sends.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -28,57 +20,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Content-Type": "application/json",
 };
-
-const LISBON_TZ = "Europe/Lisbon";
-
-/** Returns the UTC ISO boundaries for "yesterday" in the Europe/Lisbon timezone */
-function getYesterdayLisbonRangeUtc(): { startIso: string; endIso: string } {
-  const now = new Date();
-
-  // Get today's date parts in Lisbon time
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: LISBON_TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
-  const todayStr = formatter.format(now); // e.g. "2026-07-22"
-  const [year, month, day] = todayStr.split("-").map(Number);
-
-  // today 00:00 Lisbon → UTC
-  const todayStart = lisbonMidnightToUtc(year, month, day);
-  // yesterday 00:00 Lisbon → UTC
-  const yesterdayStart = lisbonMidnightToUtc(year, month, day - 1);
-
-  return { startIso: yesterdayStart.toISOString(), endIso: todayStart.toISOString() };
-}
-
-function lisbonMidnightToUtc(year: number, month: number, day: number): Date {
-  // Build a reference UTC timestamp close to midnight Lisbon and iterate to find the exact offset
-  let utcMs = Date.UTC(year, month - 1, day, 0, 0, 0);
-
-  for (let i = 0; i < 4; i++) {
-    const observed = new Intl.DateTimeFormat("en-CA", {
-      timeZone: LISBON_TZ,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    }).formatToParts(new Date(utcMs));
-
-    const get = (type: string) => Number(observed.find((p) => p.type === type)?.value ?? "0");
-    const obsMs = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
-    const targetMs = Date.UTC(year, month - 1, day, 0, 0, 0);
-    const diff = targetMs - obsMs;
-    if (diff === 0) break;
-    utcMs += diff;
-  }
-
-  return new Date(utcMs);
-}
 
 /** Helper to extract a clean display name from entity/winner raw data */
 function cleanEntityName(raw: unknown): string {
@@ -99,206 +40,124 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-    const batch: "morning" | "evening" = body.batch === "evening" ? "evening" : "morning";
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-      { auth: { autoRefreshToken: false, persistSession: false } },
+      { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
     const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "http://localhost:3000";
 
-    let notificationsCreated = 0;
+    console.log("[mi-contract-alerts] Starting 10:00 AM Market Intelligence email alert job...");
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // MORNING BATCH: match contracts ingested yesterday → queue PENDING_MORNING
-    //                + PENDING_EVENING, then send PENDING_MORNING
-    // ──────────────────────────────────────────────────────────────────────────
-    if (batch === "morning") {
+    // 1. Fetch active subscribers
+    const { data: subscribers, error: subsErr } = await supabase
+      .from("mi_subscribers")
+      .select("id, email, name, cpv_filter, cpv_codes")
+      .eq("is_active", true);
 
-      // 1. Fetch active subscribers
-      const { data: subscribers, error: subsErr } = await supabase
-        .from("mi_subscribers")
-        .select("id, email, name, cpv_filter, cpv_codes, min_progress")
-        .eq("is_active", true);
+    if (subsErr) throw subsErr;
 
-      if (subsErr) throw subsErr;
-
-      if (!subscribers || subscribers.length === 0) {
-        console.log("[mi-contract-alerts] No active subscribers found.");
-        return new Response(
-          JSON.stringify({ batch, message: "No active subscribers found.", notifications_created: 0, emails_sent: 0, emails_failed: 0 }),
-          { status: 200, headers: CORS },
-        );
-      }
-
-      // 2. Fetch contracts ingested yesterday (Europe/Lisbon)
-      const { startIso, endIso } = getYesterdayLisbonRangeUtc();
-      console.log(`[mi-contract-alerts] Fetching contracts ingested between ${startIso} and ${endIso}`);
-
-      const { data: ingestedContracts, error: contractsErr } = await supabase
-        .from("contracts")
-        .select("id, object, contracting_entities, winners, contract_price, signing_date, execution_deadline_days, cpv_main, status")
-        .gte("created_at", startIso)
-        .lt("created_at", endIso)
-        .eq("status", "active");
-
-      if (contractsErr) throw contractsErr;
-
-      const candidateContracts = ingestedContracts ?? [];
-      console.log(`[mi-contract-alerts] Found ${candidateContracts.length} contracts ingested yesterday.`);
-
-      if (candidateContracts.length === 0) {
-        console.log("[mi-contract-alerts] No contracts ingested yesterday. Nothing to queue.");
-        return new Response(
-          JSON.stringify({ batch, message: "No contracts ingested yesterday.", notifications_created: 0, emails_sent: 0, emails_failed: 0 }),
-          { status: 200, headers: CORS },
-        );
-      }
-
-      // 3. For each subscriber: match CPVs and split into morning/evening halves
-      for (const sub of subscribers) {
-        const cpvCodes: string[] = Array.isArray(sub.cpv_codes) && sub.cpv_codes.length > 0
-          ? sub.cpv_codes.map((c: string) => String(c).trim().toUpperCase())
-          : sub.cpv_filter
-          ? [sub.cpv_filter.trim().toUpperCase()]
-          : [];
-
-        // Filter contracts by CPV match
-        const matched = candidateContracts.filter((c: any) => {
-          if (cpvCodes.length === 0) return true; // No CPV filter → receive all
-          const mainCpv = (c.cpv_main ?? "").trim().toUpperCase();
-          return cpvCodes.some((cpv: string) => mainCpv.startsWith(cpv));
-        });
-
-        if (matched.length === 0) continue;
-
-        // Split matched contracts: first half → PENDING_MORNING, second half → PENDING_EVENING
-        const midpoint = Math.ceil(matched.length / 2);
-        const morningContracts = matched.slice(0, midpoint);
-        const eveningContracts = matched.slice(midpoint);
-
-        const rows = [
-          ...morningContracts.map((c: any) => ({
-            subscriber_id: sub.id,
-            contract_id: c.id,
-            progress_at_send: 0, // New contracts: progress is 0 (just ingested)
-            status: "PENDING_MORNING",
-          })),
-          ...eveningContracts.map((c: any) => ({
-            subscriber_id: sub.id,
-            contract_id: c.id,
-            progress_at_send: 0,
-            status: "PENDING_EVENING",
-          })),
-        ];
-
-        if (rows.length > 0) {
-          const { data: inserted, error: batchErr } = await supabase
-            .from("mi_contract_notifications")
-            .upsert(rows, { onConflict: "subscriber_id,contract_id", ignoreDuplicates: true })
-            .select("id");
-
-          if (!batchErr && inserted) {
-            notificationsCreated += inserted.length;
-          } else if (batchErr) {
-            console.error(`[mi-contract-alerts] Upsert error for subscriber ${sub.id}:`, batchErr);
-          }
-        }
-      }
-
-      console.log(`[mi-contract-alerts] ${notificationsCreated} new notifications queued (morning batch).`);
+    if (!subscribers || subscribers.length === 0) {
+      console.log("[mi-contract-alerts] No active subscribers found.");
+      return new Response(
+        JSON.stringify({ ok: true, message: "No active subscribers found.", emails_sent: 0 }),
+        { status: 200, headers: CORS }
+      );
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
-    // SEND STEP: fetch and send the appropriate batch status
-    // ──────────────────────────────────────────────────────────────────────────
-    const targetStatuses = batch === "morning" ? ["PENDING_MORNING", "PENDING"] : ["PENDING_EVENING"];
+    // 2. Window for yesterday's ingestion (Project C ingests at 23:00)
+    const now = new Date();
+    const todayUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+    const yesterdayStartIso = new Date(todayUtcMidnight.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const todayStartIso = todayUtcMidnight.toISOString();
 
-    const { data: pendingNotifications, error: notifErr } = await supabase
-      .from("mi_contract_notifications")
-      .select(`
-        id,
-        subscriber_id,
-        contract_id,
-        progress_at_send,
-        mi_subscribers (
-          email,
-          name
-        ),
-        contracts (
-          id,
-          object,
-          contracting_entities,
-          winners,
-          contract_price,
-          signing_date,
-          execution_deadline_days,
-          cpv_main
-        )
-      `)
-      .in("status", targetStatuses)
-      .order("created_at", { ascending: true });
+    console.log(`[mi-contract-alerts] Searching mi_contracts ingested yesterday between ${yesterdayStartIso} and ${todayStartIso}...`);
 
-    if (notifErr) throw notifErr;
+    const { data: yesterdayMiContracts, error: miErr } = await supabase
+      .from("mi_contracts")
+      .select("*")
+      .gte("ingested_at", yesterdayStartIso)
+      .lt("ingested_at", todayStartIso);
 
-    const notifications = pendingNotifications ?? [];
-    console.log(`[mi-contract-alerts] Processing ${notifications.length} ${targetStatuses.join("/")} notifications.`);
+    if (miErr) throw miErr;
+
+    const candidateContracts = yesterdayMiContracts ?? [];
+    console.log(`[mi-contract-alerts] Found ${candidateContracts.length} new MI contracts ingested yesterday.`);
+
+    if (candidateContracts.length === 0) {
+      console.log("[mi-contract-alerts] No new contracts ingested yesterday. No emails to send.");
+      return new Response(
+        JSON.stringify({ ok: true, message: "No new contracts ingested yesterday.", emails_sent: 0 }),
+        { status: 200, headers: CORS }
+      );
+    }
 
     const emailProvider = createMiEmailProvider();
     let emailsSent = 0;
     let emailsFailed = 0;
 
-    for (const notif of notifications) {
-      const sub = notif.mi_subscribers as any;
-      const contract = notif.contracts as any;
-      if (!sub || !contract) {
-        await supabase
-          .from("mi_contract_notifications")
-          .update({ status: "FAILED", error: "Missing subscriber or contract data" })
-          .eq("id", notif.id);
-        emailsFailed++;
-        continue;
-      }
+    // 3. For each subscriber, match CPVs and send alert if there are new matches
+    for (const sub of subscribers) {
+      const cpvCodes: string[] = Array.isArray(sub.cpv_codes) && sub.cpv_codes.length > 0
+        ? sub.cpv_codes.map((c: string) => String(c).trim().toUpperCase())
+        : sub.cpv_filter
+        ? [sub.cpv_filter.trim().toUpperCase()]
+        : [];
+
+      const matchedContracts = candidateContracts.filter((c: any) => {
+        if (cpvCodes.length === 0) return true;
+        const mainCpv = (c.cpv_main ?? "").trim().toUpperCase();
+        return cpvCodes.some((cpv: string) => mainCpv.startsWith(cpv));
+      });
+
+      if (matchedContracts.length === 0) continue;
+
+      // Filter out contracts already sent to this subscriber
+      const contractIds = matchedContracts.map((c: any) => c.contract_id);
+      const { data: existingNotifs } = await supabase
+        .from("mi_contract_notifications")
+        .select("contract_id")
+        .eq("subscriber_id", sub.id)
+        .in("contract_id", contractIds);
+
+      const alreadySentIds = new Set((existingNotifs ?? []).map((n: any) => n.contract_id));
+      const contractsToSend = matchedContracts.filter((c: any) => !alreadySentIds.has(c.contract_id));
+
+      if (contractsToSend.length === 0) continue;
+
+      console.log(`[mi-contract-alerts] Sending email to ${sub.email} with ${contractsToSend.length} new contract alerts.`);
 
       try {
-        const entityRaw = Array.isArray(contract.contracting_entities)
-          ? contract.contracting_entities[0]
-          : contract.contracting_entities;
-        const winnerRaw = Array.isArray(contract.winners)
-          ? contract.winners[0]
-          : contract.winners;
+        const formattedContracts = contractsToSend.map((c: any) => {
+          const entityRaw = Array.isArray(c.contracting_entities) ? c.contracting_entities[0] : c.contracting_entities;
+          const winnerRaw = Array.isArray(c.winners) ? c.winners[0] : c.winners;
+          const signingDate = c.signing_date ? new Date(c.signing_date) : new Date();
+          const endDate = new Date(signingDate);
+          endDate.setDate(endDate.getDate() + (c.execution_deadline_days || 0));
 
-        const signingDate = contract.signing_date ? new Date(contract.signing_date) : new Date();
-        const endDate = new Date(signingDate);
-        endDate.setDate(endDate.getDate() + (contract.execution_deadline_days || 0));
-        const estimatedEndDate = endDate.toISOString().slice(0, 10);
+          return {
+            contractId: c.contract_id,
+            object: c.object,
+            entity: cleanEntityName(entityRaw),
+            winner: cleanEntityName(winnerRaw),
+            progress: c.progress ?? 0.75,
+            contractPrice: c.contract_price,
+            signingDate: c.signing_date,
+            deadlineDays: c.execution_deadline_days || 0,
+            estimatedEndDate: endDate.toISOString().slice(0, 10),
+            cpvMain: c.cpv_main || "—",
+          };
+        });
 
-        const progress = notif.progress_at_send ?? 0;
-
-        const contractForEmail = {
-          contractId: contract.id,
-          object: contract.object,
-          entity: cleanEntityName(entityRaw),
-          winner: cleanEntityName(winnerRaw),
-          progress,
-          contractPrice: contract.contract_price,
-          signingDate: contract.signing_date,
-          deadlineDays: contract.execution_deadline_days || 0,
-          estimatedEndDate,
-          cpvMain: contract.cpv_main || "—",
-        };
-
-        const shortObj = contract.object
-          ? (contract.object.length > 50 ? contract.object.substring(0, 50) + "..." : contract.object)
-          : "Contrato";
-        const subject = `Alerta Market Intelligence: ${shortObj}`;
+        const shortObj = formattedContracts[0].object
+          ? (formattedContracts[0].object.length > 50 ? formattedContracts[0].object.substring(0, 50) + "..." : formattedContracts[0].object)
+          : "Contratos";
+        const subject = `Alerta Market Intelligence: ${formattedContracts.length} novos contratos (${shortObj})`;
 
         const { html, text } = buildMiContractAlertEmail({
           subscriberName: sub.name || "Subscritor",
-          contracts: [contractForEmail],
+          contracts: formattedContracts,
           appBaseUrl,
         });
 
@@ -312,45 +171,42 @@ Deno.serve(async (req) => {
 
         if (result.success) {
           emailsSent++;
+          // Record notifications in DB
+          const notifRows = contractsToSend.map((c: any) => ({
+            subscriber_id: sub.id,
+            contract_id: c.contract_id,
+            progress_at_send: c.progress,
+            status: "SENT",
+            sent_at: new Date().toISOString(),
+          }));
+
           await supabase
             .from("mi_contract_notifications")
-            .update({ status: "SENT", sent_at: new Date().toISOString() })
-            .eq("id", notif.id);
+            .upsert(notifRows, { onConflict: "subscriber_id,contract_id" });
         } else {
           emailsFailed++;
-          await supabase
-            .from("mi_contract_notifications")
-            .update({ status: "FAILED", error: result.error ?? "Provider error" })
-            .eq("id", notif.id);
+          console.error(`[mi-contract-alerts] Failed to send email to ${sub.email}:`, result.error);
         }
-      } catch (err) {
+      } catch (sendErr) {
         emailsFailed++;
-        console.error(`[mi-contract-alerts] Error sending notification ${notif.id}:`, err);
-        await supabase
-          .from("mi_contract_notifications")
-          .update({ status: "FAILED", error: String(err) })
-          .eq("id", notif.id);
+        console.error(`[mi-contract-alerts] Exception sending email to ${sub.email}:`, sendErr);
       }
     }
 
-    console.log(`[mi-contract-alerts] Done. batch=${batch} queued=${notificationsCreated} sent=${emailsSent} failed=${emailsFailed}`);
+    console.log(`[mi-contract-alerts] 10:00 AM Job finished. Sent: ${emailsSent}, Failed: ${emailsFailed}`);
 
     return new Response(
       JSON.stringify({
-        batch,
-        notifications_created: notificationsCreated,
-        notifications_queued: notifications.length,
+        ok: true,
         emails_sent: emailsSent,
         emails_failed: emailsFailed,
+        timestamp: new Date().toISOString(),
       }),
-      { status: 200, headers: CORS },
+      { status: 200, headers: CORS }
     );
   } catch (err) {
-    const errorDetails = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : String(err);
-    console.error("[mi-contract-alerts] Fatal error:", errorDetails);
-    return new Response(
-      JSON.stringify({ error: errorDetails }),
-      { status: 500, headers: CORS },
-    );
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    console.error("[mi-contract-alerts] Fatal error:", errorMsg);
+    return new Response(JSON.stringify({ error: errorMsg }), { status: 500, headers: CORS });
   }
 });
