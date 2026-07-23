@@ -252,8 +252,8 @@ async function main() {
         .update({
           name: contactName,
           hubspot_contact_id: contact.id,
-          cpv_codes: JSON.stringify(cpvCodes),
-          cpv_filter: cpvCodes[0] ?? null,  // keep backward compat
+          cpv_codes: cpvCodes,
+          cpv_filter: cpvCodes[0] ?? null,
           is_active: true,
           hubspot_synced_at: syncedAt,
         })
@@ -269,7 +269,7 @@ async function main() {
           email,
           name: contactName,
           hubspot_contact_id: contact.id,
-          cpv_codes: JSON.stringify(cpvCodes),
+          cpv_codes: cpvCodes,
           cpv_filter: cpvCodes[0] ?? null,
           is_active: true,
           min_progress: 0.75,
