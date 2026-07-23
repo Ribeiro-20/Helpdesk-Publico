@@ -2,6 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { Linkedin, Facebook, Instagram, Twitter, Youtube } from "lucide-react";
 
+const externalProps = (href: string): { target?: string; rel?: string } => {
+  const sameDomain = ['mercado.helpdeskpublico.pt'].some((d) => href.includes(d));
+  return sameDomain ? {} : { target: '_blank', rel: 'noopener noreferrer' };
+};
+
 export default function PublicFooter() {
   return (
     <footer className="bg-[#1a1b1f] px-4 py-12 text-gray-300 sm:px-6 lg:px-12 lg:py-16">
@@ -15,8 +20,7 @@ export default function PublicFooter() {
             {/* Logo */}
             <a 
               href="https://www.helpdeskpublico.pt/" 
-              target="_blank" 
-              rel="noopener noreferrer" 
+              {...externalProps('https://www.helpdeskpublico.pt/')}
               className="inline-block"
             >
               <Image
@@ -33,8 +37,7 @@ export default function PublicFooter() {
             <div className="flex justify-center items-center gap-4 text-[#80889a]">
               <Link
                 href="https://linkedin.com/company/helpdeskpublico/"
-                target="_blank"
-                rel="noopener noreferrer"
+                {...externalProps('https://linkedin.com/company/helpdeskpublico/')}
                 className="hover:text-white transition-colors"
                 aria-label="LinkedIn"
               >
@@ -42,8 +45,7 @@ export default function PublicFooter() {
               </Link>
               <Link 
                 href="https://facebook.com/helpdeskpublico/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
+                {...externalProps('https://facebook.com/helpdeskpublico/')}
                 className="hover:text-white transition-colors" 
                 aria-label="Facebook"
               >
@@ -51,8 +53,7 @@ export default function PublicFooter() {
               </Link>
               <Link 
                 href="https://instagram.com/helpdeskpublico/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
+                {...externalProps('https://instagram.com/helpdeskpublico/')}
                 className="hover:text-white transition-colors" 
                 aria-label="Instagram"
               >
@@ -60,8 +61,7 @@ export default function PublicFooter() {
               </Link>
               <Link 
                 href="https://twitter.com/helpdeskpublico" 
-                target="_blank" 
-                rel="noopener noreferrer" 
+                {...externalProps('https://twitter.com/helpdeskpublico')}
                 className="hover:text-white transition-colors" 
                 aria-label="Twitter / X"
               >
@@ -69,8 +69,7 @@ export default function PublicFooter() {
               </Link>
               <Link 
                 href="https://youtube.com/@helpdeskpublico/" 
-                target="_blank" 
-                rel="noopener noreferrer" 
+                {...externalProps('https://youtube.com/@helpdeskpublico/')}
                 className="hover:text-white transition-colors" 
                 aria-label="YouTube"
               >
@@ -84,8 +83,7 @@ export default function PublicFooter() {
                 Design by{" "}
                 <Link 
                   href="https://www.tbubble.pt/" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                  {...externalProps('https://www.tbubble.pt/')}
                   className="text-[#c3881a] hover:opacity-80 font-semibold transition-all duration-300 underline underline-offset-4 decoration-[#c3881a]/40 hover:decoration-[#c3881a]"
                 >
                   TBubble Marketing & Comunicação
@@ -101,27 +99,27 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px] flex flex-col items-center">
               <li>
-                <Link href="https://helpdeskpublico.pt/adjudicantes" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/adjudicantes" {...externalProps('https://helpdeskpublico.pt/adjudicantes')} className="hover:text-white transition-colors">
                   Serviços Adjudicantes
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/adjudicatarios" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/adjudicatarios" {...externalProps('https://helpdeskpublico.pt/adjudicatarios')} className="hover:text-white transition-colors">
                   Serviços Empresas e Adjudicatários
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/alerta-concursos-publicos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/alerta-concursos-publicos" {...externalProps('https://helpdeskpublico.pt/alerta-concursos-publicos')} className="hover:text-white transition-colors">
                   Alerta Concursos Públicos
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/market-intelligence" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/market-intelligence" {...externalProps('https://helpdeskpublico.pt/market-intelligence')} className="hover:text-white transition-colors">
                   Market Intelligence
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/go-no-go-concursos-publicos" {...externalProps('https://helpdeskpublico.pt/go-no-go-concursos-publicos')} className="hover:text-white transition-colors">
                   Go / No-Go Concursos Públicos
                 </Link>
               </li>
@@ -135,27 +133,27 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px] flex flex-col items-center">
               <li>
-                <Link href="https://helpdeskpublico.pt/identificacao-cpvs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/identificacao-cpvs" {...externalProps('https://helpdeskpublico.pt/identificacao-cpvs')} className="hover:text-white transition-colors">
                   Identificação CPV
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/observatorio" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/observatorio" {...externalProps('https://helpdeskpublico.pt/observatorio')} className="hover:text-white transition-colors">
                   Observatório
                 </Link>
               </li>
               <li>
-                <Link href="https://helpdeskpublico.pt/blog" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://helpdeskpublico.pt/blog" {...externalProps('https://helpdeskpublico.pt/blog')} className="hover:text-white transition-colors">
                   Blog
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/FAQs" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/FAQs" {...externalProps('https://www.helpdeskpublico.pt/FAQs')} className="hover:text-white transition-colors">
                   FAQs
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/decisao-contratacao-publica" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/decisao-contratacao-publica" {...externalProps('https://www.helpdeskpublico.pt/decisao-contratacao-publica')} className="hover:text-white transition-colors">
                   Apoio à Decisão
                 </Link>
               </li>
@@ -169,27 +167,27 @@ export default function PublicFooter() {
             </h3>
             <ul className="space-y-4 text-[15px] flex flex-col items-center">
               <li>
-                <Link href="https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico" {...externalProps('https://www.helpdeskpublico.pt/sobre-o-helpdesk-publico')} className="hover:text-white transition-colors">
                   Sobre Nós
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/contactos" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/contactos" {...externalProps('https://www.helpdeskpublico.pt/contactos')} className="hover:text-white transition-colors">
                   Contactos
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/privacidade" {...externalProps('https://www.helpdeskpublico.pt/privacidade')} className="hover:text-white transition-colors">
                   Política de Privacidade
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/esg-sustentabilidade" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/esg-sustentabilidade" {...externalProps('https://www.helpdeskpublico.pt/esg-sustentabilidade')} className="hover:text-white transition-colors">
                   ESG e Sustentabilidade
                 </Link>
               </li>
               <li>
-                <Link href="https://www.helpdeskpublico.pt/rh" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">
+                <Link href="https://www.helpdeskpublico.pt/rh" {...externalProps('https://www.helpdeskpublico.pt/rh')} className="hover:text-white transition-colors">
                   Recursos Humanos
                 </Link>
               </li>

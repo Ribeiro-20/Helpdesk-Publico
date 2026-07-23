@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#1a1b1f" />
+  <!-- Centered logo -->
+  <g transform="translate(600,315)">
+    <image href="/logo.png" x="-350" y="-100" width="700" height="200" preserveAspectRatio="xMidYMid meet" />
+  </g>
+</svg>

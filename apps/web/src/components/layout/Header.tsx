@@ -44,8 +44,11 @@ export default function Header() {
       <div className="max-w-screen-2xl mx-auto flex items-center px-4 sm:px-6 lg:px-12 py-0 h-[80px] sm:h-[92px] lg:h-[104px] min-w-0">
         <a
           href="https://www.helpdeskpublico.pt/"
-          target="_blank"
-          rel="noopener noreferrer"
+          {...(function hrefProps(h='https://www.helpdeskpublico.pt/'){
+            const href = h || '';
+            const sameDomain = ['mercado.helpdeskpublico.pt'].some(d=>href.includes(d));
+            return sameDomain ? {} : { target: '_blank', rel: 'noopener noreferrer' };
+          })()}
           className="shrink-0 mr-3 sm:mr-8 lg:mr-12"
         >
           <Image
@@ -64,8 +67,11 @@ export default function Header() {
         <div className="relative shrink-0 flex items-center gap-1 sm:gap-2 ml-2 sm:ml-4 lg:ml-8" ref={menuRef}>
           <a
             href="https://www.helpdeskpublico.pt"
-            target="_blank"
-            rel="noopener noreferrer"
+            {...(function hrefProps(h='https://www.helpdeskpublico.pt'){
+              const href = h || '';
+              const sameDomain = ['mercado.helpdeskpublico.pt'].some(d=>href.includes(d));
+              return sameDomain ? {} : { target: '_blank', rel: 'noopener noreferrer' };
+            })()}
             className="inline-flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/5 active:scale-95"
             title="Helpdesk Público"
           >
@@ -96,6 +102,11 @@ export default function Header() {
             >
               <a
                 href="https://www.helpdeskpublico.pt/contactos"
+                {...(function hrefProps(h='https://www.helpdeskpublico.pt/contactos'){
+                  const href = h || '';
+                  const sameDomain = ['mercado.helpdeskpublico.pt'].some(d=>href.includes(d));
+                  return sameDomain ? {} : { target: '_blank', rel: 'noopener noreferrer' };
+                })()}
                 role="menuitem"
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-gray-200 hover:bg-white/10 hover:text-white transition-colors"
                 onClick={() => setMenuOpen(false)}
