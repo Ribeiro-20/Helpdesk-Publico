@@ -732,8 +732,19 @@ export default async function OutrosPage({
       // Use progress from database view directly
       const progress = typeof c.progress === "number" ? c.progress : parseFloat(c.progress || "0");
 
+      // Clean unprintable glyphs / control symbols (e.g. \u001c, \u001d, \u001e, \u001f, \ufffd)
+      const cleanObject = c.object
+        ? c.object
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ")
+            .replace(/[\u00AD\u200B-\u200D\u200E\u200F\uFEFF\uFFFD\u001C-\u001F]/g, "")
+            .replace(/[ \t]+/g, " ")
+            .trim()
+        : null;
+
       return {
         ...c,
+        id: c.contract_id || c.id,
+        object: cleanObject,
         cpv_description: c.cpv_main ? cpvMap.get(c.cpv_main) ?? null : null,
         days_passed: diffDays,
         progress: progress,

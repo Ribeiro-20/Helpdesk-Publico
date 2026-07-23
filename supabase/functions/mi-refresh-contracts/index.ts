@@ -96,9 +96,17 @@ Deno.serve(async (req) => {
         }
       }
 
+      const cleanObject = c.object
+        ? c.object
+            .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ")
+            .replace(/[\u00AD\u200B-\u200D\u200E\u200F\uFEFF\uFFFD\u001C-\u001F]/g, "")
+            .replace(/[ \t]+/g, " ")
+            .trim()
+        : null;
+
       miRowsToUpsert.push({
         contract_id: c.id,
-        object: c.object,
+        object: cleanObject,
         contracting_entities: c.contracting_entities,
         winners: c.winners,
         contract_price: c.contract_price,
