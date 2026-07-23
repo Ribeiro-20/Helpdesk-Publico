@@ -11,28 +11,28 @@ export const metadata = {
 const FEATURES = [
   {
     number: "01",
-    title: "Alertas de renovação",
+    title: "Contratos em fase final",
     description:
-      "Acompanhe contratos a terminar e oportunidades de renovação antes de se tornarem urgentes.",
+      "Identifique contratos próximos da conclusão e acompanhe potenciais necessidades futuras de contratação.",
   },
   {
     number: "02",
-    title: "Pesquisa por CPV",
+    title: "Pesquisa Inteligente",
     description:
-      "Cruze o interesse comercial com os códigos CPV mais relevantes para o seu mercado.",
+      "Cruze CPV, entidades adjudicantes e localização para identificar oportunidades relevantes para a sua atividade.",
   },
   {
     number: "03",
-    title: "Tendências do mercado",
+    title: "Análise do Mercado",
     description:
-      "Veja evolução de valor, volume e principais entidades adjudicantes e adjudicatárias.",
+      "Consulte indicadores, entidades e padrões de contratação para apoiar decisões comerciais mais informadas.",
   },
 ];
 
 const STEPS = [
-  "Identificar contratos em fim de prazo",
-  "Filtrar por CPV, entidade e localização",
-  "Priorizar novas oportunidades com base em dados",
+  "Acompanhar contratos em fase final de execução",
+  "Pesquisar por CPV, entidade e localização",
+  "Priorizar oportunidades com informação estruturada",
 ];
 
 export default function LoginMILandingPage() {
@@ -68,13 +68,19 @@ export default function LoginMILandingPage() {
                   href="/mp/login-mi/entrar"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
                 >
-                  Entrar no serviço &gt;
+                  Aceda à área reservada
                 </Link>
                 <Link
                   href="/mp/contratos-publicos"
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                 >
                   Explorar mercado público
+                </Link>
+                <Link
+                  href="https://www.helpdeskpublico.pt/contactos"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                >
+                  Solicitar demonstração
                 </Link>
               </div>
 
@@ -101,12 +107,10 @@ export default function LoginMILandingPage() {
                     Visão geral
                   </p>
                   <p className="mt-1 text-lg font-bold text-slate-900">
-                    Market Intelligence pronto para uso
+                    Ferramentas para apoiar a decisão comercial
                   </p>
                 </div>
-                <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-                  MI
-                </div>
+
               </div>
 
               <div className="space-y-4">
@@ -129,8 +133,7 @@ export default function LoginMILandingPage() {
               </div>
 
               <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                Acesso reservado a subscritores. Depois de entrar, abre o dashboard de
-                Market Intelligence com os dados completos.
+                Acesso reservado a subscritores. Após autenticação, consulte o dashboard com toda a informação disponível para análise e acompanhamento do mercado.
               </div>
             </div>
           </section>

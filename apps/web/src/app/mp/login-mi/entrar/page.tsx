@@ -78,8 +78,8 @@ export default function LoginMIEntrarPage() {
             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 opacity-50" />
 
             <div className="text-center mb-8 relative z-10">
-              <div className="inline-block mb-4 p-3 bg-emerald-50 rounded-2xl shadow-sm">
-                <Image src="/logo.webp" alt="Helpdesk Público" width={56} height={56} className="rounded-xl" />
+              <div className="inline-block ">
+                <Image src="/logo.webp" alt="Helpdesk Público" width={150} height={150} className="rounded-xl" />
               </div>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">Market Intelligence</h1>
               <p className="text-slate-400 text-sm mt-2 font-medium">
@@ -100,7 +100,7 @@ export default function LoginMIEntrarPage() {
                       required
                       style={{ paddingLeft: "3rem" }}
                       className="w-full bg-slate-50 border border-slate-200 rounded-2xl pr-4 py-4 text-base focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all font-medium text-slate-700 outline-none"
-                      placeholder="o-seu-email@exemplo.pt"
+                      placeholder="email@exemplo.pt"
                     />
                   </div>
                 </div>
@@ -167,7 +167,7 @@ export default function LoginMIEntrarPage() {
             )}
           </div>
 
-          <p className="text-center text-xs text-slate-300 mt-8 font-medium tracking-wide">SISTEMA DE SEGURANÇA AVANÇADA • BREVO™ ENABLED</p>
+          <p className="text-center text-xs text-slate-300 mt-8 font-medium tracking-wide"></p>
         </div>
       </main>
 
