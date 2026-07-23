@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 
 const GA_ID = "G-TXXYEHSNSB";
+export const metadataBase = new URL("https://mercado.helpdeskpublico.pt");
 
 export const metadata: Metadata = {
   title: "Helpdesk Público | Informação do Mercado Público",
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
     siteName: 'Helpdesk Público',
     images: [
       {
-        url: '/og-image.svg',
+        url: 'https://mercado.helpdeskpublico.pt/og-image.svg',
         width: 1200,
         height: 630,
         alt: 'Helpdesk Público',
@@ -29,7 +30,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Helpdesk Público | Informação do Mercado Público',
     description: 'Helpdesk Público | Informação do Mercado Público',
-    images: ['/og-image.svg'],
+    images: ['https://mercado.helpdeskpublico.pt/og-image.svg'],
   },
 };
 
