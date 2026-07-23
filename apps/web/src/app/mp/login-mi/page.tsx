@@ -51,17 +51,15 @@ export default function LoginMILandingPage() {
             {/* Left column */}
             <div className="space-y-6">
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 shadow-sm">
-                Market Intelligence
+                Market Intelligence em Contratação Pública
               </div>
 
               <div className="space-y-4">
                 <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight text-slate-900 md:text-6xl">
-                  Informação para antecipar contratos, renovação e procura.
+                  Informação para antecipar oportunidades, acompanhar contratos e apoiar decisões.
                 </h1>
                 <p className="max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
-                  A área de Market Intelligence junta contratos a terminar, padrões de
-                  compra e sinais de mercado para apoiar decisões comerciais mais rápidas
-                  e mais seguras.
+                  A área de Market Intelligence reúne contratos em execução, padrões de contratação, indicadores de mercado e informação estratégica para apoiar a identificação de oportunidades e a tomada de decisões comerciais mais informadas.
                 </p>
               </div>
 
