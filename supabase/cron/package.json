@@ -6,7 +6,12 @@
   "scripts": {
     "start": "tsx start-all.ts",
     "start:main": "tsx run.ts",
+    "start:mi": "tsx run-mi.ts",
     "once": "tsx run.ts --once",
+    "mi:once": "tsx run-mi.ts --once",
+    "mi:refresh": "tsx run-mi.ts --refresh",
+    "mi:sync": "tsx run-mi.ts --sync",
+    "mi:email": "tsx run-mi.ts --email",
     "hubspot:once": "tsx run.ts --hubspot-once",
     "cleanup:announcements": "tsx cleanup-announcements.ts",
     "cleanup:announcements:once": "tsx cleanup-announcements.ts --once",
