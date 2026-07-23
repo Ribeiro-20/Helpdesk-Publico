@@ -212,11 +212,15 @@ export default function MarketIntelligenceTable({
                   <tr
                     key={c.id}
                     className="hover:bg-green-50/50 transition-colors cursor-pointer group"
-                    onClick={() => setSelectedId(c.id)}
+                    onClick={() => setSelectedId((c as any).contract_id || c.id)}
                   >
                     <td className="px-6 py-5">
                       <p className="text-[12px] font-semibold text-gray-900 group-hover:text-green-600 transition-colors line-clamp-2">
-                        {c.object || "Sem objecto"}
+                        {(c.object ?? "")
+                          .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ")
+                          .replace(/[\u00AD\u200B-\u200D\u200E\u200F\uFEFF\uFFFD\u001C-\u001F]/g, "")
+                          .replace(/[ \t]+/g, " ")
+                          .trim() || "Sem objecto"}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5 font-mono">
                         <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
