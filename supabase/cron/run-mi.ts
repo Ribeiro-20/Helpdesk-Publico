@@ -114,101 +114,14 @@ function findTsxCli(scriptsDir: string): string | null {
 
 /**
  * 02:00 Refresh Job:
- * Runs directly via Supabase client (no Edge Function) to avoid memory/timeout limits.
- * Fetches contracts with 75-100% progress and inserts new ones into mi_contracts.
+ * Calls refresh_mi_contracts() SQL function — faz tudo num único INSERT no servidor,
+ * sem transferir dados para Node.js. Muito mais rápido do que paginar via RPC.
  */
 async function runMiRefreshJob(): Promise<void> {
-  console.log(`[cron-mi] Starting 02:00 MI refresh job (direct)...`);
-
-  const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-  // 1. Fetch eligible contracts via RPC
-  const allContracts: any[] = [];
-  const pageSize = 1000;
-  let page = 0;
-  let hasMore = true;
-
-  console.log(`[cron-mi] Fetching eligible contracts (75%+) via RPC...`);
-  while (hasMore) {
-    const from = page * pageSize;
-    const { data: chunk, error } = await supabase
-      .rpc("get_high_progress_contracts", { min_pct: 0.75, max_pct: 999 })
-      .range(from, from + pageSize - 1);
-
-    if (error) throw error;
-    if (chunk && chunk.length > 0) {
-      allContracts.push(...chunk);
-      hasMore = chunk.length === pageSize;
-      page++;
-    } else {
-      hasMore = false;
-    }
-  }
-  console.log(`[cron-mi] ${allContracts.length} eligible contracts found.`);
-
-  if (allContracts.length === 0) return;
-
-  // 2. Check which already exist in mi_contracts
-  const allIds = allContracts.map((c: any) => c.id);
-  const existingIds = new Set<string>();
-  for (let i = 0; i < allIds.length; i += 500) {
-    const { data: existing } = await supabase
-      .from("mi_contracts")
-      .select("contract_id")
-      .in("contract_id", allIds.slice(i, i + 500));
-    for (const row of existing ?? []) existingIds.add(row.contract_id);
-  }
-  console.log(`[cron-mi] ${existingIds.size} already in mi_contracts — skipping.`);
-
-  // 3. Build rows to insert
-  const rowsToInsert: any[] = [];
-  for (const c of allContracts) {
-    if (existingIds.has(c.id)) continue;
-    const progress = Math.min(Number(c.progress), 1.0);
-    let reached100At: string | null = null;
-    if (progress >= 1.0) {
-      const estimatedEnd = new Date(new Date(c.signing_date).getTime() + c.execution_deadline_days * 86400000);
-      reached100At = estimatedEnd.toISOString();
-      if (estimatedEnd.getTime() < new Date(thirtyDaysAgoIso).getTime()) continue;
-    }
-    rowsToInsert.push({
-      contract_id: c.id,
-      object: c.object ? c.object.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ").replace(/[ \t]+/g, " ").trim() : null,
-      contracting_entities: c.contracting_entities,
-      winners: c.winners,
-      contract_price: c.contract_price,
-      signing_date: c.signing_date,
-      execution_deadline_days: c.execution_deadline_days,
-      cpv_main: c.cpv_main,
-      progress,
-      reached_100_at: reached100At,
-      ingested_at: new Date().toISOString(),
-      last_updated_at: new Date().toISOString(),
-    });
-  }
-
-  // 4. Insert in batches
-  console.log(`[cron-mi] Inserting ${rowsToInsert.length} new contracts...`);
-  let insertedCount = 0;
-  for (let i = 0; i < rowsToInsert.length; i += 500) {
-    const { data: inserted, error: insertErr } = await supabase
-      .from("mi_contracts")
-      .insert(rowsToInsert.slice(i, i + 500))
-      .select("id");
-    if (insertErr) console.error(`[cron-mi] Insert error:`, insertErr.message);
-    else insertedCount += inserted?.length ?? 0;
-  }
-
-  // 5. Purge contracts at 100% for more than 30 days
-  const { data: purged, error: purgeErr } = await supabase
-    .from("mi_contracts")
-    .delete()
-    .not("reached_100_at", "is", null)
-    .lt("reached_100_at", thirtyDaysAgoIso)
-    .select("id");
-  if (purgeErr) console.error(`[cron-mi] Purge error:`, purgeErr.message);
-
-  console.log(`[cron-mi] ✓ Refresh done. Inserted: ${insertedCount}, Skipped: ${existingIds.size}, Purged: ${purged?.length ?? 0}`);
+  console.log(`[cron-mi] Starting 02:00 MI refresh job...`);
+  const { data, error } = await supabase.rpc("refresh_mi_contracts");
+  if (error) throw error;
+  console.log(`[cron-mi] ✓ Refresh done:`, JSON.stringify(data));
 }
 
 /**
