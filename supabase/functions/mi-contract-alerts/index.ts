@@ -66,24 +66,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 2. Window for yesterday's ingestion (Project C ingests at 23:00)
-    const now = new Date();
-    const todayUtcMidnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
-    const yesterdayStartIso = new Date(todayUtcMidnight.getTime() - 24 * 60 * 60 * 1000).toISOString();
-    const todayStartIso = todayUtcMidnight.toISOString();
+    // 2. Fetch contracts from 'mi_contracts' that were ingested by Project C in the last 24 hours
+    // (Project C ingests at 23:00; the 02:00 cron populates 'mi_contracts').
+    // Strictly reads from 'mi_contracts' without querying raw 'contracts'.
+    const twentyFourHoursAgoIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    console.log(`[mi-contract-alerts] Searching mi_contracts ingested yesterday between ${yesterdayStartIso} and ${todayStartIso}...`);
+    console.log(`[mi-contract-alerts] Searching mi_contracts ingested in the last 24 hours (since ${twentyFourHoursAgoIso})...`);
 
-    const { data: yesterdayMiContracts, error: miErr } = await supabase
+    const { data: recentMiContracts, error: miErr } = await supabase
       .from("mi_contracts")
       .select("*")
-      .gte("ingested_at", yesterdayStartIso)
-      .lt("ingested_at", todayStartIso);
+      .gte("ingested_at", twentyFourHoursAgoIso);
 
     if (miErr) throw miErr;
 
-    const candidateContracts = yesterdayMiContracts ?? [];
-    console.log(`[mi-contract-alerts] Found ${candidateContracts.length} new MI contracts ingested yesterday.`);
+    const candidateContracts = recentMiContracts ?? [];
+    console.log(`[mi-contract-alerts] Found ${candidateContracts.length} recent MI contracts ingested in the last 24h.`);
 
     if (candidateContracts.length === 0) {
       console.log("[mi-contract-alerts] No new contracts ingested yesterday. No emails to send.");
