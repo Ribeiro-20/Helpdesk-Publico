@@ -123,17 +123,17 @@ Deno.serve(async (req) => {
 
       if (contractsToSend.length === 0) continue;
 
-      console.log(`[mi-contract-alerts] Sending email to ${sub.email} with ${contractsToSend.length} new contract alerts.`);
+      console.log(`[mi-contract-alerts] Sending ${contractsToSend.length} individual emails to ${sub.email}.`);
 
-      try {
-        const formattedContracts = contractsToSend.map((c: any) => {
+      for (const c of contractsToSend) {
+        try {
           const entityRaw = Array.isArray(c.contracting_entities) ? c.contracting_entities[0] : c.contracting_entities;
           const winnerRaw = Array.isArray(c.winners) ? c.winners[0] : c.winners;
           const signingDate = c.signing_date ? new Date(c.signing_date) : new Date();
           const endDate = new Date(signingDate);
           endDate.setDate(endDate.getDate() + (c.execution_deadline_days || 0));
 
-          return {
+          const formatted = {
             contractId: c.contract_id,
             object: c.object,
             entity: cleanEntityName(entityRaw),
@@ -145,48 +145,39 @@ Deno.serve(async (req) => {
             estimatedEndDate: endDate.toISOString().slice(0, 10),
             cpvMain: c.cpv_main || "—",
           };
-        });
 
-        const shortObj = formattedContracts[0].object
-          ? (formattedContracts[0].object.length > 50 ? formattedContracts[0].object.substring(0, 50) + "..." : formattedContracts[0].object)
-          : "Contratos";
-        const subject = `Alerta Market Intelligence: ${formattedContracts.length} novos contratos (${shortObj})`;
+          const shortObj = formatted.object
+            ? (formatted.object.length > 60 ? formatted.object.substring(0, 60) + "..." : formatted.object)
+            : "Novo contrato";
+          const subject = `Alerta Market Intelligence: ${shortObj}`;
 
-        const { html, text } = buildMiContractAlertEmail({
-          subscriberName: sub.name || "Subscritor",
-          contracts: formattedContracts,
-          appBaseUrl,
-        });
+          const { html, text } = buildMiContractAlertEmail({
+            subscriberName: sub.name || "Subscritor",
+            contracts: [formatted],
+            appBaseUrl,
+          });
 
-        const result = await emailProvider.send({
-          to: sub.email,
-          subject,
-          html,
-          text,
-          from: { email: "marketintelligence@helpdeskpublico.pt", name: "Helpdesk Público" },
-        });
+          const result = await emailProvider.send({ to: sub.email, subject, html, text });
 
-        if (result.success) {
-          emailsSent++;
-          // Record notifications in DB
-          const notifRows = contractsToSend.map((c: any) => ({
-            subscriber_id: sub.id,
-            contract_id: c.contract_id,
-            progress_at_send: c.progress,
-            status: "SENT",
-            sent_at: new Date().toISOString(),
-          }));
-
-          await supabase
-            .from("mi_contract_notifications")
-            .upsert(notifRows, { onConflict: "subscriber_id,contract_id" });
-        } else {
+          if (result.success) {
+            emailsSent++;
+            await supabase
+              .from("mi_contract_notifications")
+              .upsert({
+                subscriber_id: sub.id,
+                contract_id: c.contract_id,
+                progress_at_send: c.progress,
+                status: "SENT",
+                sent_at: new Date().toISOString(),
+              }, { onConflict: "subscriber_id,contract_id" });
+          } else {
+            emailsFailed++;
+            console.error(`[mi-contract-alerts] Failed to send to ${sub.email} (${c.contract_id}):`, result.error);
+          }
+        } catch (sendErr) {
           emailsFailed++;
-          console.error(`[mi-contract-alerts] Failed to send email to ${sub.email}:`, result.error);
+          console.error(`[mi-contract-alerts] Exception sending to ${sub.email} (${c.contract_id}):`, sendErr);
         }
-      } catch (sendErr) {
-        emailsFailed++;
-        console.error(`[mi-contract-alerts] Exception sending email to ${sub.email}:`, sendErr);
       }
     }
 
