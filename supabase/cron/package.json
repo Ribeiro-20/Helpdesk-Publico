@@ -6,20 +6,26 @@
   "scripts": {
     "start": "tsx start-all.ts",
     "start:main": "tsx run.ts",
+    "start:mi": "tsx run-mi.ts",
     "once": "tsx run.ts --once",
+    "mi:once": "tsx run-mi.ts --once",
+    "mi:refresh": "tsx run-mi.ts --refresh",
+    "mi:sync": "tsx run-mi.ts --sync",
+    "mi:email": "tsx run-mi.ts --email",
     "hubspot:once": "tsx run.ts --hubspot-once",
     "cleanup:announcements": "tsx cleanup-announcements.ts",
     "cleanup:announcements:once": "tsx cleanup-announcements.ts --once",
     "cleanup:announcements:dry-run": "tsx cleanup-announcements.ts --once --dry-run"
   },
   "dependencies": {
-    "node-cron": "^4.5.0",
+    "@supabase/supabase-js": "^2.44.2",
+    "base-monitor": "file:../..",
     "dotenv": "^16.4.5",
-    "@supabase/supabase-js": "^2.44.2"
+    "node-cron": "^4.5.0"
   },
   "devDependencies": {
-    "tsx": "^4.19.1",
     "@types/node": "^20.11.0",
-    "@types/node-cron": "^3.0.11"
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.19.1"
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import ContractModal from "./ContractModal";
 import { createClient } from "@/lib/supabase/client";
@@ -36,6 +36,7 @@ interface Contract {
   id: string;
   object: string | null;
   cpv_main: string | null;
+  cpv_description?: string | null;
   signing_date: string | null;
   execution_deadline_days: number | null;
   contracting_entities: any[];
@@ -55,7 +56,9 @@ export default function MarketIntelligenceTable({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [cpvDescriptions, setCpvDescriptions] = useState<Record<string, string>>({});
-  const supabase = createClient();
+  // Use a ref to track which codes have already been fetched to avoid infinite re-render loops
+  const fetchedCodesRef = useRef<Set<string>>(new Set());
+  const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
 
   // Auto-open modal if ?contract=<id> is present in the URL (e.g. from email link)
@@ -80,8 +83,12 @@ export default function MarketIntelligenceTable({
   useEffect(() => {
     if (cpvCodesOnPage.length === 0) return;
 
-    const missing = cpvCodesOnPage.filter((code) => !cpvDescriptions[code]);
+    // Only fetch codes we haven't fetched yet (avoids infinite loops)
+    const missing = cpvCodesOnPage.filter((code) => !fetchedCodesRef.current.has(code));
     if (missing.length === 0) return;
+
+    // Mark as fetched immediately to prevent concurrent duplicate requests
+    missing.forEach((code) => fetchedCodesRef.current.add(code));
 
     let cancelled = false;
 
@@ -106,7 +113,7 @@ export default function MarketIntelligenceTable({
     return () => {
       cancelled = true;
     };
-  }, [cpvCodesOnPage, cpvDescriptions, supabase]);
+  }, [cpvCodesOnPage, supabase]);
 
   // Filter out contracts that have reached > 100%
   const visibleContracts = useMemo(
@@ -141,39 +148,39 @@ export default function MarketIntelligenceTable({
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 w-full">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 w-full overflow-hidden">
         <div className="overflow-x-auto w-full">
-          <table className="min-w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+          <table className="w-full min-w-[850px] table-fixed text-left border-collapse">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr className="bg-gray-50">
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider w-[35%] min-w-[280px]">
                   <div className="flex items-center gap-2">
                     Informação do Contrato
-                    <InfoPopover text="Clique sobre o contrato pretendido para aceder a toda a informação disponível." placement="bottom" />
+                    <InfoPopover text="Clique sobre o contrato pretendido para aceder a toda a informação disponível." placement="bottom-start" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider w-[16%] min-w-[130px]">
                   <div className="flex items-center gap-2">
                     CPV
                     <InfoPopover text="Passe o rato por cima do código CPV para ver a descrição." placement="bottom" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider w-[25%] min-w-[220px]">
                   <div className="flex items-center gap-2">
                     Entidades
                     <InfoPopover text="Entidades relacionadas no contrato." placement="bottom" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center">
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-center w-[12%] min-w-[110px]">
                   <div className="flex items-center justify-center gap-2">
                     Progresso
                     <InfoPopover text="Progresso estimado do contrato." placement="bottom" />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right">
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase tracking-wider text-right w-[12%] min-w-[110px]">
                   <div className="flex items-center justify-end gap-2">
                     Valor
-                    <InfoPopover text="Valor pelo qual o contrato foi celebrado." placement="bottom" />
+                    <InfoPopover text="Valor pelo qual o contrato foi celebrado." placement="bottom-end" />
                   </div>
                 </th>
               </tr>
@@ -181,21 +188,25 @@ export default function MarketIntelligenceTable({
             <tbody className="divide-y divide-gray-50">
               {currentItems.map((c) => {
                 let barColor = "bg-green-400";
-                let textColor = "text-gray-700";
+                let textColor = "text-green-700 font-bold";
                 const progressPct = (c.progress * 100).toFixed(0);
-                let progressLabel = `${progressPct}%`;
+                const progressLabel = `${progressPct}%`;
 
                 if (c.progress >= 1.0) {
+                  // 100% or over — red: contract has expired
                   barColor = "bg-rose-500";
                   textColor = "text-rose-600 font-bold";
-                  progressLabel = `${progressPct}%`;
                 } else if (c.progress >= 0.9) {
+                  // 90%-99% — amber: contract nearing end
                   barColor = "bg-yellow-400";
-                  textColor = "text-amber-600 font-bold";
+                  textColor = "text-yellow-600 font-bold";
                 } else {
+                  // 75%-89% — green: contract in progress
                   barColor = "bg-green-400";
                   textColor = "text-green-700 font-bold";
                 }
+
+                const resolvedCpvDesc = c.cpv_description || (c.cpv_main ? cpvDescriptions[c.cpv_main] : null);
 
                 return (
                   <tr
@@ -218,12 +229,23 @@ export default function MarketIntelligenceTable({
                     </td>
                     <td className="px-6 py-5">
                       {c.cpv_main ? (
-                        <span
-                          title={cpvDescriptions[c.cpv_main] || "A carregar descrição..."}
-                          className="inline-block bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded font-mono whitespace-nowrap"
-                        >
-                          {c.cpv_main}
-                        </span>
+                        <div className="relative group/cpv inline-block">
+                          <span
+                            title={resolvedCpvDesc || "Descrição de CPV indisponível"}
+                            className="inline-block bg-blue-50 text-blue-700 text-[11px] px-2 py-0.5 rounded font-mono whitespace-nowrap border border-blue-100/80 font-semibold cursor-help transition-all hover:bg-blue-100 hover:text-blue-800"
+                          >
+                            {c.cpv_main}
+                          </span>
+                          <div className="pointer-events-none absolute left-0 bottom-[calc(100%+6px)] z-50 hidden group-hover/cpv:block w-72 rounded-xl border border-gray-200 bg-gray-900 text-white p-3 shadow-xl font-sans normal-case whitespace-normal">
+                            <p className="text-[10px] font-bold uppercase text-blue-300 tracking-wider mb-1">
+                              CPV {c.cpv_main}
+                            </p>
+                            <p className="text-xs leading-relaxed text-gray-100 font-medium">
+                              {resolvedCpvDesc || "Descrição de CPV indisponível"}
+                            </p>
+                            <span className="absolute -bottom-1 left-4 h-2 w-2 rotate-45 bg-gray-900" />
+                          </div>
+                        </div>
                       ) : (
                         <span className="text-gray-300">—</span>
                       )}
