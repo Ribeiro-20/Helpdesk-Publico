@@ -90,7 +90,7 @@ export default function LoginMIEntrarPage() {
             {step === "login" ? (
               <form onSubmit={handleLogin} className="space-y-5 relative z-10">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Email de Acesso</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Indique seu email de Acesso</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" style={{ zIndex: 1 }} />
                     <input
