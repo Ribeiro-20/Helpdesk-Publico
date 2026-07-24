@@ -11,6 +11,12 @@
  * If EMAIL_PROVIDER is omitted but BREVO_API_KEY exists, Brevo is used.
  */
 
+import {
+  calendarDaysUntilDeadlineInPortugal,
+  formatPortugalDate,
+  formatPortugalDateTime,
+} from "./portugalTime.ts";
+
 export interface EmailMessage {
   to: string;
   subject: string;
@@ -309,11 +315,10 @@ function collectRows(value: unknown, prefix = ""): SectionRow[] {
 
 function safeDate(value: unknown, dateOnly = false): string {
   if (!value) return "-";
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return String(value);
-  return dateOnly
-    ? date.toLocaleDateString("pt-PT")
-    : date.toLocaleString("pt-PT");
+  const formatted = dateOnly
+    ? formatPortugalDate(value)
+    : formatPortugalDateTime(value);
+  return formatted ?? String(value);
 }
 
 function buildAnnouncementSections(announcement: Record<string, unknown>): EmailSection[] {
@@ -481,12 +486,8 @@ function formatEmailPrice(value: number | null | undefined, currency = "EUR"): s
 
 function formatEmailDeadlineDays(deadlineAt: unknown): { text: string; daysRemaining: number; color: "green" | "yellow" | "red" } {
   if (!deadlineAt) return { text: "-", daysRemaining: 0, color: "red" };
-  const deadline = new Date(String(deadlineAt));
-  if (Number.isNaN(deadline.getTime())) return { text: "-", daysRemaining: 0, color: "red" };
-  const today = new Date();
-  const start = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
-  const end = Date.UTC(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
-  const days = Math.ceil((end - start) / 86400000);
+  const days = calendarDaysUntilDeadlineInPortugal(String(deadlineAt));
+  if (days == null) return { text: "-", daysRemaining: 0, color: "red" };
   
   let text = "";
   if (days < 0) text = "Prazo terminado";
@@ -635,7 +636,7 @@ export function buildAnnouncementEmail(params: {
   const priceStr = formatEmailPrice(basePrice, currency ?? "EUR");
   const deadlineAt = announcement?.proposal_deadline_at;
   const deadlineStr = deadlineAt
-    ? safeDate(deadlineAt, true)
+    ? safeDate(deadlineAt)
     : firstEmailText(
       announcement?.proposal_deadline_days != null ? `${announcement.proposal_deadline_days} dias` : null,
       pickEmailPayloadValue(payload, ["prazoApresentacaoPropostas", "Prazo para apresentacao das propostas"]),

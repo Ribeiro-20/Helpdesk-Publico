@@ -7,6 +7,7 @@ import MarketChartsLoader from "../../../components/market/MarketChartsLoader";
 import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel";
 import { cleanAnnouncementText } from "@/lib/announcements";
 import MarketFiltersForm from "../../../components/market/MarketFiltersForm";
+import { calendarDaysUntilDeadlineInPortugal } from "@/lib/deadlines";
 
 export const dynamic = "force-dynamic";
 
@@ -329,14 +330,7 @@ function formatDate(value: string | null | undefined): string {
 }
 
 function daysRemaining(deadlineAt: string | null | undefined): number | null {
-  if (!deadlineAt) return null;
-  const deadline = new Date(String(deadlineAt));
-  if (Number.isNaN(deadline.getTime())) return null;
-
-  const now = new Date();
-  const start = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = Date.UTC(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
-  return Math.ceil((end - start) / 86_400_000);
+  return calendarDaysUntilDeadlineInPortugal(deadlineAt);
 }
 
 function matchesDeadlineBucket(days: number | null, bucket: string): boolean {

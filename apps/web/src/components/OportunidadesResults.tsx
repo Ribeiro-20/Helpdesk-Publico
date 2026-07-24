@@ -5,6 +5,7 @@ import Link from "next/link";
 import AnnouncementModal from "@/components/AnnouncementModal";
 import InfoPopover from "@/components/InfoPopover";
 import { STATUS_BADGE, STATUS_LABEL, cleanAnnouncementText, effectiveStatus } from "@/lib/announcements";
+import { formatDateInPortugal, formatDeadlineInPortugal } from "@/lib/deadlines";
 
 export type OpportunityRow = {
   id: string;
@@ -45,14 +46,11 @@ type SearchParams = {
 };
 
 function fmtDate(value: string | null): string {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("pt-PT");
+  return formatDateInPortugal(value);
 }
 
 function fmtDeadline(value: string | null, days: number | null): string | null {
-  if (value) return fmtDate(value);
+  if (value) return formatDeadlineInPortugal(value);
   if (days != null) return `${days} dias`;
   return null;
 }
@@ -193,7 +191,7 @@ export default function OportunidadesResults({
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-gray-400">Data limite</p>
                     <div className="mt-0.5 text-gray-700">
-                      {op.proposal_deadline_at ? fmtDate(op.proposal_deadline_at) : <MissingInfo placement="bottom" side="left" />}
+                      {op.proposal_deadline_at ? formatDeadlineInPortugal(op.proposal_deadline_at) : <MissingInfo placement="bottom" side="left" />}
                     </div>
                   </div>
 

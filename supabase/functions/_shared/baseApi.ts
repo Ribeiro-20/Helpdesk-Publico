@@ -2,6 +2,8 @@
  * BASE API adapter.
  */
 
+import { addDaysToPortugalDateEnd } from "./portugalTime.ts";
+
 export interface BaseAnnouncementMapped {
   base_announcement_id: string | null;
   dr_announcement_no: string | null;
@@ -513,11 +515,7 @@ export function mapToAnnouncement(payload: Record<string, unknown>): BaseAnnounc
     ? parseInt(String(payload.PrazoPropostas)) || null
     : null;
   const deadlineAt = deadlineDays !== null
-    ? (() => {
-        const d = new Date(publicationDate);
-        d.setDate(d.getDate() + deadlineDays);
-        return d.toISOString().slice(0, 10) + "T00:00:00Z";
-      })()
+    ? addDaysToPortugalDateEnd(publicationDate, deadlineDays)
     : null;
 
   return {
