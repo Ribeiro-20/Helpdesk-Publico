@@ -48,19 +48,19 @@ function Field({
 }
 
 function formatEur(val: number | null | undefined): string {
-  if (val == null || val === 0) return "\u2014";
-  return val.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " \u20AC";
+  if (val == null || val === 0) return "—";
+  return val.toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
 function formatEurShort(val: number | null | undefined): string {
-  if (val == null || val === 0) return "\u2014";
+  if (val == null || val === 0) return "—";
   if (val >= 1_000_000) {
-    return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M \u20AC`;
+    return `${(val / 1_000_000).toLocaleString("pt-PT", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M €`;
   }
   if (val >= 1_000) {
-    return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k \u20AC`;
+    return `${(val / 1_000).toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}k €`;
   }
-  return `${val.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} \u20AC`;
+  return `${val.toLocaleString("pt-PT", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} €`;
 }
 
 /** Extract name from "NIF - Nome" */

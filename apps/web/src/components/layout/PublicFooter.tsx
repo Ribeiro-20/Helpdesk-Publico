@@ -30,7 +30,7 @@ export default function PublicFooter() {
             </a>
             
             {/* Ícones das Redes Sociais */}
-            <div className="flex items-center gap-4 pl-0 sm:pl-2 text-gray-500">
+            <div className="flex items-center gap-4 pl-0 sm:pl-2 text-[#80889a]">
               <Link
                 href="https://linkedin.com/company/helpdeskpublico/"
                 target="_blank"
@@ -78,15 +78,15 @@ export default function PublicFooter() {
               </Link>
             </div>
 
-            {/* Secção de Destaque da TBubble apenas com o texto solicitado */}
+            {/* Secção de Destaque da TBubble alterada para rgb(195, 136, 26) -> #c3881a */}
             <div className="mt-2 pl-0 sm:pl-2 border-t border-gray-800 pt-4 w-full md:w-auto">
-              <span className="text-gray-400 text-[14px]">
+              <span className="text-[#c3881a] text-[14px]">
                 Design by{" "}
                 <Link 
                   href="https://www.tbubble.pt/" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="text-white hover:text-sky-400 font-semibold transition-colors duration-300 underline underline-offset-4 decoration-gray-600 hover:decoration-sky-400"
+                  className="text-[#c3881a] hover:opacity-80 font-semibold transition-all duration-300 underline underline-offset-4 decoration-[#c3881a]/40 hover:decoration-[#c3881a]"
                 >
                   TBubble Marketing &amp; Comunicação
                 </Link>

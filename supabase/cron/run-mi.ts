@@ -19,6 +19,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { existsSync } from "node:fs";
+import { createClient } from "@supabase/supabase-js";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,7 +39,7 @@ for (const candidate of dotenvCandidates) {
   }
 }
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:55321";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const FUNCTIONS_BASE = `${SUPABASE_URL}/functions/v1`;
 
@@ -46,6 +47,10 @@ if (!SERVICE_ROLE_KEY) {
   console.error("[cron-mi] SUPABASE_SERVICE_ROLE_KEY is not set. Cannot call edge functions.");
   process.exit(1);
 }
+
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 
 // ---------------------------------------------------------------------------
 // HTTP helper
@@ -109,11 +114,14 @@ function findTsxCli(scriptsDir: string): string | null {
 
 /**
  * 02:00 Refresh Job:
- * Calls mi-refresh-contracts to populate mi_contracts with 75-100% contracts and purge 100% > 30 days.
+ * Calls refresh_mi_contracts() SQL function — faz tudo num único INSERT no servidor,
+ * sem transferir dados para Node.js. Muito mais rápido do que paginar via RPC.
  */
 async function runMiRefreshJob(): Promise<void> {
   console.log(`[cron-mi] Starting 02:00 MI refresh job...`);
-  await callFunction("mi-refresh-contracts", {});
+  const { data, error } = await supabase.rpc("refresh_mi_contracts");
+  if (error) throw error;
+  console.log(`[cron-mi] ✓ Refresh done:`, JSON.stringify(data));
 }
 
 /**

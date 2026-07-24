@@ -25,22 +25,28 @@ const CONTRACT_TYPE_OPTIONS = [
 ] as const;
 
 const MODEL_TYPE_OPTIONS = [
+  "Consulta Prévia",
+  "Ajuste Direto Regime Geral",
   "Concurso público",
-  "Concurso público urgente",
   "Concurso limitado por prévia qualificação",
   "Procedimento de negociação",
   "Diálogo concorrencial",
-  "Concurso de conceção",
-  "Anúncio simplificado",
-  "Instituição de sistema de qualificação",
+  "Ao abrigo de acordo-quadro (art.º 258.º)",
+  "Ao abrigo de acordo-quadro (art.º 259.º)",
   "Parceria para a inovação",
-  "Concurso de ideias",
-  "Instituição de sistema de aquisição dinâmico",
-  "Hasta Pública de Alienação de Bens Móveis",
-  "Aquisição de Serviços Sociais e de Outros Serviços Específicos",
-  "Anúncio de Adjudicação de Aquisição de Serviços Sociais e de Outros Serviços Específicos",
+  "Disponibilização de bens móveis",
+  "Serviços sociais e outros serviços específicos",
+  "Concurso de conceção simplificado",
+  "Concurso de ideias simplificado",
+  "Consulta Prévia Simplificada",
   "Concurso público simplificado",
   "Concurso limitado por prévia qualificação simplificado",
+  "Ajuste Direto Regime Geral ao abrigo do artigo 7º da Lei n.º 30/2021, de 21.05",
+  "Consulta prévia ao abrigo do artigo 7º da Lei n.º 30/2021, de 21.05",
+  "Ajuste direto simplificado",
+  "Ajuste direto simplificado ao abrigo da Lei n.º 30/2021, de 21.05",
+  "Setores especiais – isenção parte II",
+  "Contratação excluída II",
 ] as const;
 
 const DISTRICT_OPTIONS = [
