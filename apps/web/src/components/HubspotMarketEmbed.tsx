@@ -6,7 +6,15 @@ import { usePathname } from "next/navigation";
 const HUBSPOT_PORTAL_ID =
   process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID ?? "139646329";
 
-const MARKET_PATH_PREFIXES = [
+const MARKET_PATHS = [
+  "/mp",
+  "/mp/contratos-publicos",
+  "/mp/entidades-adjudicantes",
+  "/mp/empresas-adjudicatarios",
+  "/mp/entidades-adjudicatarios",
+  "/mp/oportunidades-mercado",
+  "/mp/login-mi",
+  "/mp/login-mi/entrar",
   "/mp",
   "/mercado-publico",
   "/oportunidades",
@@ -15,9 +23,19 @@ const MARKET_PATH_PREFIXES = [
   "/estatisticas-privado",
 ];
 
+const MARKET_PATH_PREFIXES = [
+  "/mp/contratos-publicos/",
+  "/mercado-publico/",
+  "/oportunidades/",
+  "/outros/",
+  "/estatisticas-publico/",
+  "/estatisticas-privado/",
+];
+
 function shouldLoadHubspot(pathname: string): boolean {
-  return MARKET_PATH_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  return (
+    MARKET_PATHS.includes(pathname) ||
+    MARKET_PATH_PREFIXES.some((prefix) => pathname.startsWith(prefix))
   );
 }
 
