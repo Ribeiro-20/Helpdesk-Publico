@@ -29,11 +29,11 @@ export async function POST(request: Request) {
     // Success! Delete code from memory
     globalAny.miCodes.delete(email);
 
-    // Set MI session cookie directly on the response (10 minutes)
+    // Set MI session cookie directly on the response (120 minutes)
     const response = NextResponse.json({ success: true });
     response.cookies.set("mi-session", "active", {
       path: "/",
-      maxAge: 60 * 10, // 10 minutes
+      maxAge: 60 * 120, // 120 minutes
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

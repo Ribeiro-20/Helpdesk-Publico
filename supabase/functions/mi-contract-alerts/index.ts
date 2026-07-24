@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
     const { data: recentMiContracts, error: miErr } = await supabase
       .from("mi_contracts")
       .select("*")
-      .gte("ingested_at", threeDaysAgoIso);
+      .gte("ingested_at", threeDaysAgoIso)
+      .lt("progress", 1.0);
 
     if (miErr) throw miErr;
 

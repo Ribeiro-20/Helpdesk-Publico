@@ -138,10 +138,10 @@ export async function POST(request: Request) {
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store in memory (expires in 10 minutes)
+    // Store in memory (expires in 120 minutes)
     globalAny.miCodes.set(email, {
       code,
-      expires: Date.now() + 10 * 60 * 1000
+      expires: Date.now() + 120 * 60 * 1000
     });
 
     console.log(`[MI-LOGIN] Code for ${email}: ${code}`);
@@ -161,7 +161,7 @@ export async function POST(request: Request) {
         <div style="background: #f3f4f6; padding: 20px; border-radius: 12px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; margin: 20px 0; color: #111827;">
           ${code}
         </div>
-        <p style="font-size: 12px; color: #6b7280;">Este código expira em 10 minutos. Se não solicitou este acesso, pode ignorar este e-mail.</p>
+        <p style="font-size: 12px; color: #6b7280;">Este código expira em 120 minutos. Se não solicitou este acesso, pode ignorar este e-mail.</p>
       </div>
     `;
 
