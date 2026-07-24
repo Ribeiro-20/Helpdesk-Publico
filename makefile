@@ -5,7 +5,7 @@ install:
 	pip install -r requirements.txt
 
 run:
-	$(WORKING_DIR) python manage.py runserver
+	$(WORKING_DIR) python manage.py runserver 0.0.0.0:8001
 
 test:
 	$(WORKING_DIR) pytest
