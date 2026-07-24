@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Calendar, Info, Loader2, Tag, X } from "lucide-react";
 import { STATUS_BADGE, STATUS_LABEL, cleanAnnouncementText, effectiveStatus, extractProcedurePiecesUrl } from "@/lib/announcements";
+import { formatDateInPortugal, formatDeadlineInPortugal } from "@/lib/deadlines";
 
 interface AnnouncementVersion {
   id: string;
@@ -81,10 +82,7 @@ function fmtEur(value: number | null, currency: string | null): string {
 }
 
 function fmtDate(value: string | null): string {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString("pt-PT");
+  return formatDateInPortugal(value);
 }
 
 const VERSION_FIELD_LABELS: Record<string, string> = {
@@ -522,7 +520,7 @@ export default function AnnouncementModal({
                   </p>
                   <p className="text-lg font-medium text-gray-700 sm:text-xl">
                     {announcement.proposal_deadline_at ? (
-                      fmtDate(announcement.proposal_deadline_at)
+                      formatDeadlineInPortugal(announcement.proposal_deadline_at)
                     ) : announcement.proposal_deadline_days != null ? (
                       `${announcement.proposal_deadline_days} dias`
                     ) : (

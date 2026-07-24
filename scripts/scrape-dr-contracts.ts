@@ -6,6 +6,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, type Page } from "playwright";
 import { createClient } from "@supabase/supabase-js";
+import { extractDeadlineAtFromDrText } from "./lib/drDeadline.ts";
 
 type JsonValue =
   | null
@@ -909,18 +910,7 @@ function extractDeadlineDays(text: string): number | null {
 }
 
 function extractDeadlineAt(text: string): string | null {
-  const normalized = stripDiacritics(text);
-  const pt = normalized.match(/Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:\s*(\d{2})[\/-](\d{2})[\/-](\d{4})(?:\s+(\d{2}):(\d{2}))?/i);
-  if (pt) {
-    const hh = pt[4] ?? "00";
-    const mm = pt[5] ?? "00";
-    return `${pt[3]}-${pt[2]}-${pt[1]}T${hh}:${mm}:00Z`;
-  }
-
-  const iso = normalized.match(/Prazo\s*para\s*apresentacao\s*das\s*propostas\s*:\s*(\d{4}-\d{2}-\d{2})/i);
-  if (iso) return `${iso[1]}T00:00:00Z`;
-
-  return null;
+  return extractDeadlineAtFromDrText(text);
 }
 
 async function scrapeDailyContracts(dailyUrl: string, maxWaitMs: number, maxResults: number): Promise<DrContractCandidate[]> {

@@ -1,5 +1,7 @@
 /** Shared announcement utilities */
 
+import { isDeadlineExpired } from "@/lib/deadlines";
+
 export const STATUS_BADGE: Record<string, string> = {
   active: "bg-green-100 text-green-700",
   expired: "bg-red-100 text-red-700",
@@ -19,16 +21,7 @@ export function effectiveStatus(
   now: Date = new Date(),
 ): string {
   if (ann.status !== "active") return ann.status;
-  if (ann.proposal_deadline_at) {
-    const deadline = new Date(ann.proposal_deadline_at);
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const deadlineDay = new Date(
-      deadline.getFullYear(),
-      deadline.getMonth(),
-      deadline.getDate(),
-    );
-    if (deadlineDay < today) return "expired";
-  }
+  if (isDeadlineExpired(ann.proposal_deadline_at, now.getTime())) return "expired";
   return "active";
 }
 

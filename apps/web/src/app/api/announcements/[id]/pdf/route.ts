@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { createClient } from "@/lib/supabase/server";
 import { cleanAnnouncementText, effectiveStatus, STATUS_LABEL } from "@/lib/announcements";
+import { formatDeadlineInPortugal } from "@/lib/deadlines";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
@@ -275,7 +276,7 @@ function buildSections(ann: Record<string, unknown>) {
       number: 15,
       title: "Prazos da proposta",
       rows: [
-        ["Prazo para apresentação de propostas", ann.proposal_deadline_at ? new Date(String(ann.proposal_deadline_at)).toLocaleDateString("pt-PT") : resolve(["prazoApresentacaoPropostas"], ["Prazo para apresentação de propostas"])],
+        ["Prazo para apresentação de propostas", ann.proposal_deadline_at ? formatDeadlineInPortugal(ann.proposal_deadline_at) : resolve(["prazoApresentacaoPropostas"], ["Prazo para apresentação de propostas"])],
         ["Prazo de manutenção das propostas", resolve(["prazoManutencaoPropostas"], ["Prazo de manutenção das propostas"])],
         ["Subcontratação na proposta", resolve(["subcontratacaoProposta"], ["Subcontratação na proposta"])],
       ].map(([label, value]) => ({ label, value: displayValue(value as string | null) })),

@@ -20,21 +20,13 @@ import {
   buildAnnouncementEmailOutlook,
   createEmailProvider,
 } from "../_shared/emailProvider.ts";
+import { isDeadlineExpired } from "../_shared/portugalTime.ts";
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
   "Content-Type": "application/json",
 };
-
-function isAnnouncementExpired(deadlineAt: string | null | undefined): boolean {
-  if (!deadlineAt) return false;
-
-  const deadlineMs = Date.parse(deadlineAt);
-  if (!Number.isFinite(deadlineMs)) return false;
-
-  return deadlineMs < Date.now();
-}
 
 function selectEmailBuilder(recipientEmail: string): typeof buildAnnouncementEmail {
   // Use div-based version for Gmail (best rendering)
@@ -237,7 +229,7 @@ Deno.serve(async (req: Request) => {
         continue;
       }
 
-      if (isAnnouncementExpired(announcement.proposal_deadline_at ?? null)) {
+      if (isDeadlineExpired(announcement.proposal_deadline_at ?? null)) {
         await supabase
           .from("notifications")
           .update({
