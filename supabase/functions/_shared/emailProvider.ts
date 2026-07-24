@@ -952,8 +952,25 @@ function buildBaseTemplate(innerHtml: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Market Intelligence – Alerta de Contratos</title>
   <style type="text/css">
-    a, a:link, a:visited, a:hover, a:active { color: #111111 !important; text-decoration: none !important; }
-    .link-white, .link-white:link, .link-white:visited, .link-white:hover, .link-white:active { color: #ffffff !important; }
+    a, a:link, a:visited, a:hover, a:active {
+      color: #111111 !important;
+      cursor: pointer !important;
+      text-decoration: none !important;
+    }
+    a span {
+      cursor: pointer !important;
+      text-decoration: none !important;
+    }
+    span.MsoHyperlink, span.MsoHyperlinkFollowed {
+      color: #111111 !important;
+      text-decoration: none !important;
+    }
+    .link-black, .link-black:link, .link-black:visited, .link-black:hover, .link-black:active {
+      color: #111111 !important;
+    }
+    .link-white, .link-white:link, .link-white:visited, .link-white:hover, .link-white:active {
+      color: #ffffff !important;
+    }
   </style>
 </head>
 <body style="margin:0; padding:0; box-sizing:border-box; font-family:Arial, Helvetica, sans-serif; line-height:1.5; color:#333333; background-color:#f5f5f3;">
@@ -981,24 +998,27 @@ function buildBaseTemplate(innerHtml: string): string {
             <td style="padding:20px 18px; background-color:#edf3e6; border-top:1px solid #d7e3c8;">
               <div style="font-size:14px; line-height:19px; color:#3f5e26; font-weight:700; margin-bottom:12px; text-align:center;">Precisa de apoio para decidir ou preparar uma proposta a este procedimento?</div>
               <div style="text-align:center; font-size:0;">
+                <!--[if mso]><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="49%" valign="top"><![endif]-->
                 <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
                   <div style="padding:0 6px 8px 6px;">
                     <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
                       <tr><td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
-                        <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; text-decoration:none;">Go / No-Go<br>Concursos Públicos</a>
+                        <a href="https://www.helpdeskpublico.pt/go-no-go-concursos-publicos" target="_blank" class="link-black" color="#111111" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Go / No-Go<br>Concursos Públicos</span></font></a>
                       </td></tr>
                     </table>
                   </div>
                 </div>
+                <!--[if mso]></td><td width="2%" valign="top" style="font-size:0; line-height:0;">&nbsp;</td><td width="49%" valign="top"><![endif]-->
                 <div style="display:inline-block; width:100%; max-width:310px; vertical-align:top;">
                   <div style="padding:0 6px 8px 6px;">
                     <table width="100%" border="0" cellpadding="0" cellspacing="0" style="border:1px solid #d1d5db; background-color:#ffffff;">
                       <tr><td height="56" align="center" valign="middle" style="padding:8px 14px; font-size:14px; line-height:19px;">
-                        <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; text-decoration:none;">Plataforma de Suporte<br>Contratação Pública</a>
+                        <a href="https://www.helpdeskpublico.pt/plataforma-suporte-contratacao-publica" target="_blank" class="link-black" color="#111111" style="font-size:14px; line-height:19px; font-weight:700; color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Plataforma de Suporte<br>Contratação Pública</span></font></a>
                       </td></tr>
                     </table>
                   </div>
                 </div>
+                <!--[if mso]></td></tr></table><![endif]-->
               </div>
             </td>
           </tr>
@@ -1006,11 +1026,11 @@ function buildBaseTemplate(innerHtml: string): string {
             <td align="center" style="padding:18px 18px; border-top:1px solid #e5e5e0;">
               <div style="font-size:14px; line-height:19px; color:#111111; font-weight:700; margin-bottom:10px;">Helpdesk Público &ndash; Contratação Pública Eficiente</div>
               <div style="font-size:13px; line-height:18px; color:#9ca3af; margin-bottom:8px;">
-                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Contactos</a>
+                <a href="https://www.helpdeskpublico.pt/contactos" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Contactos</span></font></a>
                 <span style="color:#d1d5db;"> | </span>
-                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Política de Privacidade</a>
+                <a href="https://www.helpdeskpublico.pt/privacidade" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Política de Privacidade</span></font></a>
                 <span style="color:#d1d5db;"> | </span>
-                <a href="https://www.helpdeskpublico.pt" target="_blank" style="color:#111111 !important; font-weight:700; text-decoration:none;">Website</a>
+                <a href="https://www.helpdeskpublico.pt" target="_blank" class="link-black" color="#111111" style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111; text-decoration:none; font-weight:700;"><font color="#111111"><span style="color:#111111 !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#111111;">Website</span></font></a>
               </div>
               <div style="max-width:540px; margin:0 auto; font-size:11px; line-height:16px; color:#9ca3af; text-align:center;">
                 Este e-mail é enviado automaticamente em virtude das opções ativas no momento da subscrição do serviço. Caso pretenda alterar as suas preferências contacte a nossa equipa
@@ -1128,9 +1148,23 @@ export function buildMiContractAlertEmail(params: {
           </tr>
           <tr>
             <td align="center" style="padding:22px 18px 12px 18px;">
-              <a href="${escapeEmailHtml(appBaseUrl + "/outros")}" target="_blank" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
-                Ver no Market Intelligence
-              </a>
+              <table border="0" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(appBaseUrl + "/outros")}" style="height:48px;v-text-anchor:middle;width:340px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
+                      <w:anchorlock/>
+                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Ver no Market Intelligence</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-- -->
+                    <a href="${escapeEmailHtml(appBaseUrl + "/outros")}" target="_blank" class="link-white" color="#ffffff" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
+                      <font color="#ffffff">Ver no Market Intelligence</font>
+                    </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
     `;
