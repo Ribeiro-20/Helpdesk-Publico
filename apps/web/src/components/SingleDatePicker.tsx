@@ -55,6 +55,8 @@ export interface SingleDatePickerProps {
   placeholder?: string;
   /** Minimum ISO date allowed (yyyy-MM-dd) */
   min?: string;
+  /** Maximum ISO date allowed (yyyy-MM-dd) */
+  max?: string;
   /** Extra classes for the outer wrapper */
   className?: string;
   /** Extra classes for the trigger button */
@@ -68,6 +70,7 @@ export default function SingleDatePicker({
   onChange,
   placeholder = "Seleccionar data",
   min,
+  max,
   className = "",
   buttonClassName = "",
 }: SingleDatePickerProps) {
@@ -107,6 +110,10 @@ export default function SingleDatePicker({
       const minDate = isoToDate(min);
       if (minDate && d < minDate) return;
     }
+    if (max) {
+      const maxDate = isoToDate(max);
+      if (maxDate && d > maxDate) return;
+    }
     setInputText(format(d, "dd/MM/yyyy"));
   }
 
@@ -126,6 +133,13 @@ export default function SingleDatePicker({
     if (min) {
       const minDate = isoToDate(min);
       if (minDate && parsed < minDate) {
+        setOpen(false);
+        return;
+      }
+    }
+    if (max) {
+      const maxDate = isoToDate(max);
+      if (maxDate && parsed > maxDate) {
         setOpen(false);
         return;
       }
@@ -156,6 +170,7 @@ export default function SingleDatePicker({
   })();
 
   const minDate = min ? isoToDate(min) : undefined;
+  const maxDate = max ? isoToDate(max) : undefined;
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -193,7 +208,15 @@ export default function SingleDatePicker({
               mode="single"
               selected={selectedDate}
               onSelect={handleDayClick}
-              disabled={minDate ? { before: minDate } : undefined}
+              disabled={
+                minDate && maxDate
+                  ? [{ before: minDate }, { after: maxDate }]
+                  : minDate
+                    ? { before: minDate }
+                    : maxDate
+                      ? { after: maxDate }
+                      : undefined
+              }
               month={month}
               onMonthChange={setMonth}
               locale={pt}
