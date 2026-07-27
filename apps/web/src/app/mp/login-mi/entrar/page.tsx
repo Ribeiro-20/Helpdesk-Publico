@@ -6,6 +6,9 @@ import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
 import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 
+const GREEN = "#3f6f27";
+const GREEN_RGB = "63, 111, 39";
+
 export default function LoginMIEntrarPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -75,13 +78,16 @@ export default function LoginMIEntrarPage() {
       <main className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 opacity-50" />
+            <div
+              className="absolute top-0 right-0 w-32 h-32 rounded-full -mr-16 -mt-16 opacity-50"
+              style={{ backgroundColor: `rgba(${GREEN_RGB}, 0.12)` }}
+            />
 
-            <div className="text-center mb-8 relative z-10">
-              <div className="inline-block mb-4 p-3 bg-emerald-50 rounded-2xl shadow-sm">
-                <Image src="/logo.webp" alt="Helpdesk Público" width={56} height={56} className="rounded-xl" />
+            <div className="text-center mb-8 relative z-10 flex flex-col items-center">
+              <div className="inline-block">
+                <Image src="/logo.webp" alt="Helpdesk Público" width={150} height={150} className="rounded-xl" />
               </div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Market Intelligence</h1>
+              <h1 className="mt-4 text-2xl font-black text-slate-900 tracking-tight">Market Intelligence</h1>
               <p className="text-slate-400 text-sm mt-2 font-medium">
                 {step === "login" ? "Área reservada a subscritores" : "Verificação de Segurança"}
               </p>
@@ -89,18 +95,35 @@ export default function LoginMIEntrarPage() {
 
             {step === "login" ? (
               <form onSubmit={handleLogin} className="space-y-5 relative z-10">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Email de Acesso</label>
+                <div className="space-y-1.5 text-center">
+                  <label className="block text-xs font-bold uppercase tracking-wider" style={{ color: GREEN }}>
+                    INDIQUE SEU EMAIL DE ACESSO
+                  </label>
                   <div className="relative">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" style={{ zIndex: 1 }} />
+                    {!email && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center gap-2">
+                        <Mail className="h-5 w-5" style={{ color: GREEN }} />
+                        <span className="text-base font-medium text-slate-400">
+                          email@exemplo.pt
+                        </span>
+                      </div>
+                    )}
                     <input
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
-                      style={{ paddingLeft: "3rem" }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pr-4 py-4 text-base focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all font-medium text-slate-700 outline-none"
-                      placeholder="o-seu-email@exemplo.pt"
+                      style={{ paddingLeft: "1rem", paddingRight: "1rem" }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 text-base text-center focus:ring-2 transition-all font-medium text-slate-700 outline-none"
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = GREEN;
+                        e.currentTarget.style.boxShadow = `0 0 0 2px rgba(${GREEN_RGB}, 0.2)`;
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
+                      placeholder=""
                     />
                   </div>
                 </div>
@@ -112,7 +135,8 @@ export default function LoginMIEntrarPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-all disabled:opacity-50 text-base shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 active:scale-[0.98]"
+                  className="w-full text-white font-bold py-4 rounded-2xl transition-all disabled:opacity-50 text-base shadow-lg hover:shadow-lg active:scale-[0.98]"
+                  style={{ backgroundColor: GREEN, boxShadow: `0 10px 15px -3px rgba(${GREEN_RGB}, 0.2), 0 4px 6px -4px rgba(${GREEN_RGB}, 0.2)` }}
                 >
                   {loading ? "A solicitar código..." : "Iniciar Sessão"}
                 </button>
@@ -125,18 +149,31 @@ export default function LoginMIEntrarPage() {
                   </p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1 text-center block">Código de Verificação</label>
+                <div className="space-y-1.5 text-center">
+                  <label className="text-xs font-bold uppercase tracking-wider block" style={{ color: GREEN }}>
+                    CÓDIGO DE VERIFICAÇÃO
+                  </label>
                   <div className="relative">
-                    <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" style={{ zIndex: 1 }} />
+                    <KeyRound
+                      className="absolute left-1/2 top-1/2 -translate-x-[190px] -translate-y-1/2 w-5 h-5"
+                      style={{ color: GREEN, zIndex: 1 }}
+                    />
                     <input
                       type="text"
                       value={code}
                       onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       required
                       autoFocus
-                      style={{ paddingLeft: "3rem" }}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pr-4 py-4 text-2xl tracking-[0.5em] text-center focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all font-black text-slate-900 outline-none"
+                      style={{ paddingLeft: "3rem", paddingRight: "3rem" }}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 text-2xl tracking-[0.5em] text-center transition-all font-black text-slate-900 outline-none"
+                      onFocus={(e) => {
+                        e.currentTarget.style.borderColor = GREEN;
+                        e.currentTarget.style.boxShadow = `0 0 0 2px rgba(${GREEN_RGB}, 0.2)`;
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "#e2e8f0";
+                        e.currentTarget.style.boxShadow = "none";
+                      }}
                       placeholder="000000"
                     />
                   </div>
@@ -150,7 +187,8 @@ export default function LoginMIEntrarPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-all disabled:opacity-50 text-base shadow-lg shadow-emerald-500/20 active:scale-[0.98]"
+                    className="w-full text-white font-bold py-4 rounded-2xl transition-all disabled:opacity-50 text-base shadow-lg active:scale-[0.98]"
+                    style={{ backgroundColor: GREEN, boxShadow: `0 10px 15px -3px rgba(${GREEN_RGB}, 0.2), 0 4px 6px -4px rgba(${GREEN_RGB}, 0.2)` }}
                   >
                     {loading ? "A validar..." : "Confirmar Código"}
                   </button>
@@ -167,7 +205,7 @@ export default function LoginMIEntrarPage() {
             )}
           </div>
 
-          <p className="text-center text-xs text-slate-300 mt-8 font-medium tracking-wide">SISTEMA DE SEGURANÇA AVANÇADA • BREVO™ ENABLED</p>
+          <p className="text-center text-xs text-slate-300 mt-8 font-medium tracking-wide"></p>
         </div>
       </main>
 

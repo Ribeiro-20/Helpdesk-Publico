@@ -2,6 +2,9 @@ import Link from "next/link";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
 
+const GREEN = "#3f6f27";
+const GREEN_RGB = "63, 111, 39";
+
 export const metadata = {
   title: "Market Intelligence em Contratação Pública | Helpdesk Público",
   description:
@@ -11,28 +14,28 @@ export const metadata = {
 const FEATURES = [
   {
     number: "01",
-    title: "Alertas de renovação",
+    title: "Contratos em fase final",
     description:
-      "Acompanhe contratos a terminar e oportunidades de renovação antes de se tornarem urgentes.",
+      "Identifique contratos próximos da conclusão e acompanhe potenciais necessidades futuras de contratação.",
   },
   {
     number: "02",
-    title: "Pesquisa por CPV",
+    title: "Pesquisa Inteligente",
     description:
-      "Cruze o interesse comercial com os códigos CPV mais relevantes para o seu mercado.",
+      "Cruze CPV, entidades adjudicantes e localização para identificar oportunidades relevantes para a sua atividade.",
   },
   {
     number: "03",
-    title: "Tendências do mercado",
+    title: "Análise do Mercado",
     description:
-      "Veja evolução de valor, volume e principais entidades adjudicantes e adjudicatárias.",
+      "Consulte indicadores, entidades e padrões de contratação para apoiar decisões comerciais mais informadas.",
   },
 ];
 
 const STEPS = [
-  "Identificar contratos em fim de prazo",
-  "Filtrar por CPV, entidade e localização",
-  "Priorizar novas oportunidades com base em dados",
+  "Acompanhar contratos em fase final de execução",
+  "Pesquisar por CPV, entidade e localização",
+  "Priorizar oportunidades com informação estruturada",
 ];
 
 export default function LoginMILandingPage() {
@@ -42,41 +45,61 @@ export default function LoginMILandingPage() {
 
       <main className="flex-1 relative overflow-hidden">
         {/* Background decorations */}
-        <div className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-emerald-50 via-white to-transparent" />
-        <div className="absolute -left-24 top-20 h-64 w-64 rounded-full bg-emerald-100/50 blur-3xl" />
+        <div
+          className="absolute inset-x-0 top-0 h-72 bg-gradient-to-b via-white to-transparent"
+          style={{ backgroundImage: `linear-gradient(to bottom, rgba(${GREEN_RGB}, 0.08), rgba(255, 255, 255, 0.98) 55%, transparent)` }}
+        />
+        <div
+          className="absolute -left-24 top-20 h-64 w-64 rounded-full blur-3xl"
+          style={{ backgroundColor: `rgba(${GREEN_RGB}, 0.18)` }}
+        />
         <div className="absolute -right-16 bottom-0 h-72 w-72 rounded-full bg-sky-100/50 blur-3xl" />
 
         <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 py-14 lg:py-20">
           <section className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
             {/* Left column */}
             <div className="space-y-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700 shadow-sm">
-                Market Intelligence
+              <div
+                className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] shadow-sm"
+                style={{ border: `1px solid rgba(${GREEN_RGB}, 0.2)`, color: GREEN }}
+              >
+                Market Intelligence em Contratação Pública
               </div>
 
               <div className="space-y-4">
                 <h1 className="max-w-2xl text-4xl font-extrabold tracking-tight text-slate-900 md:text-6xl">
-                  Informação para antecipar contratos, renovação e procura.
+                  Informação para antecipar oportunidades, acompanhar contratos e apoiar decisões.
                 </h1>
                 <p className="max-w-2xl text-lg leading-8 text-slate-600 md:text-xl">
-                  A área de Market Intelligence junta contratos a terminar, padrões de
-                  compra e sinais de mercado para apoiar decisões comerciais mais rápidas
-                  e mais seguras.
+                  A área de Market Intelligence reúne contratos em execução, padrões de contratação, indicadores de mercado e informação estratégica para apoiar a identificação de oportunidades e a tomada de decisões comerciais mais informadas.
                 </p>
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/mp/login-mi/entrar"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors"
+                  style={{ backgroundColor: GREEN }}
                 >
-                  Entrar no serviço &gt;
+                  Aceda à área reservada
                 </Link>
                 <Link
                   href="/mp/contratos-publicos"
+                  target="_blank"
+                  rel="noreferrer"
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
                 >
                   Explorar mercado público
+                </Link>
+                <Link
+                  href="https://www.helpdeskpublico.pt/contactos"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50"
+                >
+                  Solicitar demonstração
                 </Link>
               </div>
 
@@ -86,7 +109,7 @@ export default function LoginMILandingPage() {
                     key={step}
                     className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                   >
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: GREEN }}>
                       0{i + 1}
                     </p>
                     <p className="text-sm font-medium text-slate-700">{step}</p>
@@ -103,12 +126,10 @@ export default function LoginMILandingPage() {
                     Visão geral
                   </p>
                   <p className="mt-1 text-lg font-bold text-slate-900">
-                    Market Intelligence pronto para uso
+                    Ferramentas para apoiar a decisão comercial
                   </p>
                 </div>
-                <div className="rounded-2xl bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700">
-                  MI
-                </div>
+
               </div>
 
               <div className="space-y-4">
@@ -117,7 +138,7 @@ export default function LoginMILandingPage() {
                     key={feat.number}
                     className="flex gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-bold text-emerald-700 shadow-sm">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-sm font-bold shadow-sm" style={{ color: GREEN }}>
                       {feat.number}
                     </div>
                     <div>
@@ -130,9 +151,11 @@ export default function LoginMILandingPage() {
                 ))}
               </div>
 
-              <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                Acesso reservado a subscritores. Depois de entrar, abre o dashboard de
-                Market Intelligence com os dados completos.
+              <div
+                className="mt-6 rounded-2xl px-4 py-3 text-sm"
+                style={{ border: `1px solid rgba(${GREEN_RGB}, 0.2)`, backgroundColor: `rgba(${GREEN_RGB}, 0.08)`, color: GREEN }}
+              >
+                Acesso reservado a subscritores. Após autenticação, consulte o dashboard com toda a informação disponível para análise e acompanhamento do mercado.
               </div>
             </div>
           </section>
