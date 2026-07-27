@@ -134,6 +134,17 @@ Deno.serve(async (req) => {
           const endDate = new Date(signingDate);
           endDate.setDate(endDate.getDate() + (c.execution_deadline_days || 0));
 
+          // Look up CPV description from cpv_codes table
+          let cpvDescription: string | undefined;
+          if (c.cpv_main) {
+            const { data: cpvRow } = await supabase
+              .from("cpv_codes")
+              .select("descricao")
+              .eq("id", c.cpv_main)
+              .maybeSingle();
+            cpvDescription = cpvRow?.descricao ?? undefined;
+          }
+
           const formatted = {
             object: c.object ?? "—",
             entity: cleanEntityName(entityRaw),
@@ -144,6 +155,8 @@ Deno.serve(async (req) => {
             deadlineDays: c.execution_deadline_days || 0,
             estimatedEndDate: endDate.toISOString().slice(0, 10),
             cpvMain: c.cpv_main || "—",
+            cpvDescription,
+            contractId: c.contract_id,
           };
 
           const { subject, html, text } = buildMiContractAlertEmail({

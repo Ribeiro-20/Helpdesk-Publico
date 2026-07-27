@@ -987,7 +987,7 @@ function buildBaseTemplate(innerHtml: string): string {
                   </td>
                   <td valign="middle" style="color:#ffffff;">
                     <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
-                    <div style="font-size:14px; line-height:18px; color:#a7c47a; margin-top:4px;">Market Intelligence</div>
+                    <div style="font-size:14px; line-height:18px; color:#a7c47a; margin-top:4px;">Contratação Pública Eficiente</div>
                   </td>
                 </tr>
               </table>
@@ -1057,12 +1057,19 @@ export function buildMiContractAlertEmail(params: {
     deadlineDays?: number;
     estimatedEndDate?: string;
     cpvMain?: string;
+    cpvDescription?: string;
+    contractId?: string;
   }>;
   appBaseUrl: string;
 }): { subject: string; html: string; text: string } {
   const { subscriberName, contracts, appBaseUrl } = params;
 
   const subject = `Market Intelligence — ${contracts.length} contrato(s) próximo(s) de renovação`;
+
+  /** Strip leading NIPC (digits + dash) from entity/winner names, e.g. "518639584 - Agência..." → "Agência..." */
+  function stripNipc(name: string): string {
+    return name.replace(/^\d+\s*-\s*/, "").trim();
+  }
 
   const contractRows = contracts.map((c) => {
     let rawProgress = c.progress ?? 0.75;
@@ -1078,11 +1085,22 @@ export function buildMiContractAlertEmail(params: {
     const today = new Date();
     const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / 86400000));
 
+    const entityDisplay = escapeEmailHtml(stripNipc(c.entity));
+    const winnerDisplay = escapeEmailHtml(stripNipc(c.winner));
+    const cpvDisplay = c.cpvDescription
+      ? escapeEmailHtml(`${c.cpvMain} — ${c.cpvDescription}`)
+      : escapeEmailHtml(c.cpvMain ?? "—");
+
+    // Deep link: if contractId known, link directly to that contract; otherwise to /outros
+    const contractUrl = c.contractId
+      ? `${appBaseUrl}/outros?contract=${encodeURIComponent(c.contractId)}`
+      : `${appBaseUrl}/outros`;
+
     return `
           <tr>
             <td style="padding:18px 18px 4px 18px;">
-              <div style="background-color:#f5f5f0; padding:11px 14px; font-size:13px; line-height:19px; color:#2d4a1e; font-weight:700;">
-                &#9888;&#65039; Alerta Market Intelligence — Contrato prestes a terminar
+              <div style="background-color:#f5f5f0; padding:14px 16px; font-size:16px; line-height:22px; color:#2d4a1e; font-weight:700;">
+                &#9888;&#65039; Alerta Market Intelligence — O prazo de execução deste contrato está a terminar
               </div>
             </td>
           </tr>
@@ -1103,7 +1121,7 @@ export function buildMiContractAlertEmail(params: {
                 </tr>
                 <tr>
                   <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
-                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Término estimado</div>
+                    <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Data de término estimada</div>
                     <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.estimatedEndDate || "—")}</div>
                   </td>
                 </tr>
@@ -1128,43 +1146,50 @@ export function buildMiContractAlertEmail(params: {
                 <tr>
                   <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
                     <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Entidade Adjudicante</div>
-                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.entity)}</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${entityDisplay}</div>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:12px 16px; border-bottom:1px solid #e5e5e0;">
                     <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">Adjudicatário</div>
-                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.winner)}</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${winnerDisplay}</div>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:12px 16px;">
                     <div style="font-size:12px; line-height:16px; color:#6b7280; font-weight:700; margin-bottom:3px;">CPV(s)</div>
-                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${escapeEmailHtml(c.cpvMain ?? "—")}</div>
+                    <div style="font-size:15px; line-height:21px; color:#111827; font-weight:700;">${cpvDisplay}</div>
                   </td>
                 </tr>
               </table>
             </td>
           </tr>
           <tr>
-            <td align="center" style="padding:22px 18px 12px 18px;">
+            <td align="center" style="padding:22px 18px 4px 18px;">
               <table border="0" cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
                   <td align="center" bgcolor="#2d4a1e" style="background-color:#2d4a1e; border:1px solid #2d4a1e; mso-padding-alt:15px 26px;">
                     <!--[if mso]>
-                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(appBaseUrl + "/outros")}" style="height:48px;v-text-anchor:middle;width:340px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${escapeEmailHtml(contractUrl)}" style="height:48px;v-text-anchor:middle;width:380px;" arcsize="0%" strokecolor="#2d4a1e" fillcolor="#2d4a1e">
                       <w:anchorlock/>
-                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Ver no Market Intelligence</center>
+                      <center style="color:#ffffff;font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;">Consultar contrato na sua área reservada</center>
                     </v:roundrect>
                     <![endif]-->
                     <!--[if !mso]><!-- -->
-                    <a href="${escapeEmailHtml(appBaseUrl + "/outros")}" target="_blank" class="link-white" color="#ffffff" style="display:inline-block; min-width:280px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
-                      <font color="#ffffff">Ver no Market Intelligence</font>
+                    <a href="${escapeEmailHtml(contractUrl)}" target="_blank" class="link-white" color="#ffffff" style="display:inline-block; min-width:300px; text-align:center; padding:15px 26px; font-size:15px; line-height:19px; font-weight:700; color:#ffffff !important; mso-style-textfill-type:solid; mso-style-textfill-fill-color:#ffffff; text-decoration:none; background-color:#2d4a1e; font-family:Arial, Helvetica, sans-serif;">
+                      <font color="#ffffff">Consultar contrato na sua área reservada</font>
                     </a>
                     <!--<![endif]-->
                   </td>
                 </tr>
               </table>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:8px 18px 20px 18px;">
+              <div style="font-size:12px; line-height:18px; color:#6b7280; font-style:italic; max-width:440px; margin:0 auto;">
+                Este contrato foi identificado automaticamente com base nos critérios de monitorização da sua conta.
+              </div>
             </td>
           </tr>
     `;
