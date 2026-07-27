@@ -1092,9 +1092,11 @@ export function buildMiContractAlertEmail(params: {
       : escapeEmailHtml(c.cpvMain ?? "—");
 
     // Deep link: if contractId known, link directly to that contract; otherwise to /outros
+    // Strip trailing slash from base URL to prevent double slashes
+    const baseUrl = appBaseUrl.replace(/\/$/, "");
     const contractUrl = c.contractId
-      ? `${appBaseUrl}/outros?contract=${encodeURIComponent(c.contractId)}`
-      : `${appBaseUrl}/outros`;
+      ? `${baseUrl}/outros?contract=${encodeURIComponent(c.contractId)}`
+      : `${baseUrl}/outros`;
 
     return `
           <tr>
