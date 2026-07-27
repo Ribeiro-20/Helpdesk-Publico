@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Calendar, Info, Loader2, Tag, X } from "lucide-react";
 import { STATUS_BADGE, STATUS_LABEL, cleanAnnouncementText, effectiveStatus, extractProcedurePiecesUrl } from "@/lib/announcements";
+import { formatDateInPortugal, formatDeadlineInPortugal } from "@/lib/deadlines";
 
 interface AnnouncementVersion {
   id: string;
@@ -81,10 +82,7 @@ function fmtEur(value: number | null, currency: string | null): string {
 }
 
 function fmtDate(value: string | null): string {
-  if (!value) return "-";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString("pt-PT");
+  return formatDateInPortugal(value);
 }
 
 const VERSION_FIELD_LABELS: Record<string, string> = {
@@ -422,15 +420,16 @@ export default function AnnouncementModal({
         if (event.target === event.currentTarget) onClose();
       }}
     >
-      <div className="relative h-screen h-[100dvh] min-h-screen w-screen max-w-none flex flex-col overflow-hidden rounded-none shadow-2xl sm:h-auto sm:min-h-0 sm:w-full sm:max-h-[94vh] sm:max-w-4xl sm:rounded-2xl">
-        <div className="shrink-0 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 pr-14 sm:px-6 sm:pt-5 sm:pb-5 sm:pr-16" style={{ background: "rgba(26, 27, 31, 1)" }}>
-          <p className="text-xs font-semibold mb-1.5" style={{ color: "rgba(74, 222, 128, 1)" }}>
+      <div className="relative w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden shadow-2xl">
+        
+        <div className="shrink-0 px-6 pt-5 pb-5 pr-16 max-h-[40vh] overflow-y-auto" style={{ background: "rgba(26, 27, 31, 1)" }}>
+          <p className="text-xs font-semibold mb-1.5" style={{ color: "#3f6f27" }}>
             {announcement?.dr_announcement_no ? `Anúncio #${announcement.dr_announcement_no}` : "Anúncio"}
           </p>
           {loading ? (
             <div className="h-6 w-3/4 bg-white/10 rounded animate-pulse" />
           ) : (
-            <h2 className="text-white text-base font-bold leading-snug line-clamp-3 sm:text-lg" title={displayTitle}>
+            <h2 className="text-white text-base font-bold leading-relaxed">
               {displayTitle}
             </h2>
           )}
@@ -522,7 +521,7 @@ export default function AnnouncementModal({
                   </p>
                   <p className="text-lg font-medium text-gray-700 sm:text-xl">
                     {announcement.proposal_deadline_at ? (
-                      fmtDate(announcement.proposal_deadline_at)
+                      formatDeadlineInPortugal(announcement.proposal_deadline_at)
                     ) : announcement.proposal_deadline_days != null ? (
                       `${announcement.proposal_deadline_days} dias`
                     ) : (

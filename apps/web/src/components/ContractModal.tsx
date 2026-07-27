@@ -65,7 +65,11 @@ function decodeHtml(str: string): string {
     if (next === s) break;
     s = next;
   }
-  return s;
+  return s
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, " ")
+    .replace(/[\u00AD\u200B-\u200D\u200E\u200F\uFEFF\uFFFD\u001C-\u001F]/g, "")
+    .replace(/[ \t]+/g, " ")
+    .trim();
 }
 
 function extractName(raw: unknown): string {

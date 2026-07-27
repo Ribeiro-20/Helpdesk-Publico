@@ -8,9 +8,11 @@
     "hubspot:preview": "tsx preview-hubspot-subscribers.ts",
     "hubspot:sync": "tsx preview-hubspot-subscribers.ts --apply",
     "test:hubspot-sync": "tsx --test preview-hubspot-subscribers.test.ts",
+    "test:deadlines": "tsx --test deadlines.test.ts",
     "scrape-dr": "tsx scrape-dr-contracts.ts",
     "scrape-dr:upsert": "tsx scrape-dr-contracts.ts --upsert",
     "backfill:announcements": "tsx backfill-announcements.ts",
+    "backfill:deadlines": "tsx backfill-deadline-timezones.ts",
     "ingest-contracts:direct": "node ingest-direct.js"
   },
   "dependencies": {

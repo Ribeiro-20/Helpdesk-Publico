@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cleanAnnouncementText, effectiveStatus, extractProcedurePiecesUrl, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
+import { formatDeadlineInPortugal } from "@/lib/deadlines";
 import { ArrowLeft } from "lucide-react";
 
 type CpvDisplayItem = {
@@ -214,7 +215,7 @@ export default async function AnnouncementDetailPage({
             label="Data limite"
             value={
               ann.proposal_deadline_at
-                ? new Date(ann.proposal_deadline_at).toLocaleDateString("pt-PT")
+                ? formatDeadlineInPortugal(ann.proposal_deadline_at)
                 : null
             }
           />

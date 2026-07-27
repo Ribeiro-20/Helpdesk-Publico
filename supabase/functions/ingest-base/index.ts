@@ -137,7 +137,7 @@ function normalizeComparableValue(value: unknown, field?: VersionField): unknown
     if (field === "publication_date") return trimmed.slice(0, 10);
     if (field === "proposal_deadline_at") {
       const parsed = new Date(trimmed);
-      return Number.isNaN(parsed.getTime()) ? trimmed : parsed.toISOString().slice(0, 10);
+      return Number.isNaN(parsed.getTime()) ? trimmed : parsed.toISOString();
     }
     if (field && CASE_INSENSITIVE_VERSION_FIELDS.has(field)) {
       return trimmed.toLocaleLowerCase("pt-PT");
@@ -170,8 +170,17 @@ function hasUsefulValue(value: unknown): boolean {
 
 function rawPayloadDetailText(row: Record<string, unknown>): string {
   const rawPayload = row.raw_payload as Record<string, unknown> | null | undefined;
-  const detail = rawPayload?.detalhe_conteudo as Record<string, unknown> | null | undefined;
-  const text = detail?.Texto ?? detail?.texto ?? rawPayload?.Texto ?? rawPayload?.texto;
+  const nestedPayload = rawPayload?.payload as Record<string, unknown> | null | undefined;
+  const detail = (
+    rawPayload?.detalhe_conteudo ??
+    nestedPayload?.detalhe_conteudo
+  ) as Record<string, unknown> | null | undefined;
+  const text = detail?.Texto ??
+    detail?.texto ??
+    rawPayload?.Texto ??
+    rawPayload?.texto ??
+    nestedPayload?.Texto ??
+    nestedPayload?.texto;
   return typeof text === "string" ? text.trim() : "";
 }
 

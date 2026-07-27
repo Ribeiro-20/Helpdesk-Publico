@@ -5,7 +5,7 @@ import { Info } from "lucide-react";
 type InfoPopoverProps = {
   text: string;
   ariaLabel?: string;
-  placement?: "side" | "bottom";
+  placement?: "side" | "bottom" | "bottom-end" | "bottom-start";
   side?: "left" | "right";
   triggerAs?: "button" | "span";
 };
@@ -18,18 +18,26 @@ export default function InfoPopover({
   triggerAs = "button",
 }: InfoPopoverProps) {
   const tooltipPositionClass =
-    placement === "bottom"
-      ? "left-1/2 top-[calc(100%+8px)] -translate-x-1/2"
-      : side === "left"
-        ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
-        : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
+    placement === "bottom-end"
+      ? "right-0 top-[calc(100%+8px)]"
+      : placement === "bottom-start"
+        ? "left-0 top-[calc(100%+8px)]"
+        : placement === "bottom"
+          ? "left-1/2 top-[calc(100%+8px)] -translate-x-1/2"
+          : side === "left"
+            ? "right-[calc(100%+8px)] top-1/2 -translate-y-1/2"
+            : "left-[calc(100%+8px)] top-1/2 -translate-y-1/2";
 
   const arrowPositionClass =
-    placement === "bottom"
-      ? "left-1/2 -top-1 -translate-x-1/2 border-l border-t"
-      : side === "left"
-        ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
-        : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
+    placement === "bottom-end"
+      ? "right-3 -top-1 border-l border-t"
+      : placement === "bottom-start"
+        ? "left-3 -top-1 border-l border-t"
+        : placement === "bottom"
+          ? "left-1/2 -top-1 -translate-x-1/2 border-l border-t"
+          : side === "left"
+            ? "-right-1 top-1/2 -translate-y-1/2 border-r border-t"
+            : "-left-1 top-1/2 -translate-y-1/2 border-l border-b";
 
   return (
     <div className="relative inline-flex group">
@@ -53,7 +61,7 @@ export default function InfoPopover({
       <div
         role="tooltip"
         aria-label={ariaLabel}
-        className={`pointer-events-none absolute z-50 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible font-normal normal-case whitespace-normal ${tooltipPositionClass}`}
+        className={`pointer-events-none absolute z-50 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-xl ring-1 ring-black/5 opacity-0 invisible transition-opacity duration-150 group-hover:opacity-100 group-hover:visible font-normal normal-case whitespace-normal text-left ${tooltipPositionClass}`}
       >
         <span
           className={`absolute h-2 w-2 rotate-45 bg-white border-gray-200 ${arrowPositionClass}`}

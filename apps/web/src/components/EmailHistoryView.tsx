@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import SingleDatePicker from "@/components/SingleDatePicker";
-import { Clock3, CircleCheckBig, CircleX, CircleAlert, TriangleAlert, Inbox } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cleanAnnouncementText } from "@/lib/announcements";
 
 type Notification = {
@@ -25,6 +25,13 @@ type Notification = {
 };
 
 const PRODUCTION_OPPORTUNITIES_URL = "https://mercado.helpdeskpublico.pt/mp/oportunidades-mercado";
+const PAGE_SIZE = 25;
+const LISBON_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Lisbon",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
 const STATUS_OPTIONS = ["", "PENDING", "SENT", "FAILED", "SKIPPED", "RATE_LIMITED"];
 
@@ -59,11 +66,31 @@ function formatTimestamp(value: string) {
   return d.toLocaleString("pt-PT");
 }
 
-export default function EmailHistoryView({ notifications: initial }: { notifications: Notification[] }) {
+function getLisbonDate(value: string): string | null {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const parts = LISBON_DATE_FORMATTER.formatToParts(date);
+  const read = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${read("year")}-${read("month")}-${read("day")}`;
+}
+
+export default function EmailHistoryView({
+  notifications: initial,
+  weekStart,
+  weekEnd,
+}: {
+  notifications: Notification[];
+  weekStart: string;
+  weekEnd: string;
+}) {
   const [filter, setFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     return (initial ?? []).filter((n) => {
@@ -74,13 +101,12 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
       }
 
       const ts = n.sent_at ?? n.created_at;
+      const date = getLisbonDate(ts);
       if (fromDate) {
-        const d = new Date(ts).toISOString().slice(0, 10);
-        if (d < fromDate) return false;
+        if (!date || date < fromDate) return false;
       }
       if (toDate) {
-        const d = new Date(ts).toISOString().slice(0, 10);
-        if (d > toDate) return false;
+        if (!date || date > toDate) return false;
       }
 
       if (!search) return true;
@@ -91,6 +117,29 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
       return [client, annTitle, annDesc, n.error ?? "", n.status].join(" ").toLowerCase().includes(low);
     });
   }, [initial, filter, fromDate, toDate, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filtered.slice(start, start + PAGE_SIZE);
+  }, [filtered, safePage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, fromDate, toDate, search]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  function clearFilters() {
+    setFilter("");
+    setFromDate("");
+    setToDate("");
+    setSearch("");
+    setPage(1);
+  }
 
   function getAnnouncementNumber(announcement: Notification["announcements"]): string | null {
     if (!announcement) return null;
@@ -136,11 +185,32 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
             <div className="flex items-end gap-3">
               <div>
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">Desde</p>
-                <SingleDatePicker value={fromDate} onChange={setFromDate} placeholder="Data inicial" />
+                <SingleDatePicker
+                  value={fromDate}
+                  onChange={setFromDate}
+                  placeholder="Data inicial"
+                  min={weekStart}
+                  max={toDate || weekEnd}
+                />
               </div>
               <div>
                 <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-400">Até</p>
-                <SingleDatePicker value={toDate} onChange={setToDate} placeholder="Data final" />
+                <SingleDatePicker
+                  value={toDate}
+                  onChange={setToDate}
+                  placeholder="Data final"
+                  min={fromDate || weekStart}
+                  max={weekEnd}
+                />
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded-lg border border-surface-200 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-surface-50 hover:text-gray-900"
+                >
+                  Limpar filtros
+                </button>
               </div>
               <div className="rounded-xl border border-surface-200 bg-surface-50 px-4 py-2 text-xs text-gray-600 inline-flex items-center gap-2 shrink-0">
                 <span className="font-semibold text-gray-900">{filtered.length}</span>
@@ -157,7 +227,7 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
             Nenhum envio encontrado com os filtros atuais.
           </div>
         ) : (
-          filtered.map((n) => (
+          paginated.map((n) => (
             <details key={n.id} className="rounded-2xl border border-surface-200 bg-white shadow-card overflow-hidden">
               <summary className="cursor-pointer list-none px-5 py-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between hover:bg-surface-50 transition-colors">
                 <div className="space-y-1.5">
@@ -206,6 +276,44 @@ export default function EmailHistoryView({ notifications: initial }: { notificat
           ))
         )}
       </div>
+
+      {totalPages > 1 && (
+        <nav
+          aria-label="Paginação do histórico de envios"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-surface-200 bg-white px-4 py-3 shadow-card"
+        >
+          <p className="text-xs text-gray-500">
+            A mostrar {(safePage - 1) * PAGE_SIZE + 1}-
+            {Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={safePage === 1}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-surface-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Anterior
+            </button>
+
+            <span className="min-w-20 text-center text-sm text-gray-600">
+              {safePage} / {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+              disabled={safePage === totalPages}
+              className="inline-flex h-9 items-center gap-1 rounded-lg border border-surface-200 px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-surface-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Seguinte
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

@@ -49,7 +49,7 @@ for (const [k, v] of Object.entries(functionsEnv)) process.env[k] = v;
 // Config — aponta para a base de dados de produção
 // ---------------------------------------------------------------------------
 
-const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:54321";
+const SUPABASE_URL = process.env.SUPABASE_URL ?? "http://127.0.0.1:55321";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const TENANT_ID = process.env.TENANT_ID ?? "c43fcb2c-2f0a-43c5-98ca-4a844ddc356d";
 const SCRIPTS_DIR = resolve(__dirname, "../../scripts");

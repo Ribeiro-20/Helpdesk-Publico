@@ -16,7 +16,8 @@
     "cron:hubspot:once": "npm --prefix scripts install && npm --prefix supabase/cron install && npm --prefix supabase/cron run hubspot:once",
     "market:refresh": "node scripts/market-refresh.js",
     "scrape-dr": "npm --prefix scripts run scrape-dr --",
-    "scrape-dr:upsert": "npm --prefix scripts run scrape-dr:upsert --"
+    "scrape-dr:upsert": "npm --prefix scripts run scrape-dr:upsert --",
+    "backfill:deadlines": "npm --prefix scripts run backfill:deadlines --"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.44.2",

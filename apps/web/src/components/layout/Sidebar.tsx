@@ -117,6 +117,7 @@ export default function Sidebar({ userEmail }: { userEmail: string }) {
             width={36}
             height={36}
             className="shrink-0 rounded"
+            style={{ width: "36px", height: "auto" }}
           />
           <div className="min-w-0">
             <p className="text-sm font-bold text-gray-900 leading-tight truncate">

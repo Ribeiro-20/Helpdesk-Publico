@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import HubspotMarketEmbed from "@/components/HubspotMarketEmbed";
 import "./globals.css";
 
 const GA_ID = "G-TXXYEHSNSB";
@@ -39,6 +40,7 @@ export default function RootLayout({
             gtag('config', '${GA_ID}');
           `}
         </Script>
+        <HubspotMarketEmbed />
         {children}
       </body>
     </html>

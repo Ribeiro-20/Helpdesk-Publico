@@ -3,6 +3,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import { notFound } from "next/navigation";
 import { ArrowDownToLine, CalendarDays, ExternalLink, Megaphone } from "lucide-react";
 import { cleanAnnouncementText, effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
+import { formatDeadlineInPortugal } from "@/lib/deadlines";
 
 function normalizeLabel(label: string): string {
   return label
@@ -508,7 +509,7 @@ export default async function AnnouncementDetalhesPage({
         <div className="space-y-2 detail-rows">
           <DetailRow
             label="Prazo para apresentação de propostas"
-            value={ann.proposal_deadline_at ? new Date(ann.proposal_deadline_at).toLocaleDateString("pt-PT") : pick(payloadRoot, ["prazoApresentacaoPropostas"]) ?? fromDetail(["Prazo para apresentação das propostas"]) ?? ""}
+            value={ann.proposal_deadline_at ? formatDeadlineInPortugal(ann.proposal_deadline_at) : pick(payloadRoot, ["prazoApresentacaoPropostas"]) ?? fromDetail(["Prazo para apresentação das propostas"]) ?? ""}
           />
           <DetailRow label="Prazo de manutenção das propostas" value={pick(payloadRoot, ["prazoManutencaoPropostas"]) ?? fromDetail(["Prazo durante o qual os concorrentes são obrigados a manter as respetivas propostas"]) ?? ""} />
           <DetailRow label="Subcontratação na proposta" value={pick(payloadRoot, ["subcontratacaoProposta"]) ?? fromDetail(["Indicação de Subcontratação na Proposta"]) ?? ""} />

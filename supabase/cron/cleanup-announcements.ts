@@ -17,6 +17,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import cron from "node-cron";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { addDaysToPortugalDateEnd } from "../functions/_shared/portugalTime.ts";
 
 type TenantRow = {
   id: string;
@@ -113,39 +114,9 @@ function cleanupCutoffIso(retentionDays: number): string {
   return cutoff.toISOString();
 }
 
-function parseDateOnly(value: string): { year: number; monthIndex: number; day: number } | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return null;
-
-  const year = Number.parseInt(match[1], 10);
-  const monthIndex = Number.parseInt(match[2], 10) - 1;
-  const day = Number.parseInt(match[3], 10);
-
-  if (!Number.isFinite(year) || !Number.isFinite(monthIndex) || !Number.isFinite(day)) {
-    return null;
-  }
-
-  return { year, monthIndex, day };
-}
-
 function inferDeadlineAt(publicationDate: string, deadlineDays: number | null): string | null {
   if (deadlineDays == null || deadlineDays < 0) return null;
-
-  const parts = parseDateOnly(publicationDate);
-  if (!parts) return null;
-
-  const deadline = new Date(Date.UTC(
-    parts.year,
-    parts.monthIndex,
-    parts.day + deadlineDays,
-    // Keep the displayed date stable in Europe/Lisbon, including summer time.
-    22,
-    59,
-    0,
-    0,
-  ));
-
-  return deadline.toISOString();
+  return addDaysToPortugalDateEnd(publicationDate, deadlineDays);
 }
 
 async function getTenants(client: SupabaseClient): Promise<TenantRow[]> {

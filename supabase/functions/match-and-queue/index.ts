@@ -18,6 +18,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isDeadlineExpired } from "../_shared/portugalTime.ts";
 import { matchClientsForAnnouncement } from "../_shared/cpvMatcher.ts";
 import type { CpvRule } from "../_shared/cpvMatcher.ts";
 import { getNextBusinessDay10am } from "../_shared/scheduling.ts";
@@ -191,15 +192,6 @@ function isMissingNotificationRegionsError(error: unknown): boolean {
   const hint = String((error as { hint?: unknown }).hint ?? "");
   const combined = `${message} ${details} ${hint}`.toLowerCase();
   return combined.includes("notification_regions") && combined.includes("clients");
-}
-
-function isAnnouncementExpired(deadlineAt: string | null | undefined): boolean {
-  if (!deadlineAt) return false;
-
-  const deadlineMs = Date.parse(deadlineAt);
-  if (!Number.isFinite(deadlineMs)) return false;
-
-  return deadlineMs < Date.now();
 }
 
 function serializeError(error: unknown) {
@@ -411,7 +403,7 @@ Deno.serve(async (req: Request) => {
           ? ann.proposal_deadline_at
           : null;
 
-        if (isAnnouncementExpired(deadlineAt)) {
+        if (isDeadlineExpired(deadlineAt)) {
           console.log(
             `[match-and-queue] skipping expired announcement ${ann.id} (deadline ${deadlineAt})`,
           );
