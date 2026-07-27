@@ -77,11 +77,13 @@ function MultiCheckbox({
   name,
   options,
   defaultValues,
+  valueMap,
 }: {
   label: string;
   name: string;
   options: readonly string[];
   defaultValues: string[];
+  valueMap?: Record<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set(defaultValues));
@@ -105,6 +107,9 @@ function MultiCheckbox({
   };
 
   const selectedArr = Array.from(selected);
+  const hiddenValue = valueMap
+    ? selectedArr.map(label => valueMap[label] ?? label).join(",")
+    : selectedArr.join(",");
   const buttonLabel =
     selected.size === 0
       ? "Todos"
@@ -115,7 +120,7 @@ function MultiCheckbox({
   return (
     <div ref={ref} className="relative">
       <span className="mb-1 block text-xs text-gray-400">{label}</span>
-      <input type="hidden" name={name} value={selectedArr.join(",")} />
+      <input type="hidden" name={name} value={hiddenValue} />
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -175,6 +180,15 @@ function MultiCheckbox({
   );
 }
 
+export const VALUE_BRACKET_OPTIONS = [
+  { label: "Até 5.000 €",           value: "0-5000" },
+  { label: "5.001 € – 25.000 €",    value: "5001-25000" },
+  { label: "25.001 € – 75.000 €",   value: "25001-75000" },
+  { label: "75.001 € – 200.000 €",  value: "75001-200000" },
+  { label: "200.001 € – 1.000.000 €", value: "200001-1000000" },
+  { label: "Superior a 1.000.000 €", value: "1000001+" },
+] as const;
+
 type Props = {
   analysisType: "announcements" | "contracts";
   defaultActTypes: string[];
@@ -184,8 +198,7 @@ type Props = {
   defaultDateFrom: string;
   defaultDateTo: string;
   defaultCpv: string;
-  defaultValueMin: string;
-  defaultValueMax: string;
+  defaultValueBrackets: string[];
   defaultSort: string;
   observatoryHref: string;
   contractTypeOptions?: string[];
@@ -202,8 +215,7 @@ export default function MarketFiltersForm({
   defaultDateFrom,
   defaultDateTo,
   defaultCpv,
-  defaultValueMin,
-  defaultValueMax,
+  defaultValueBrackets,
   defaultSort,
   observatoryHref,
   contractTypeOptions,
@@ -299,33 +311,13 @@ export default function MarketFiltersForm({
           </div>
 
           {analysisType === "contracts" && (
-            <>
-              <label className="block">
-                <span className="mb-1 block text-xs text-gray-400">Valor mínimo (€)</span>
-                <input
-                  type="number"
-                  name="value_min"
-                  min="0"
-                  step="0.01"
-                  defaultValue={defaultValueMin}
-                  placeholder="Ex: 10000"
-                  className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-                />
-              </label>
-
-              <label className="block">
-                <span className="mb-1 block text-xs text-gray-400">Valor máximo (€)</span>
-                <input
-                  type="number"
-                  name="value_max"
-                  min="0"
-                  step="0.01"
-                  defaultValue={defaultValueMax}
-                  placeholder="Ex: 50000"
-                  className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-                />
-              </label>
-            </>
+            <MultiCheckbox
+              label="Intervalo de valor"
+              name="value_bracket"
+              options={VALUE_BRACKET_OPTIONS.map(o => o.label)}
+              defaultValues={defaultValueBrackets.map(v => VALUE_BRACKET_OPTIONS.find(o => o.value === v)?.label ?? "").filter(Boolean)}
+              valueMap={Object.fromEntries(VALUE_BRACKET_OPTIONS.map(o => [o.label, o.value]))}
+            />
           )}
 
           <label className="block sm:col-span-2 lg:col-span-1">

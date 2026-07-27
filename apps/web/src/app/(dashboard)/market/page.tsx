@@ -138,12 +138,6 @@ function parseMultiValues(raw: string | undefined): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
-function parseNonNegativeNumber(raw: string | undefined): number | null {
-  if (!raw?.trim()) return null;
-  const value = Number(raw.trim().replace(",", "."));
-  return Number.isFinite(value) && value >= 0 ? value : null;
-}
-
 const marketPageCache = new Map<string, { expiresAt: number; data: MarketCacheData }>();
 
 async function fetchAllContractsForTenant<T>(
@@ -497,8 +491,7 @@ export default async function MarketPage({
     month?: string;
     district?: string;
     cpv_family?: string;
-    value_min?: string;
-    value_max?: string;
+    value_bracket?: string;
     sort?: string;
   }>;
 }) {
@@ -524,8 +517,7 @@ export default async function MarketPage({
   const cpvFamilyFilter = (params.cpv_family ?? "").trim();
   const cpvFamilyPrefixFilter = deriveCpvFamilyPrefix(cpvFamilyFilter);
   const cpvFamilyLikeFilter = cpvFamilyPrefixFilter ? `${cpvFamilyPrefixFilter}%` : "";
-  const valueMinFilter = parseNonNegativeNumber(params.value_min);
-  const valueMaxFilter = parseNonNegativeNumber(params.value_max);
+  const valueBracketFilters = parseMultiValues(params.value_bracket);
   const sortFilter = (params.sort ?? "").trim() || "relevance";
 
   const cpvFamilyPrefix = deriveCpvFamilyPrefix(cpvFilter);
@@ -539,8 +531,7 @@ export default async function MarketPage({
   if (contractTypeFilters.length > 0) baseParams.set("contract_type", contractTypeFilters.join(","));
   if (modelTypeFilters.length > 0) baseParams.set("model_type", modelTypeFilters.join(","));
   if (districtFilters.length > 0) baseParams.set("district", districtFilters.join(","));
-  if (valueMinFilter != null) baseParams.set("value_min", String(valueMinFilter));
-  if (valueMaxFilter != null) baseParams.set("value_max", String(valueMaxFilter));
+  if (valueBracketFilters.length > 0) baseParams.set("value_bracket", valueBracketFilters.join(","));
   if (yearFilter) baseParams.set("year", yearFilter);
   if (monthFilter) baseParams.set("month", monthFilter);
   if (sortFilter && sortFilter !== "relevance") baseParams.set("sort", sortFilter);
@@ -633,8 +624,7 @@ export default async function MarketPage({
       defaultDateFrom={dateFromFilter}
       defaultDateTo={dateToFilter}
       defaultCpv={cpvFiltersRaw}
-      defaultValueMin={valueMinFilter != null ? String(valueMinFilter) : ""}
-      defaultValueMax={valueMaxFilter != null ? String(valueMaxFilter) : ""}
+      defaultValueBrackets={valueBracketFilters}
       defaultSort={sortFilter}
       observatoryHref={observatoryHref}
       contractTypeOptions={earlyDynamicContractTypes}
@@ -708,7 +698,14 @@ export default async function MarketPage({
     cpvInsight = cachedData.cpvInsight;
   }
 
-  if (tenantId && !cpvFilter && selectedAnalysis === "contracts") {
+  // Filters that make the global (unfiltered) RPCs inapplicable for KPIs / analytics
+  const hasAdditionalContractFilters = contractTypeFilters.length > 0
+    || modelTypeFilters.length > 0
+    || districtFilters.length > 0
+    || Boolean(dateFromFilter || dateToFilter || yearFilter || monthFilter || cpvFamilyFilter)
+    || valueBracketFilters.length > 0;
+
+  if (tenantId && !cpvFilter && selectedAnalysis === "contracts" && !hasAdditionalContractFilters) {
     const [
       kpiRes,
       procedureRes,
@@ -1303,17 +1300,22 @@ export default async function MarketPage({
         discountBaseQ = discountBaseQ.lt("signing_date", dateEnd);
         valueBaseQ = valueBaseQ.lt("signing_date", dateEnd);
       }
-      if (valueMinFilter != null) {
-        resultsQuery = resultsQuery.gte("contract_price", valueMinFilter);
-        contractsCountQ = contractsCountQ.gte("contract_price", valueMinFilter);
-        discountBaseQ = discountBaseQ.gte("contract_price", valueMinFilter);
-        valueBaseQ = valueBaseQ.gte("contract_price", valueMinFilter);
-      }
-      if (valueMaxFilter != null) {
-        resultsQuery = resultsQuery.lte("contract_price", valueMaxFilter);
-        contractsCountQ = contractsCountQ.lte("contract_price", valueMaxFilter);
-        discountBaseQ = discountBaseQ.lte("contract_price", valueMaxFilter);
-        valueBaseQ = valueBaseQ.lte("contract_price", valueMaxFilter);
+      if (valueBracketFilters.length > 0) {
+        const bracketOr = valueBracketFilters.map(b => {
+          if (b === "0-5000")          return "contract_price.lte.5000";
+          if (b === "5001-25000")      return "and(contract_price.gte.5001,contract_price.lte.25000)";
+          if (b === "25001-75000")     return "and(contract_price.gte.25001,contract_price.lte.75000)";
+          if (b === "75001-200000")    return "and(contract_price.gte.75001,contract_price.lte.200000)";
+          if (b === "200001-1000000")  return "and(contract_price.gte.200001,contract_price.lte.1000000)";
+          if (b === "1000001+")        return "contract_price.gt.1000000";
+          return null;
+        }).filter(Boolean).join(",");
+        if (bracketOr) {
+          resultsQuery    = resultsQuery.or(bracketOr);
+          contractsCountQ = contractsCountQ.or(bracketOr);
+          discountBaseQ   = discountBaseQ.or(bracketOr);
+          valueBaseQ      = valueBaseQ.or(bracketOr);
+        }
       }
 
       const PAGE = 5000;
@@ -1436,8 +1438,18 @@ export default async function MarketPage({
       if (cpvFamilyLikeFilter) contractsCountQuery = contractsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
       if (dateStart) contractsCountQuery = contractsCountQuery.gte("signing_date", dateStart);
       if (dateEnd) contractsCountQuery = contractsCountQuery.lt("signing_date", dateEnd);
-      if (valueMinFilter != null) contractsCountQuery = contractsCountQuery.gte("contract_price", valueMinFilter);
-      if (valueMaxFilter != null) contractsCountQuery = contractsCountQuery.lte("contract_price", valueMaxFilter);
+      if (valueBracketFilters.length > 0) {
+        const bracketOr = valueBracketFilters.map(b => {
+          if (b === "0-5000")          return "contract_price.lte.5000";
+          if (b === "5001-25000")      return "and(contract_price.gte.5001,contract_price.lte.25000)";
+          if (b === "25001-75000")     return "and(contract_price.gte.25001,contract_price.lte.75000)";
+          if (b === "75001-200000")    return "and(contract_price.gte.75001,contract_price.lte.200000)";
+          if (b === "200001-1000000")  return "and(contract_price.gte.200001,contract_price.lte.1000000)";
+          if (b === "1000001+")        return "contract_price.gt.1000000";
+          return null;
+        }).filter(Boolean).join(",");
+        if (bracketOr) contractsCountQuery = contractsCountQuery.or(bracketOr);
+      }
 
       const { count } = await contractsCountQuery;
       contractsUnitCount = count ?? 0;
@@ -1458,8 +1470,7 @@ export default async function MarketPage({
       year: yearFilter || null,
       month: monthFilter || null,
       district: districtFilters.length > 0 ? districtFilters : null,
-      valueMin: valueMinFilter,
-      valueMax: valueMaxFilter,
+      valueBracket: valueBracketFilters.length > 0 ? valueBracketFilters : null,
       cpvFamily: cpvFamilyFilter || null,
       sort: sortFilter || null,
       cpvFilter: cpvFilter || null,
@@ -1469,12 +1480,6 @@ export default async function MarketPage({
 
   // Os agregados por CPV não incluem filtros adicionais (datas, tipo, distrito ou valor).
   // Só podem ser usados quando o CPV é o único critério de pesquisa.
-  const hasAdditionalContractFilters = contractTypeFilters.length > 0
-    || modelTypeFilters.length > 0
-    || districtFilters.length > 0
-    || Boolean(dateFromFilter || dateToFilter || yearFilter || monthFilter || cpvFamilyFilter)
-    || valueMinFilter != null
-    || valueMaxFilter != null;
   const canUseCpvInsight = selectedAnalysis === "contracts"
     && Boolean(cpvInsight)
     && cpvFilters.length === 1
