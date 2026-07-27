@@ -123,7 +123,10 @@ export async function middleware(request: NextRequest) {
     const miSession = request.cookies.get("mi-session")?.value;
     if (!miSession) {
       const url = request.nextUrl.clone();
-      url.pathname = "/mp/login-mi";
+      // Preserve original URL (with ?contract= etc.) so login can redirect back
+      const originalPath = request.nextUrl.pathname + request.nextUrl.search;
+      url.pathname = "/mp/login-mi/entrar";
+      url.search = `?redirect=${encodeURIComponent(originalPath)}`;
       return NextResponse.redirect(url);
     }
     return NextResponse.next({ request });

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
@@ -12,6 +13,9 @@ export default function LoginMIEntrarPage() {
   const [step, setStep] = useState<"login" | "verify">("login");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  // Preserve the original URL (e.g. /outros?contract=...) to redirect back after login
+  const redirectTo = searchParams.get("redirect") || "/outros";
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -61,7 +65,7 @@ export default function LoginMIEntrarPage() {
         return;
       }
 
-      window.location.href = "/outros";
+      window.location.href = redirectTo;
     } catch {
       setError("Erro de conexão. Tente novamente.");
       setLoading(false);
