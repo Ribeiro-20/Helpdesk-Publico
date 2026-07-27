@@ -987,7 +987,7 @@ function buildBaseTemplate(innerHtml: string): string {
                   </td>
                   <td valign="middle" style="color:#ffffff;">
                     <div style="font-size:21px; line-height:25px; font-weight:700; color:#ffffff;">Helpdesk Público</div>
-                    <div style="font-size:14px; line-height:18px; color:#a7c47a; margin-top:4px;">Contratação Pública Eficiente</div>
+                    <div style="font-size:14px; line-height:18px; color:#ffffff; margin-top:4px;">Contratação Pública Eficiente</div>
                   </td>
                 </tr>
               </table>
@@ -1083,7 +1083,10 @@ export function buildMiContractAlertEmail(params: {
 
     const endDate = c.estimatedEndDate ? new Date(c.estimatedEndDate) : new Date();
     const today = new Date();
-    const daysRemaining = Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / 86400000));
+    const rawProgressRatio = c.progress ? (c.progress > 1 ? c.progress / 100 : c.progress) : 0.75;
+    const daysRemaining = (c.deadlineDays && c.deadlineDays > 0)
+      ? Math.max(0, Math.ceil(c.deadlineDays * (1 - Math.min(1, rawProgressRatio))))
+      : Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / 86400000));
 
     const entityDisplay = escapeEmailHtml(stripNipc(c.entity));
     const winnerDisplay = escapeEmailHtml(stripNipc(c.winner));
@@ -1189,7 +1192,7 @@ export function buildMiContractAlertEmail(params: {
           </tr>
           <tr>
             <td align="center" style="padding:8px 18px 20px 18px;">
-              <div style="font-size:12px; line-height:18px; color:#6b7280; font-style:italic; max-width:440px; margin:0 auto;">
+              <div style="font-size:12px; line-height:18px; color:#6b7280; font-style:normal; max-width:440px; margin:0 auto;">
                 Este contrato foi identificado automaticamente com base nos critérios de monitorização da sua conta.
               </div>
             </td>
