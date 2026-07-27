@@ -666,6 +666,7 @@ export default async function MarketPage({
   let contractsUnitCount: number | null = null;
   let discountFromSample: number | null = null;
   let avgValueFromSample: number | null = null;
+  let totalValueFromFilteredContracts: number | null = null;
 
   if (cachedData) {
     totalCpvStats = cachedData.totalCpvStats;
@@ -1280,7 +1281,13 @@ export default async function MarketPage({
       // Compute average value from all rows with valid price
       const validValueRows = valueAllRows.filter(r => Number(r.contract_price ?? 0) > 0);
       if (validValueRows.length > 0) {
+        totalValueFromFilteredContracts = validValueRows.reduce(
+          (sum, row) => sum + Number(row.contract_price),
+          0,
+        );
         avgValueFromSample = validValueRows.reduce((sum, r) => sum + Number(r.contract_price), 0) / validValueRows.length;
+      } else {
+        totalValueFromFilteredContracts = 0;
       }
 
       // Compute discount from all rows with valid base_price and contract_price
@@ -1394,24 +1401,40 @@ export default async function MarketPage({
     });
   }
 
+  // Os agregados por CPV não incluem filtros adicionais (datas, tipo, distrito ou valor).
+  // Só podem ser usados quando o CPV é o único critério de pesquisa.
+  const hasAdditionalContractFilters = contractTypeFilters.length > 0
+    || modelTypeFilters.length > 0
+    || districtFilters.length > 0
+    || Boolean(dateFromFilter || dateToFilter || yearFilter || monthFilter || cpvFamilyFilter)
+    || valueMinFilter != null
+    || valueMaxFilter != null;
+  const canUseCpvInsight = selectedAnalysis === "contracts"
+    && Boolean(cpvInsight)
+    && cpvFilters.length === 1
+    && !hasAdditionalContractFilters;
+
   const totalResults = cpvFilters.length > 1
     ? resultRows.length
     : cpvFilter
       ? (selectedAnalysis === "contracts"
-        ? (cpvInsight?.total_contracts ?? cpvCarouselItems.reduce((sum, item) => sum + Math.max(0, item.contracts), 0))
+        ? (canUseCpvInsight
+          ? cpvInsight!.total_contracts
+          : (contractsUnitCount ?? resultRows.length))
         : resultRows.length)
     : (selectedAnalysis === "announcements" ? resultRows.length : (contractsUnitCount ?? marketOverview?.totalContracts ?? 0));
   const resultLabel = selectedAnalysis === "announcements" ? "anúncios" : "contratos";
   const hasOverviewData = Boolean(marketOverview && marketOverview.totalContracts > 0);
-  const kpiContracts = cpvInsight?.total_contracts ?? (
+  const kpiContracts = (canUseCpvInsight ? cpvInsight!.total_contracts : null) ?? (
     selectedAnalysis === "contracts" && contractsUnitCount != null
       ? contractsUnitCount
       : (resultRows.length > 0 ? resultRows.length : marketOverview?.totalContracts ?? 0)
   );
-  const kpiTotalValue = cpvInsight?.total_value ?? (resultRows.length > 0
-    ? resultRows.reduce((sum, row) => sum + Math.max(0, Number(row.contract_price ?? 0)), 0)
-    : marketOverview?.totalValue ?? 0);
-  const kpiAvgValue = cpvInsight?.avg_contract_value
+  const kpiTotalValue = (canUseCpvInsight ? cpvInsight!.total_value : null) ?? (totalValueFromFilteredContracts
+    ?? (resultRows.length > 0
+      ? resultRows.reduce((sum, row) => sum + Math.max(0, Number(row.contract_price ?? 0)), 0)
+      : marketOverview?.totalValue ?? 0));
+  const kpiAvgValue = (canUseCpvInsight ? cpvInsight!.avg_contract_value : null)
     ?? avgValueFromSample
     ?? (marketOverview && marketOverview.totalContracts > 0
       ? marketOverview.totalValue / marketOverview.totalContracts
@@ -1426,7 +1449,11 @@ export default async function MarketPage({
     const sum = pairs.reduce((acc, row) => acc + (1 - Number(row.contract_price) / Number(row.base_price)) * 100, 0);
     return sum / pairs.length;
   })();
-  const kpiDiscount = cpvInsight?.avg_discount_pct ?? discountFromSample ?? kpiDiscountFromRows ?? marketOverview?.avgDiscountPct ?? null;
+  const kpiDiscount = (canUseCpvInsight ? cpvInsight!.avg_discount_pct : null)
+    ?? discountFromSample
+    ?? kpiDiscountFromRows
+    ?? marketOverview?.avgDiscountPct
+    ?? null;
   const unitAnnouncements = Math.max(0, announcementsUnitCount ?? 0);
   const unitContracts = Math.max(0, contractsUnitCount ?? 0);
   const unitTotal = unitAnnouncements + unitContracts;
