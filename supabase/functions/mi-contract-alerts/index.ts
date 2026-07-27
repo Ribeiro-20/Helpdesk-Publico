@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://www.helpdeskpublico.pt";
+    const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://mercado.helpdeskpublico.pt";
 
     console.log("[mi-contract-alerts] Starting 10:00 AM Market Intelligence email alert job...");
 
