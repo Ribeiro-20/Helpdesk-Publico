@@ -350,49 +350,49 @@ export default function ContractModal({
                   </h3>
                 </div>
                 <hr className="border-gray-200 mb-4" />
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {contract.contract_type && (
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Tipo de Contrato
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
+                      <span className="inline-block w-fit text-sm px-3 py-1 rounded-full border border-purple-200 bg-purple-50 text-purple-700">
                         {contract.contract_type}
                       </span>
                     </div>
                   )}
                   {contract.procedure_type && (
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Tipo de Procedimento
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
+                      <span className="inline-block w-fit text-sm px-3 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700">
                         {contract.procedure_type}
                       </span>
                     </div>
                   )}
                   {contract.announcement_type && (
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Tipo de Anúncio
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700">
+                      <span className="inline-block w-fit text-sm px-3 py-1 rounded-full border border-teal-200 bg-teal-50 text-teal-700">
                         {contract.announcement_type}
                       </span>
                     </div>
                   )}
                   {contract.legal_regime && (
-                    <div>
+                    <div className="flex flex-col">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Regime Jurídico
                       </p>
-                      <span className="inline-block text-sm px-3 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-700">
+                      <span className="inline-block w-fit text-sm px-3 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-700">
                         {contract.legal_regime}
                       </span>
                     </div>
                   )}
                   {contract.legal_basis && (
-                    <div className="col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Fundamento Legal
                       </p>
@@ -402,14 +402,14 @@ export default function ContractModal({
                     </div>
                   )}
                   {cpvList.length > 0 && (
-                    <div className="col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Códigos CPV
                       </p>
                       <div className="flex flex-col gap-1.5">
                         {cpvList.map((c, i) => (
                           <div key={i} className="flex items-center gap-2 flex-wrap">
-                            <span className="inline-block text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700 font-mono whitespace-nowrap">
+                            <span className="inline-block w-fit text-sm px-3 py-1 rounded-full border border-orange-200 bg-orange-50 text-orange-700 font-mono whitespace-nowrap">
                               {c}
                             </span>
                             {cpvDescriptions[c] && (
@@ -423,7 +423,7 @@ export default function ContractModal({
                     </div>
                   )}
                   {contract.framework_agreement && (
-                    <div className="col-span-2">
+                    <div className="col-span-1 sm:col-span-2">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                         Acordo Quadro
                       </p>
@@ -438,7 +438,7 @@ export default function ContractModal({
               </div>
 
               {/* ── PRICES ── */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="border border-gray-200 rounded-xl p-4">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
                     Preço Base
@@ -471,17 +471,17 @@ export default function ContractModal({
                 contract.end_type) && (
                 <div className="flex flex-wrap gap-2">
                   {contract.is_ecological && (
-                    <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 font-medium">
+                    <span className="inline-flex w-fit items-center gap-1 text-xs px-3 py-1 rounded-full bg-green-50 border border-green-200 text-green-700 font-medium">
                       🌿 Contrato Ecológico
                     </span>
                   )}
                   {contract.is_centralized && (
-                    <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-medium">
+                    <span className="inline-flex w-fit items-center gap-1 text-xs px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 font-medium">
                       🏛 Centralizado
                     </span>
                   )}
                   {contract.end_type && (
-                    <span className="inline-flex items-center gap-1 text-xs px-3 py-1 rounded-full bg-gray-100 border border-gray-200 text-gray-700 font-medium">
+                    <span className="inline-flex w-fit items-center gap-1 text-xs px-3 py-1 rounded-full bg-gray-100 border border-gray-200 text-gray-700 font-medium">
                       Fim: {contract.end_type}
                     </span>
                   )}
@@ -569,7 +569,7 @@ export default function ContractModal({
                     </h3>
                   </div>
                   <hr className="border-gray-200 mb-4" />
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     {contract.base_contract_id && (
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">
