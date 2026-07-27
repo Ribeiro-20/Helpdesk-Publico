@@ -184,6 +184,8 @@ type Props = {
   defaultDateFrom: string;
   defaultDateTo: string;
   defaultCpv: string;
+  defaultValueMin: string;
+  defaultValueMax: string;
   defaultSort: string;
   observatoryHref: string;
 };
@@ -197,6 +199,8 @@ export default function MarketFiltersForm({
   defaultDateFrom,
   defaultDateTo,
   defaultCpv,
+  defaultValueMin,
+  defaultValueMax,
   defaultSort,
   observatoryHref,
 }: Props) {
@@ -284,6 +288,36 @@ export default function MarketFiltersForm({
               compact
             />
           </div>
+
+          {analysisType === "contracts" && (
+            <>
+              <label className="block">
+                <span className="mb-1 block text-xs text-gray-400">Valor mínimo (€)</span>
+                <input
+                  type="number"
+                  name="value_min"
+                  min="0"
+                  step="0.01"
+                  defaultValue={defaultValueMin}
+                  placeholder="Ex: 10000"
+                  className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-xs text-gray-400">Valor máximo (€)</span>
+                <input
+                  type="number"
+                  name="value_max"
+                  min="0"
+                  step="0.01"
+                  defaultValue={defaultValueMax}
+                  placeholder="Ex: 50000"
+                  className="w-full rounded-xl border border-surface-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-card transition-all placeholder:text-gray-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+                />
+              </label>
+            </>
+          )}
 
           <label className="block sm:col-span-2 lg:col-span-1">
             <span className="mb-1 block text-xs text-gray-400">Ordenação</span>

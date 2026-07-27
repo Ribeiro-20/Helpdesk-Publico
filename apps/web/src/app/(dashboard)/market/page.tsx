@@ -128,6 +128,12 @@ function parseMultiValues(raw: string | undefined): string[] {
   return raw.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
+function parseNonNegativeNumber(raw: string | undefined): number | null {
+  if (!raw?.trim()) return null;
+  const value = Number(raw.trim().replace(",", "."));
+  return Number.isFinite(value) && value >= 0 ? value : null;
+}
+
 const marketPageCache = new Map<string, { expiresAt: number; data: MarketCacheData }>();
 
 async function fetchAllContractsForTenant<T>(
@@ -481,6 +487,8 @@ export default async function MarketPage({
     month?: string;
     district?: string;
     cpv_family?: string;
+    value_min?: string;
+    value_max?: string;
     sort?: string;
   }>;
 }) {
@@ -506,6 +514,8 @@ export default async function MarketPage({
   const cpvFamilyFilter = (params.cpv_family ?? "").trim();
   const cpvFamilyPrefixFilter = deriveCpvFamilyPrefix(cpvFamilyFilter);
   const cpvFamilyLikeFilter = cpvFamilyPrefixFilter ? `${cpvFamilyPrefixFilter}%` : "";
+  const valueMinFilter = parseNonNegativeNumber(params.value_min);
+  const valueMaxFilter = parseNonNegativeNumber(params.value_max);
   const sortFilter = (params.sort ?? "").trim() || "relevance";
 
   const cpvFamilyPrefix = deriveCpvFamilyPrefix(cpvFilter);
@@ -519,6 +529,8 @@ export default async function MarketPage({
   if (contractTypeFilters.length > 0) baseParams.set("contract_type", contractTypeFilters.join(","));
   if (modelTypeFilters.length > 0) baseParams.set("model_type", modelTypeFilters.join(","));
   if (districtFilters.length > 0) baseParams.set("district", districtFilters.join(","));
+  if (valueMinFilter != null) baseParams.set("value_min", String(valueMinFilter));
+  if (valueMaxFilter != null) baseParams.set("value_max", String(valueMaxFilter));
   if (yearFilter) baseParams.set("year", yearFilter);
   if (monthFilter) baseParams.set("month", monthFilter);
   if (sortFilter && sortFilter !== "relevance") baseParams.set("sort", sortFilter);
@@ -587,6 +599,8 @@ export default async function MarketPage({
       defaultDateFrom={dateFromFilter}
       defaultDateTo={dateToFilter}
       defaultCpv={cpvFiltersRaw}
+      defaultValueMin={valueMinFilter != null ? String(valueMinFilter) : ""}
+      defaultValueMax={valueMaxFilter != null ? String(valueMaxFilter) : ""}
       defaultSort={sortFilter}
       observatoryHref={observatoryHref}
     />
@@ -1223,6 +1237,18 @@ export default async function MarketPage({
         discountBaseQ = discountBaseQ.lt("signing_date", dateEnd);
         valueBaseQ = valueBaseQ.lt("signing_date", dateEnd);
       }
+      if (valueMinFilter != null) {
+        resultsQuery = resultsQuery.gte("contract_price", valueMinFilter);
+        contractsCountQ = contractsCountQ.gte("contract_price", valueMinFilter);
+        discountBaseQ = discountBaseQ.gte("contract_price", valueMinFilter);
+        valueBaseQ = valueBaseQ.gte("contract_price", valueMinFilter);
+      }
+      if (valueMaxFilter != null) {
+        resultsQuery = resultsQuery.lte("contract_price", valueMaxFilter);
+        contractsCountQ = contractsCountQ.lte("contract_price", valueMaxFilter);
+        discountBaseQ = discountBaseQ.lte("contract_price", valueMaxFilter);
+        valueBaseQ = valueBaseQ.lte("contract_price", valueMaxFilter);
+      }
 
       const PAGE = 5000;
       const [{ data: rawResultRows }, { count: dbContractsCount }, discountAllRows, valueAllRows] =
@@ -1337,6 +1363,8 @@ export default async function MarketPage({
       if (cpvFamilyLikeFilter) contractsCountQuery = contractsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
       if (dateStart) contractsCountQuery = contractsCountQuery.gte("signing_date", dateStart);
       if (dateEnd) contractsCountQuery = contractsCountQuery.lt("signing_date", dateEnd);
+      if (valueMinFilter != null) contractsCountQuery = contractsCountQuery.gte("contract_price", valueMinFilter);
+      if (valueMaxFilter != null) contractsCountQuery = contractsCountQuery.lte("contract_price", valueMaxFilter);
 
       const { count } = await contractsCountQuery;
       contractsUnitCount = count ?? 0;
@@ -1357,6 +1385,8 @@ export default async function MarketPage({
       year: yearFilter || null,
       month: monthFilter || null,
       district: districtFilters.length > 0 ? districtFilters : null,
+      valueMin: valueMinFilter,
+      valueMax: valueMaxFilter,
       cpvFamily: cpvFamilyFilter || null,
       sort: sortFilter || null,
       cpvFilter: cpvFilter || null,
