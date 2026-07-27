@@ -188,6 +188,9 @@ type Props = {
   defaultValueMax: string;
   defaultSort: string;
   observatoryHref: string;
+  contractTypeOptions?: string[];
+  modelTypeOptions?: string[];
+  actTypeOptions?: string[];
 };
 
 export default function MarketFiltersForm({
@@ -203,7 +206,13 @@ export default function MarketFiltersForm({
   defaultValueMax,
   defaultSort,
   observatoryHref,
+  contractTypeOptions,
+  modelTypeOptions,
+  actTypeOptions,
 }: Props) {
+  const resolvedContractTypes = (contractTypeOptions && contractTypeOptions.length > 0 ? contractTypeOptions : CONTRACT_TYPE_OPTIONS) as readonly string[];
+  const resolvedModelTypes = (modelTypeOptions && modelTypeOptions.length > 0 ? modelTypeOptions : MODEL_TYPE_OPTIONS) as readonly string[];
+  const resolvedActTypes = (actTypeOptions && actTypeOptions.length > 0 ? actTypeOptions : ACT_TYPE_OPTIONS) as readonly string[];
   return (
     <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
       <h2 className="font-semibold text-gray-900 mb-4">Filtros de mercado</h2>
@@ -217,19 +226,19 @@ export default function MarketFiltersForm({
               <MultiCheckbox
                 label="Tipo de ato"
                 name="act_type"
-                options={ACT_TYPE_OPTIONS}
+                options={resolvedActTypes}
                 defaultValues={defaultActTypes}
               />
               <MultiCheckbox
                 label="Tipo de contrato"
                 name="contract_type"
-                options={CONTRACT_TYPE_OPTIONS}
+                options={resolvedContractTypes}
                 defaultValues={defaultContractTypes}
               />
               <MultiCheckbox
                 label="Tipo de modelo"
                 name="model_type"
-                options={MODEL_TYPE_OPTIONS}
+                options={resolvedModelTypes}
                 defaultValues={defaultModelTypes}
               />
             </>
@@ -238,13 +247,13 @@ export default function MarketFiltersForm({
               <MultiCheckbox
                 label="Tipo de contrato"
                 name="contract_type"
-                options={CONTRACT_TYPE_OPTIONS}
+                options={resolvedContractTypes}
                 defaultValues={defaultContractTypes}
               />
               <MultiCheckbox
                 label="Tipo de modelo"
                 name="model_type"
-                options={MODEL_TYPE_OPTIONS}
+                options={resolvedModelTypes}
                 defaultValues={defaultModelTypes}
               />
               <MultiCheckbox

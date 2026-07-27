@@ -8,6 +8,16 @@ import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel"
 import { cleanAnnouncementText } from "@/lib/announcements";
 import MarketFiltersForm from "../../../components/market/MarketFiltersForm";
 import { calendarDaysUntilDeadlineInPortugal } from "@/lib/deadlines";
+import {
+  ProcedurePercentTable,
+  MonthlyOperatorsTable,
+  MonthlyEntitiesTable,
+  TopCpvByValueTable,
+  TopProcedureByValueTable,
+  type ProcedureDistItem,
+  type MonthlyCountItem,
+  type CpvValueItem,
+} from "../../../components/market/MarketLowEffort";
 
 export const dynamic = "force-dynamic";
 
@@ -589,6 +599,30 @@ export default async function MarketPage({
     </div>
   );
 
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: appUser } = await supabase
+    .from("app_users")
+    .select("tenant_id, role")
+    .eq("id", user!.id)
+    .maybeSingle();
+
+  const tenantId = appUser?.tenant_id;
+
+  // Fetch dynamic filter options from DB so dropdowns reflect actual data
+  let earlyDynamicContractTypes: string[] = [];
+  let earlyDynamicModelTypes: string[] = [];
+  if (tenantId && selectedAnalysis === "contracts") {
+    const { data: filterData } = await supabase.rpc("get_distinct_contract_filters", { p_tenant_id: tenantId });
+    if (filterData) {
+      earlyDynamicContractTypes = (filterData.contract_types ?? []) as string[];
+      earlyDynamicModelTypes    = (filterData.procedure_types ?? []) as string[];
+    }
+  }
+
   const filtersFormEl = selectedAnalysis ? (
     <MarketFiltersForm
       analysisType={selectedAnalysis}
@@ -603,6 +637,8 @@ export default async function MarketPage({
       defaultValueMax={valueMaxFilter != null ? String(valueMaxFilter) : ""}
       defaultSort={sortFilter}
       observatoryHref={observatoryHref}
+      contractTypeOptions={earlyDynamicContractTypes}
+      modelTypeOptions={earlyDynamicModelTypes}
     />
   ) : null;
 
@@ -621,19 +657,6 @@ export default async function MarketPage({
       </div>
     );
   }
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("tenant_id, role")
-    .eq("id", user!.id)
-    .maybeSingle();
-
-  const tenantId = appUser?.tenant_id;
   const requestStart = performance.now();
   const perf: Record<string, number> = {};
 
@@ -667,6 +690,14 @@ export default async function MarketPage({
   let discountFromSample: number | null = null;
   let avgValueFromSample: number | null = null;
   let totalValueFromFilteredContracts: number | null = null;
+  let totalValueFromSample: number | null = null;
+  let discountFromKpis: number | null = null;
+  let contractsFromKpis: number | null = null;
+  let procedureDistData: ProcedureDistItem[] = [];
+  let procedureByValueData: ProcedureDistItem[] = [];
+  let monthlyOperatorsData: MonthlyCountItem[] = [];
+  let monthlyEntitiesData: MonthlyCountItem[] = [];
+  let cpvByValueData: CpvValueItem[] = [];
 
   if (cachedData) {
     totalCpvStats = cachedData.totalCpvStats;
@@ -675,6 +706,40 @@ export default async function MarketPage({
     cpvCatalogMatch = cachedData.cpvCatalogMatch;
     isRealtimeFallback = cachedData.isRealtimeFallback;
     cpvInsight = cachedData.cpvInsight;
+  }
+
+  if (tenantId && !cpvFilter && selectedAnalysis === "contracts") {
+    const [
+      kpiRes,
+      procedureRes,
+      monthlyOpsRes,
+      monthlyEntsRes,
+      cpvValueRes,
+    ] = await Promise.all([
+      supabase.rpc("get_contract_kpis", { p_tenant_id: tenantId }),
+      supabase.rpc("get_distribution_procedure", { p_tenant_id: tenantId, p_limit: 20 }),
+      supabase.rpc("get_monthly_operators", { p_tenant_id: tenantId }),
+      supabase.rpc("get_monthly_entities", { p_tenant_id: tenantId }),
+      supabase.rpc("get_distribution_cpv", { p_tenant_id: tenantId, p_limit: 10 }),
+    ]);
+
+    if (kpiRes.data) {
+      const kd = kpiRes.data;
+      totalValueFromSample = kd.total_value      != null ? Number(kd.total_value)      : null;
+      avgValueFromSample   = kd.avg_value        != null ? Number(kd.avg_value)        : null;
+      discountFromKpis     = kd.avg_discount_pct != null ? Number(kd.avg_discount_pct) : null;
+      contractsFromKpis    = kd.total_contracts  != null ? Number(kd.total_contracts)  : null;
+    }
+    if (procedureRes.data) {
+      const allProc = procedureRes.data as ProcedureDistItem[];
+      procedureDistData    = allProc;
+      procedureByValueData = [...allProc].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
+    }
+    if (monthlyOpsRes.data)  monthlyOperatorsData = monthlyOpsRes.data  as MonthlyCountItem[];
+    if (monthlyEntsRes.data) monthlyEntitiesData  = monthlyEntsRes.data as MonthlyCountItem[];
+    if (cpvValueRes.data) {
+      cpvByValueData = [...(cpvValueRes.data as CpvValueItem[])].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
+    }
   }
 
   if (tenantId && !cachedData) {
@@ -1285,7 +1350,8 @@ export default async function MarketPage({
           (sum, row) => sum + Number(row.contract_price),
           0,
         );
-        avgValueFromSample = validValueRows.reduce((sum, r) => sum + Number(r.contract_price), 0) / validValueRows.length;
+        if (avgValueFromSample === null) avgValueFromSample = validValueRows.reduce((sum, r) => sum + Number(r.contract_price), 0) / validValueRows.length;
+        if (totalValueFromSample === null) totalValueFromSample = totalValueFromFilteredContracts;
       } else {
         totalValueFromFilteredContracts = 0;
       }
@@ -1425,33 +1491,25 @@ export default async function MarketPage({
     : (selectedAnalysis === "announcements" ? resultRows.length : (contractsUnitCount ?? marketOverview?.totalContracts ?? 0));
   const resultLabel = selectedAnalysis === "announcements" ? "anúncios" : "contratos";
   const hasOverviewData = Boolean(marketOverview && marketOverview.totalContracts > 0);
-  const kpiContracts = (canUseCpvInsight ? cpvInsight!.total_contracts : null) ?? (
-    selectedAnalysis === "contracts" && contractsUnitCount != null
+  const kpiContracts = (canUseCpvInsight ? cpvInsight!.total_contracts : null)
+    ?? contractsFromKpis
+    ?? (selectedAnalysis === "contracts" && contractsUnitCount != null
       ? contractsUnitCount
-      : (resultRows.length > 0 ? resultRows.length : marketOverview?.totalContracts ?? 0)
-  );
-  const kpiTotalValue = (canUseCpvInsight ? cpvInsight!.total_value : null) ?? (totalValueFromFilteredContracts
+      : (resultRows.length > 0 ? resultRows.length : marketOverview?.totalContracts ?? 0));
+  const kpiTotalValue = (canUseCpvInsight ? cpvInsight!.total_value : null)
+    ?? totalValueFromSample
+    ?? totalValueFromFilteredContracts
     ?? (resultRows.length > 0
       ? resultRows.reduce((sum, row) => sum + Math.max(0, Number(row.contract_price ?? 0)), 0)
-      : marketOverview?.totalValue ?? 0));
+      : marketOverview?.totalValue ?? 0);
   const kpiAvgValue = (canUseCpvInsight ? cpvInsight!.avg_contract_value : null)
     ?? avgValueFromSample
     ?? (marketOverview && marketOverview.totalContracts > 0
       ? marketOverview.totalValue / marketOverview.totalContracts
       : 0);
-  const kpiDiscountFromRows = (() => {
-    const pairs = resultRows.filter(row => {
-      const bp = Number(row.base_price ?? 0);
-      const cp = Number(row.contract_price ?? 0);
-      return bp > 0 && cp >= 0 && cp <= bp;
-    });
-    if (pairs.length === 0) return null;
-    const sum = pairs.reduce((acc, row) => acc + (1 - Number(row.contract_price) / Number(row.base_price)) * 100, 0);
-    return sum / pairs.length;
-  })();
   const kpiDiscount = (canUseCpvInsight ? cpvInsight!.avg_discount_pct : null)
+    ?? discountFromKpis
     ?? discountFromSample
-    ?? kpiDiscountFromRows
     ?? marketOverview?.avgDiscountPct
     ?? null;
   const unitAnnouncements = Math.max(0, announcementsUnitCount ?? 0);
@@ -1604,6 +1662,19 @@ export default async function MarketPage({
             <MarketChartsLoader />
           </div>
         </>
+      )}
+
+      {selectedAnalysis === "contracts" && !cpvFilter && (procedureDistData.length > 0 || monthlyOperatorsData.length > 0) && (
+        <div className="space-y-4">
+          <h2 className="font-semibold text-gray-900 text-base">Análise de mercado</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ProcedurePercentTable data={procedureDistData} />
+            <TopProcedureByValueTable data={procedureByValueData} />
+            <TopCpvByValueTable data={cpvByValueData} />
+            <MonthlyOperatorsTable data={monthlyOperatorsData} />
+          </div>
+          <MonthlyEntitiesTable data={monthlyEntitiesData} />
+        </div>
       )}
 
       <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
