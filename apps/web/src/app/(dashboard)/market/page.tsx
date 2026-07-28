@@ -15,6 +15,7 @@ import {
   TopCpvByValueTable,
   TopProcedureByValueTable,
   TopDistrictTable,
+  TopContractTypeTable,
   type ProcedureDistItem,
   type MonthlyCountItem,
   type CpvValueItem,
@@ -691,6 +692,7 @@ export default async function MarketPage({
   let monthlyEntitiesData: MonthlyCountItem[] = [];
   let cpvByValueData: CpvValueItem[] = [];
   let districtData: DistrictItem[] = [];
+  let contractTypeData: ProcedureDistItem[] = [];
   let maxValueFromKpis: number | null = null;
   let minValueFromKpis: number | null = null;
 
@@ -730,13 +732,15 @@ export default async function MarketPage({
       monthlyEntsRes,
       cpvValueRes,
       districtRes,
+      contractTypeRes,
     ] = await Promise.all([
       supabase.rpc("get_contract_kpis",           analyticsFilters),
       supabase.rpc("get_distribution_procedure",  { ...analyticsFilters, p_limit: 20 }),
       supabase.rpc("get_monthly_operators",       monthlyFilters),
       supabase.rpc("get_monthly_entities",        monthlyFilters),
       supabase.rpc("get_distribution_cpv",        { ...analyticsFilters, p_limit: 10 }),
-      supabase.rpc("get_distribution_district",   { ...analyticsFilters, p_limit: 10 }),
+      supabase.rpc("get_distribution_district",      { ...analyticsFilters, p_limit: 10 }),
+      supabase.rpc("get_distribution_contract_type", { ...analyticsFilters, p_limit: 10 }),
     ]);
 
     if (kpiRes.data) {
@@ -758,7 +762,8 @@ export default async function MarketPage({
     if (cpvValueRes.data) {
       cpvByValueData = [...(cpvValueRes.data as CpvValueItem[])].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
     }
-    if (districtRes.data) districtData = districtRes.data as DistrictItem[];
+    if (districtRes.data)      districtData      = districtRes.data      as DistrictItem[];
+    if (contractTypeRes.data)  contractTypeData  = contractTypeRes.data  as ProcedureDistItem[];
   }
 
   if (tenantId && !cachedData) {
@@ -1705,6 +1710,7 @@ export default async function MarketPage({
             <TopProcedureByValueTable data={procedureByValueData} grandTotal={procedureDistData.reduce((s, d) => s + d.total_value, 0)} />
             <TopCpvByValueTable data={cpvByValueData} />
             <TopDistrictTable data={districtData} />
+            <TopContractTypeTable data={contractTypeData} />
             <MonthlyOperatorsTable data={monthlyOperatorsData} />
           </div>
           <MonthlyEntitiesTable data={monthlyEntitiesData} />
