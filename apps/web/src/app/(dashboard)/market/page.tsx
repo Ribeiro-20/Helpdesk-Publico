@@ -691,8 +691,12 @@ export default async function MarketPage({
   let monthlyOperatorsData: MonthlyCountItem[] = [];
   let monthlyEntitiesData: MonthlyCountItem[] = [];
   let cpvByValueData: CpvValueItem[] = [];
+  let cpvByCountData: CpvValueItem[] = [];
   let districtData: DistrictItem[] = [];
+  let districtByCountData: DistrictItem[] = [];
   let contractTypeData: ProcedureDistItem[] = [];
+  let contractTypeByCountData: ProcedureDistItem[] = [];
+  let procedureByCountData: ProcedureDistItem[] = [];
   let maxValueFromKpis: number | null = null;
   let minValueFromKpis: number | null = null;
 
@@ -738,9 +742,9 @@ export default async function MarketPage({
       supabase.rpc("get_distribution_procedure",  { ...analyticsFilters, p_limit: 20 }),
       supabase.rpc("get_monthly_operators",       monthlyFilters),
       supabase.rpc("get_monthly_entities",        monthlyFilters),
-      supabase.rpc("get_distribution_cpv",        { ...analyticsFilters, p_limit: 10 }),
-      supabase.rpc("get_distribution_district",      { ...analyticsFilters, p_limit: 10 }),
-      supabase.rpc("get_distribution_contract_type", { ...analyticsFilters, p_limit: 10 }),
+      supabase.rpc("get_distribution_cpv",        { ...analyticsFilters, p_limit: 20 }),
+      supabase.rpc("get_distribution_district",      { ...analyticsFilters, p_limit: 20 }),
+      supabase.rpc("get_distribution_contract_type", { ...analyticsFilters, p_limit: 20 }),
     ]);
 
     if (kpiRes.data) {
@@ -755,15 +759,26 @@ export default async function MarketPage({
     if (procedureRes.data) {
       const allProc = procedureRes.data as ProcedureDistItem[];
       procedureDistData    = allProc;
+      procedureByCountData = allProc.slice(0, 10);
       procedureByValueData = [...allProc].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
     }
     if (monthlyOpsRes.data)  monthlyOperatorsData = monthlyOpsRes.data  as MonthlyCountItem[];
     if (monthlyEntsRes.data) monthlyEntitiesData  = monthlyEntsRes.data as MonthlyCountItem[];
     if (cpvValueRes.data) {
-      cpvByValueData = [...(cpvValueRes.data as CpvValueItem[])].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
+      const allCpv = cpvValueRes.data as CpvValueItem[];
+      cpvByCountData = allCpv.slice(0, 10);
+      cpvByValueData = [...allCpv].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
     }
-    if (districtRes.data)      districtData      = districtRes.data      as DistrictItem[];
-    if (contractTypeRes.data)  contractTypeData  = contractTypeRes.data  as ProcedureDistItem[];
+    if (districtRes.data) {
+      const allDistrict = districtRes.data as DistrictItem[];
+      districtByCountData = allDistrict.slice(0, 10);
+      districtData = [...allDistrict].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
+    }
+    if (contractTypeRes.data) {
+      const allCT = contractTypeRes.data as ProcedureDistItem[];
+      contractTypeByCountData = allCT.slice(0, 10);
+      contractTypeData = [...allCT].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
+    }
   }
 
   if (tenantId && !cachedData) {
@@ -1708,9 +1723,13 @@ export default async function MarketPage({
           <div className="grid gap-4 lg:grid-cols-2">
             <ProcedurePercentTable data={procedureDistData} />
             <TopProcedureByValueTable data={procedureByValueData} grandTotal={procedureDistData.reduce((s, d) => s + d.total_value, 0)} />
+            <TopProcedureByValueTable data={procedureByCountData} grandTotal={procedureDistData.reduce((s, d) => s + d.total_value, 0)} title="Top 10 procedimentos por nº de contratos" />
             <TopCpvByValueTable data={cpvByValueData} />
+            <TopCpvByValueTable data={cpvByCountData} title="Top 10 CPV por nº de contratos" />
             <TopDistrictTable data={districtData} />
+            <TopDistrictTable data={districtByCountData} title="Top 10 distritos por nº de contratos" />
             <TopContractTypeTable data={contractTypeData} />
+            <TopContractTypeTable data={contractTypeByCountData} title="Top 10 tipos de contrato por nº de contratos" />
             <MonthlyOperatorsTable data={monthlyOperatorsData} />
           </div>
           <MonthlyEntitiesTable data={monthlyEntitiesData} />

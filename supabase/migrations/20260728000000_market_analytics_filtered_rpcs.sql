@@ -47,7 +47,7 @@ AS $$
         )
       )
     GROUP BY split_part(execution_locations->>0, ', ', 2)
-    ORDER BY total_value DESC
+    ORDER BY count DESC
     LIMIT p_limit
   ) t;
 $$;
@@ -95,7 +95,7 @@ AS $$
         )
       )
     GROUP BY contract_type
-    ORDER BY total_value DESC
+    ORDER BY count DESC
     LIMIT p_limit
   ) t;
 $$;

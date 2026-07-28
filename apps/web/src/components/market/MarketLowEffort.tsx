@@ -115,10 +115,10 @@ export function MonthlyEntitiesTable({ data }: { data: MonthlyCountItem[] }) {
 
 export type CpvValueItem = { cpv: string; count: number; total_value: number };
 
-export function TopCpvByValueTable({ data }: { data: CpvValueItem[] }) {
+export function TopCpvByValueTable({ data, title = "Top 10 CPV por valor contratado" }: { data: CpvValueItem[]; title?: string }) {
   if (data.length === 0) return null;
   return (
-    <Section title="Top 10 CPV por valor contratado">
+    <Section title={title}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -145,11 +145,11 @@ export function TopCpvByValueTable({ data }: { data: CpvValueItem[] }) {
   );
 }
 
-export function TopProcedureByValueTable({ data, grandTotal }: { data: ProcedureDistItem[]; grandTotal?: number }) {
+export function TopProcedureByValueTable({ data, grandTotal, title = "Top 10 procedimentos por valor contratado" }: { data: ProcedureDistItem[]; grandTotal?: number; title?: string }) {
   if (data.length === 0) return null;
   const total = grandTotal ?? data.reduce((s, d) => s + d.total_value, 0);
   return (
-    <Section title="Top 10 procedimentos por valor contratado">
+    <Section title={title}>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-xs uppercase text-gray-400 border-b border-surface-100">
@@ -181,11 +181,11 @@ export function TopProcedureByValueTable({ data, grandTotal }: { data: Procedure
   );
 }
 
-export function TopContractTypeTable({ data }: { data: ProcedureDistItem[] }) {
+export function TopContractTypeTable({ data, title = "Top 10 tipos de contrato por valor contratado" }: { data: ProcedureDistItem[]; title?: string }) {
   if (data.length === 0) return null;
   const total = data.reduce((s, d) => s + d.total_value, 0);
   return (
-    <Section title="Top 10 tipos de contrato por valor contratado">
+    <Section title={title}>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-xs uppercase text-gray-400 border-b border-surface-100">
@@ -219,11 +219,11 @@ export function TopContractTypeTable({ data }: { data: ProcedureDistItem[] }) {
 
 export type DistrictItem = { district: string; count: number; total_value: number };
 
-export function TopDistrictTable({ data }: { data: DistrictItem[] }) {
+export function TopDistrictTable({ data, title = "Top 10 distritos por valor contratado" }: { data: DistrictItem[]; title?: string }) {
   if (data.length === 0) return null;
   const total = data.reduce((s, d) => s + d.total_value, 0);
   return (
-    <Section title="Top 10 distritos por valor contratado">
+    <Section title={title}>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
