@@ -150,21 +150,14 @@ export function TopProcedureByValueTable({ data, grandTotal }: { data: Procedure
   const total = grandTotal ?? data.reduce((s, d) => s + d.total_value, 0);
   return (
     <Section title="Top 10 procedimentos por valor contratado">
-      <table className="w-full table-fixed text-sm">
-        <colgroup>
-          <col className="w-7" />
-          <col />
-          <col className="w-20" />
-          <col className="w-28" />
-          <col className="w-14" />
-        </colgroup>
+      <table className="w-full text-sm">
         <thead>
           <tr className="text-xs uppercase text-gray-400 border-b border-surface-100">
             <th className="px-4 py-2 text-left">#</th>
-            <th className="px-4 py-2 text-left">Procedimento</th>
-            <th className="px-4 py-2 text-right">Contratos</th>
-            <th className="px-4 py-2 text-right">Valor total</th>
-            <th className="px-4 py-2 text-right">%</th>
+            <th className="px-4 py-2 text-left w-full">Procedimento</th>
+            <th className="px-4 py-2 text-right whitespace-nowrap">Contratos</th>
+            <th className="px-4 py-2 text-right whitespace-nowrap">Valor total</th>
+            <th className="px-4 py-2 text-right whitespace-nowrap">%</th>
           </tr>
         </thead>
         <tbody>
@@ -173,12 +166,12 @@ export function TopProcedureByValueTable({ data, grandTotal }: { data: Procedure
             return (
               <tr key={i} className="border-b border-surface-50 hover:bg-surface-50">
                 <td className="px-4 py-2 text-gray-400 font-medium">{i + 1}</td>
-                <td className="px-4 py-2 text-gray-900 overflow-hidden">
+                <td className="px-4 py-2 text-gray-900 max-w-0 w-full overflow-hidden">
                   <span className="block truncate" title={row.label}>{row.label}</span>
                 </td>
-                <td className="px-4 py-2 text-right text-gray-700">{formatCount(row.count)}</td>
-                <td className="px-4 py-2 text-right font-medium text-gray-900">{formatCurrency(row.total_value)}</td>
-                <td className="px-4 py-2 text-right"><span className="font-medium text-brand-600">{pct.toFixed(1)}%</span></td>
+                <td className="px-4 py-2 text-right text-gray-700 whitespace-nowrap">{formatCount(row.count)}</td>
+                <td className="px-4 py-2 text-right font-medium text-gray-900 whitespace-nowrap">{formatCurrency(row.total_value)}</td>
+                <td className="px-4 py-2 text-right whitespace-nowrap"><span className="font-medium text-brand-600">{pct.toFixed(1)}%</span></td>
               </tr>
             );
           })}
