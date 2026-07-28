@@ -705,7 +705,18 @@ export default async function MarketPage({
     || Boolean(dateFromFilter || dateToFilter || yearFilter || monthFilter || cpvFamilyFilter)
     || valueBracketFilters.length > 0;
 
-  if (tenantId && !cpvFilter && selectedAnalysis === "contracts" && !hasAdditionalContractFilters) {
+  if (tenantId && !cpvFilter && selectedAnalysis === "contracts") {
+    const analyticsFilters = {
+      p_tenant_id:       tenantId,
+      p_date_from:       dateFromFilter        || null,
+      p_date_to:         dateToFilter          || null,
+      p_year:            yearFilter            ? parseInt(yearFilter)  : null,
+      p_month:           monthFilter           ? parseInt(monthFilter) : null,
+      p_contract_types:  contractTypeFilters.length  > 0 ? contractTypeFilters  : null,
+      p_procedure_types: modelTypeFilters.length     > 0 ? modelTypeFilters     : null,
+      p_cpv_prefix:      cpvFamilyPrefixFilter       || null,
+      p_value_brackets:  valueBracketFilters.length  > 0 ? valueBracketFilters  : null,
+    };
     const [
       kpiRes,
       procedureRes,
@@ -713,11 +724,11 @@ export default async function MarketPage({
       monthlyEntsRes,
       cpvValueRes,
     ] = await Promise.all([
-      supabase.rpc("get_contract_kpis", { p_tenant_id: tenantId }),
-      supabase.rpc("get_distribution_procedure", { p_tenant_id: tenantId, p_limit: 20 }),
-      supabase.rpc("get_monthly_operators", { p_tenant_id: tenantId }),
-      supabase.rpc("get_monthly_entities", { p_tenant_id: tenantId }),
-      supabase.rpc("get_distribution_cpv", { p_tenant_id: tenantId, p_limit: 10 }),
+      supabase.rpc("get_contract_kpis",          analyticsFilters),
+      supabase.rpc("get_distribution_procedure", { ...analyticsFilters, p_limit: 20 }),
+      supabase.rpc("get_monthly_operators",      { p_tenant_id: tenantId, p_date_from: analyticsFilters.p_date_from, p_date_to: analyticsFilters.p_date_to, p_contract_types: analyticsFilters.p_contract_types, p_procedure_types: analyticsFilters.p_procedure_types, p_cpv_prefix: analyticsFilters.p_cpv_prefix, p_value_brackets: analyticsFilters.p_value_brackets }),
+      supabase.rpc("get_monthly_entities",       { p_tenant_id: tenantId, p_date_from: analyticsFilters.p_date_from, p_date_to: analyticsFilters.p_date_to, p_contract_types: analyticsFilters.p_contract_types, p_procedure_types: analyticsFilters.p_procedure_types, p_cpv_prefix: analyticsFilters.p_cpv_prefix, p_value_brackets: analyticsFilters.p_value_brackets }),
+      supabase.rpc("get_distribution_cpv",       { ...analyticsFilters, p_limit: 10 }),
     ]);
 
     if (kpiRes.data) {
@@ -1289,16 +1300,18 @@ export default async function MarketPage({
         valueBaseQ = valueBaseQ.ilike("cpv_main", cpvFamilyLikeFilter);
       }
       if (dateStart) {
-        resultsQuery = resultsQuery.gte("signing_date", dateStart);
-        contractsCountQ = contractsCountQ.gte("signing_date", dateStart);
-        discountBaseQ = discountBaseQ.gte("signing_date", dateStart);
-        valueBaseQ = valueBaseQ.gte("signing_date", dateStart);
+        const orStart = `signing_date.gte.${dateStart},and(signing_date.is.null,publication_date.gte.${dateStart})`;
+        resultsQuery    = resultsQuery.or(orStart);
+        contractsCountQ = contractsCountQ.or(orStart);
+        discountBaseQ   = discountBaseQ.or(orStart);
+        valueBaseQ      = valueBaseQ.or(orStart);
       }
       if (dateEnd) {
-        resultsQuery = resultsQuery.lt("signing_date", dateEnd);
-        contractsCountQ = contractsCountQ.lt("signing_date", dateEnd);
-        discountBaseQ = discountBaseQ.lt("signing_date", dateEnd);
-        valueBaseQ = valueBaseQ.lt("signing_date", dateEnd);
+        const orEnd = `signing_date.lt.${dateEnd},and(signing_date.is.null,publication_date.lt.${dateEnd})`;
+        resultsQuery    = resultsQuery.or(orEnd);
+        contractsCountQ = contractsCountQ.or(orEnd);
+        discountBaseQ   = discountBaseQ.or(orEnd);
+        valueBaseQ      = valueBaseQ.or(orEnd);
       }
       if (valueBracketFilters.length > 0) {
         const bracketOr = valueBracketFilters.map(b => {
@@ -1436,8 +1449,8 @@ export default async function MarketPage({
       if (contractTypeFilters.length > 0) contractsCountQuery = contractsCountQuery.or(contractTypeFilters.map(f => `contract_type.ilike.${f}`).join(","));
       if (modelTypeFilters.length > 0) contractsCountQuery = contractsCountQuery.or(modelTypeFilters.map(f => `procedure_type.ilike.${f}`).join(","));
       if (cpvFamilyLikeFilter) contractsCountQuery = contractsCountQuery.ilike("cpv_main", cpvFamilyLikeFilter);
-      if (dateStart) contractsCountQuery = contractsCountQuery.gte("signing_date", dateStart);
-      if (dateEnd) contractsCountQuery = contractsCountQuery.lt("signing_date", dateEnd);
+      if (dateStart) contractsCountQuery = contractsCountQuery.or(`signing_date.gte.${dateStart},and(signing_date.is.null,publication_date.gte.${dateStart})`);
+      if (dateEnd)   contractsCountQuery = contractsCountQuery.or(`signing_date.lt.${dateEnd},and(signing_date.is.null,publication_date.lt.${dateEnd})`);
       if (valueBracketFilters.length > 0) {
         const bracketOr = valueBracketFilters.map(b => {
           if (b === "0-5000")          return "contract_price.lte.5000";
