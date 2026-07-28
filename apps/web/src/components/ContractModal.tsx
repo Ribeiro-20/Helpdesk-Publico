@@ -15,6 +15,7 @@ interface Modification {
   modification_date: string | null;
 }
 
+
 interface Contract {
   id: string;
   object: string | null;

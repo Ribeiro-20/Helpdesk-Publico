@@ -195,6 +195,7 @@ export default function PublicFooter() {
 
         </div>
 
+
         <hr className="my-10 border-gray-800" />
 
         <div className="text-center text-sm text-gray-500">
