@@ -14,9 +14,11 @@ import {
   MonthlyEntitiesTable,
   TopCpvByValueTable,
   TopProcedureByValueTable,
+  TopDistrictTable,
   type ProcedureDistItem,
   type MonthlyCountItem,
   type CpvValueItem,
+  type DistrictItem,
 } from "../../../components/market/MarketLowEffort";
 
 export const dynamic = "force-dynamic";
@@ -688,6 +690,9 @@ export default async function MarketPage({
   let monthlyOperatorsData: MonthlyCountItem[] = [];
   let monthlyEntitiesData: MonthlyCountItem[] = [];
   let cpvByValueData: CpvValueItem[] = [];
+  let districtData: DistrictItem[] = [];
+  let maxValueFromKpis: number | null = null;
+  let minValueFromKpis: number | null = null;
 
   if (cachedData) {
     totalCpvStats = cachedData.totalCpvStats;
@@ -717,18 +722,21 @@ export default async function MarketPage({
       p_cpv_prefix:      cpvFamilyPrefixFilter       || null,
       p_value_brackets:  valueBracketFilters.length  > 0 ? valueBracketFilters  : null,
     };
+    const monthlyFilters = { p_tenant_id: tenantId, p_date_from: analyticsFilters.p_date_from, p_date_to: analyticsFilters.p_date_to, p_contract_types: analyticsFilters.p_contract_types, p_procedure_types: analyticsFilters.p_procedure_types, p_cpv_prefix: analyticsFilters.p_cpv_prefix, p_value_brackets: analyticsFilters.p_value_brackets };
     const [
       kpiRes,
       procedureRes,
       monthlyOpsRes,
       monthlyEntsRes,
       cpvValueRes,
+      districtRes,
     ] = await Promise.all([
-      supabase.rpc("get_contract_kpis",          analyticsFilters),
-      supabase.rpc("get_distribution_procedure", { ...analyticsFilters, p_limit: 20 }),
-      supabase.rpc("get_monthly_operators",      { p_tenant_id: tenantId, p_date_from: analyticsFilters.p_date_from, p_date_to: analyticsFilters.p_date_to, p_contract_types: analyticsFilters.p_contract_types, p_procedure_types: analyticsFilters.p_procedure_types, p_cpv_prefix: analyticsFilters.p_cpv_prefix, p_value_brackets: analyticsFilters.p_value_brackets }),
-      supabase.rpc("get_monthly_entities",       { p_tenant_id: tenantId, p_date_from: analyticsFilters.p_date_from, p_date_to: analyticsFilters.p_date_to, p_contract_types: analyticsFilters.p_contract_types, p_procedure_types: analyticsFilters.p_procedure_types, p_cpv_prefix: analyticsFilters.p_cpv_prefix, p_value_brackets: analyticsFilters.p_value_brackets }),
-      supabase.rpc("get_distribution_cpv",       { ...analyticsFilters, p_limit: 10 }),
+      supabase.rpc("get_contract_kpis",           analyticsFilters),
+      supabase.rpc("get_distribution_procedure",  { ...analyticsFilters, p_limit: 20 }),
+      supabase.rpc("get_monthly_operators",       monthlyFilters),
+      supabase.rpc("get_monthly_entities",        monthlyFilters),
+      supabase.rpc("get_distribution_cpv",        { ...analyticsFilters, p_limit: 10 }),
+      supabase.rpc("get_distribution_district",   { ...analyticsFilters, p_limit: 10 }),
     ]);
 
     if (kpiRes.data) {
@@ -737,6 +745,8 @@ export default async function MarketPage({
       avgValueFromSample   = kd.avg_value        != null ? Number(kd.avg_value)        : null;
       discountFromKpis     = kd.avg_discount_pct != null ? Number(kd.avg_discount_pct) : null;
       contractsFromKpis    = kd.total_contracts  != null ? Number(kd.total_contracts)  : null;
+      maxValueFromKpis     = kd.max_value        != null ? Number(kd.max_value)        : null;
+      minValueFromKpis     = kd.min_value        != null ? Number(kd.min_value)        : null;
     }
     if (procedureRes.data) {
       const allProc = procedureRes.data as ProcedureDistItem[];
@@ -748,6 +758,7 @@ export default async function MarketPage({
     if (cpvValueRes.data) {
       cpvByValueData = [...(cpvValueRes.data as CpvValueItem[])].sort((a, b) => b.total_value - a.total_value).slice(0, 10);
     }
+    if (districtRes.data) districtData = districtRes.data as DistrictItem[];
   }
 
   if (tenantId && !cachedData) {
@@ -1572,6 +1583,10 @@ export default async function MarketPage({
         <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
           <p className="text-xs uppercase tracking-wider text-gray-500">Valor médio</p>
           <p className="mt-1 text-2xl font-extrabold text-gray-900">{formatCurrency(kpiAvgValue)}</p>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-500">
+            <span>Maior: <span className="font-semibold text-gray-700">{maxValueFromKpis != null ? formatCurrency(maxValueFromKpis) : "--"}</span></span>
+            <span>Menor: <span className="font-semibold text-gray-700">{minValueFromKpis != null ? formatCurrency(minValueFromKpis) : "--"}</span></span>
+          </div>
         </div>
         <div className="rounded-xl border border-surface-200 bg-white p-4 shadow-card">
           <p className="text-xs uppercase tracking-wider text-gray-500">Desconto médio</p>
@@ -1687,8 +1702,9 @@ export default async function MarketPage({
           <h2 className="font-semibold text-gray-900 text-base">Análise de mercado</h2>
           <div className="grid gap-4 lg:grid-cols-2">
             <ProcedurePercentTable data={procedureDistData} />
-            <TopProcedureByValueTable data={procedureByValueData} />
+            <TopProcedureByValueTable data={procedureByValueData} grandTotal={procedureDistData.reduce((s, d) => s + d.total_value, 0)} />
             <TopCpvByValueTable data={cpvByValueData} />
+            <TopDistrictTable data={districtData} />
             <MonthlyOperatorsTable data={monthlyOperatorsData} />
           </div>
           <MonthlyEntitiesTable data={monthlyEntitiesData} />

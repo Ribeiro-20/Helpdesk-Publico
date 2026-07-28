@@ -145,31 +145,80 @@ export function TopCpvByValueTable({ data }: { data: CpvValueItem[] }) {
   );
 }
 
-export function TopProcedureByValueTable({ data }: { data: ProcedureDistItem[] }) {
+export function TopProcedureByValueTable({ data, grandTotal }: { data: ProcedureDistItem[]; grandTotal?: number }) {
   if (data.length === 0) return null;
+  const total = grandTotal ?? data.reduce((s, d) => s + d.total_value, 0);
   return (
     <Section title="Top 10 procedimentos por valor contratado">
+      <table className="w-full table-fixed text-sm">
+        <colgroup>
+          <col className="w-7" />
+          <col />
+          <col className="w-20" />
+          <col className="w-28" />
+          <col className="w-14" />
+        </colgroup>
+        <thead>
+          <tr className="text-xs uppercase text-gray-400 border-b border-surface-100">
+            <th className="px-4 py-2 text-left">#</th>
+            <th className="px-4 py-2 text-left">Procedimento</th>
+            <th className="px-4 py-2 text-right">Contratos</th>
+            <th className="px-4 py-2 text-right">Valor total</th>
+            <th className="px-4 py-2 text-right">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((row, i) => {
+            const pct = total > 0 ? (row.total_value / total) * 100 : 0;
+            return (
+              <tr key={i} className="border-b border-surface-50 hover:bg-surface-50">
+                <td className="px-4 py-2 text-gray-400 font-medium">{i + 1}</td>
+                <td className="px-4 py-2 text-gray-900 overflow-hidden">
+                  <span className="block truncate" title={row.label}>{row.label}</span>
+                </td>
+                <td className="px-4 py-2 text-right text-gray-700">{formatCount(row.count)}</td>
+                <td className="px-4 py-2 text-right font-medium text-gray-900">{formatCurrency(row.total_value)}</td>
+                <td className="px-4 py-2 text-right"><span className="font-medium text-brand-600">{pct.toFixed(1)}%</span></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Section>
+  );
+}
+
+export type DistrictItem = { district: string; count: number; total_value: number };
+
+export function TopDistrictTable({ data }: { data: DistrictItem[] }) {
+  if (data.length === 0) return null;
+  const total = data.reduce((s, d) => s + d.total_value, 0);
+  return (
+    <Section title="Top 10 distritos por valor contratado">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs uppercase text-gray-400 border-b border-surface-100">
               <th className="px-4 py-2 text-left w-6">#</th>
-              <th className="px-4 py-2 text-left">Procedimento</th>
+              <th className="px-4 py-2 text-left">Distrito</th>
               <th className="px-4 py-2 text-right">Contratos</th>
               <th className="px-4 py-2 text-right">Valor total</th>
+              <th className="px-4 py-2 text-right">%</th>
             </tr>
           </thead>
           <tbody>
-            {data.map((row, i) => (
-              <tr key={i} className="border-b border-surface-50 hover:bg-surface-50">
-                <td className="px-4 py-2 text-gray-400 font-medium">{i + 1}</td>
-                <td className="px-4 py-2 text-gray-900 max-w-[280px]">
-                  <span className="block truncate" title={row.label}>{row.label}</span>
-                </td>
-                <td className="px-4 py-2 text-right text-gray-700">{formatCount(row.count)}</td>
-                <td className="px-4 py-2 text-right font-medium text-gray-900">{formatCurrency(row.total_value)}</td>
-              </tr>
-            ))}
+            {data.map((row, i) => {
+              const pct = total > 0 ? (row.total_value / total) * 100 : 0;
+              return (
+                <tr key={i} className="border-b border-surface-50 hover:bg-surface-50">
+                  <td className="px-4 py-2 text-gray-400 font-medium">{i + 1}</td>
+                  <td className="px-4 py-2 text-gray-900">{row.district}</td>
+                  <td className="px-4 py-2 text-right text-gray-700">{formatCount(row.count)}</td>
+                  <td className="px-4 py-2 text-right font-medium text-gray-900">{formatCurrency(row.total_value)}</td>
+                  <td className="px-4 py-2 text-right"><span className="font-medium text-brand-600">{pct.toFixed(1)}%</span></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
