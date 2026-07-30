@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Header from "@/components/layout/Header";
@@ -10,7 +10,7 @@ import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 const GREEN = "#3f6f27";
 const GREEN_RGB = "63, 111, 39";
 
-export default function LoginMIEntrarPage() {
+function LoginMIEntrarContent() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"login" | "verify">("login");
@@ -215,5 +215,13 @@ export default function LoginMIEntrarPage() {
 
       <PublicFooter />
     </div>
+  );
+}
+
+export default function LoginMIEntrarPage() {
+  return (
+    <Suspense>
+      <LoginMIEntrarContent />
+    </Suspense>
   );
 }

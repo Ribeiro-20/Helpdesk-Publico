@@ -70,7 +70,7 @@ async function runDailyContractPipeline(): Promise<void> {
 
   try {
     const { stdout, stderr } = await execFileAsync(
-      "node",
+      process.execPath,
       [
         "ingest-direct.js",
         "--from", today,
