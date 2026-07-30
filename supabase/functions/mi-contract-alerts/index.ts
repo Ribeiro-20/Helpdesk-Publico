@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "http://localhost:3000";
+    const appBaseUrl = Deno.env.get("APP_BASE_URL") ?? "https://mercado.helpdeskpublico.pt";
 
     console.log("[mi-contract-alerts] Starting 10:00 AM Market Intelligence email alert job...");
 
@@ -75,7 +75,8 @@ Deno.serve(async (req) => {
     const { data: recentMiContracts, error: miErr } = await supabase
       .from("mi_contracts")
       .select("*")
-      .gte("ingested_at", threeDaysAgoIso);
+      .gte("ingested_at", threeDaysAgoIso)
+      .lt("progress", 1.0);
 
     if (miErr) throw miErr;
 
@@ -133,6 +134,17 @@ Deno.serve(async (req) => {
           const endDate = new Date(signingDate);
           endDate.setDate(endDate.getDate() + (c.execution_deadline_days || 0));
 
+          // Look up CPV description from cpv_codes table
+          let cpvDescription: string | undefined;
+          if (c.cpv_main) {
+            const { data: cpvRow } = await supabase
+              .from("cpv_codes")
+              .select("descricao")
+              .eq("id", c.cpv_main)
+              .maybeSingle();
+            cpvDescription = cpvRow?.descricao ?? undefined;
+          }
+
           const formatted = {
             object: c.object ?? "—",
             entity: cleanEntityName(entityRaw),
@@ -143,6 +155,8 @@ Deno.serve(async (req) => {
             deadlineDays: c.execution_deadline_days || 0,
             estimatedEndDate: endDate.toISOString().slice(0, 10),
             cpvMain: c.cpv_main || "—",
+            cpvDescription,
+            contractId: c.contract_id,
           };
 
           const { subject, html, text } = buildMiContractAlertEmail({

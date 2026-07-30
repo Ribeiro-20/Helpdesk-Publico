@@ -1,4 +1,4 @@
--- Enable trigram extension for text search
+ b-- Enable trigram extension for text search
 create extension if not exists pg_trgm;
 
 -- CPV codes reference table
@@ -7,6 +7,8 @@ create table if not exists cpv_codes (
   descricao text not null,
   created_at timestamptz not null default now()
 );
+
+
 
 -- Indexes for search
 create index cpv_codes_id_pattern_idx on cpv_codes (id text_pattern_ops);

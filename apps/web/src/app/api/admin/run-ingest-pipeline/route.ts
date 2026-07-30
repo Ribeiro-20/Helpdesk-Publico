@@ -285,10 +285,10 @@ async function runPipeline(origin: string, fromDate: string, toDate: string, dry
   const drRes = shouldRunDr
     ? await callInternalDr(origin, rangeBody)
     : {
-        ok: true,
-        status: 200,
-        data: { skipped: true, reason: "no_new_base_announcements" },
-      };
+      ok: true,
+      status: 200,
+      data: { skipped: true, reason: "no_new_base_announcements" },
+    };
 
   const mqRes = await callFunction("match-and-queue", rangeBody);
   const ok = baseRes.ok && drRes.ok && mqRes.ok;

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const MI_SESSION_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+const MI_SESSION_DURATION_MS = 120 * 60 * 1000; // 120 minutes
 
 export async function POST() {
   const expiresAt = Date.now() + MI_SESSION_DURATION_MS;
@@ -13,8 +13,8 @@ export async function POST() {
     path: "/",
     httpOnly: false,
     sameSite: "lax",
-    // Cookie expires in 10 minutes
-    maxAge: 10 * 60,
+    // Cookie expires in 120 minutes
+    maxAge: 120 * 60,
   });
 
   return response;

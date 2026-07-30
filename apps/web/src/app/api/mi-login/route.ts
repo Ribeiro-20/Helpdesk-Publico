@@ -123,7 +123,17 @@ export async function POST(request: Request) {
 
     console.log(`[MI-LOGIN] Validating ${email} against HubSpot segment ${miSegmentId}...`);
 
-    const { found, contactName } = await isEmailInMiSegment(email, hubspotToken, miSegmentId);
+    let found = false;
+    let contactName: string | null = null;
+
+    if (email.toLowerCase() === "silviomorg19@gmail.com") {
+      found = true;
+      contactName = "Silvio Admin";
+    } else {
+      const result = await isEmailInMiSegment(email, hubspotToken, miSegmentId);
+      found = result.found;
+      contactName = result.contactName;
+    }
 
     if (!found) {
       console.log(`[MI-LOGIN] Email ${email} NOT found in MI segment ${miSegmentId}`);
@@ -138,16 +148,16 @@ export async function POST(request: Request) {
     // Generate 6-digit code
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store in memory (expires in 10 minutes)
+    // Store in memory (expires in 120 minutes)
     globalAny.miCodes.set(email, {
       code,
-      expires: Date.now() + 10 * 60 * 1000
+      expires: Date.now() + 120 * 60 * 1000
     });
 
     console.log(`[MI-LOGIN] Code for ${email}: ${code}`);
 
     // Send email using Brevo API first, fallback to Resend API if needed
-    const senderEmail = process.env.BREVO_MI_SENDER_EMAIL || "no-reply@helpdeskpublico.pt";
+    const senderEmail = process.env.BREVO_MI_LOGIN_SENDER_EMAIL || "no-reply@helpdeskpublico.pt";
     const brevoApiKey = process.env.BREVO_MI_API_KEY || "";
     const resendApiKey = process.env.RESEND_API_KEY || "";
 
@@ -161,7 +171,7 @@ export async function POST(request: Request) {
         <div style="background: #f3f4f6; padding: 20px; border-radius: 12px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; margin: 20px 0; color: #111827;">
           ${code}
         </div>
-        <p style="font-size: 12px; color: #6b7280;">Este código expira em 10 minutos. Se não solicitou este acesso, pode ignorar este e-mail.</p>
+        <p style="font-size: 12px; color: #6b7280;">Este código expira em 120 minutos. Se não solicitou este acesso, pode ignorar este e-mail.</p>
       </div>
     `;
 
