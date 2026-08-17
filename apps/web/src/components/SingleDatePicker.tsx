@@ -5,6 +5,7 @@ import { DayPicker } from "react-day-picker";
 import { format, parse, isValid } from "date-fns";
 import { pt } from "date-fns/locale";
 import { CalendarDays } from "lucide-react";
+import { handleDatePickerConfirmKey } from "@/lib/date-picker-navigation";
 
 function isoToDate(iso: string): Date | undefined {
   if (!iso) return undefined;
@@ -256,7 +257,7 @@ export default function SingleDatePicker({
               type="text"
               value={inputText}
               onChange={(e) => handleInputChange(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleConfirm()}
+              onKeyDown={(e) => handleDatePickerConfirmKey(e, handleConfirm)}
               placeholder="dd/mm/aaaa"
               inputMode="numeric"
               maxLength={10}

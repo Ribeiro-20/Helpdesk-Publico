@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { cleanAnnouncementText } from "@/lib/announcements";
+import { buildNotificationsHref } from "@/lib/notifications-navigation";
 import {
   CircleAlert,
   CircleCheckBig,
@@ -31,6 +32,7 @@ type Notification = {
 const STATUS_OPTIONS = [
   "",
   "PENDING",
+  "PROCESSING",
   "SENT",
   "FAILED",
   "SKIPPED",
@@ -39,6 +41,7 @@ const STATUS_OPTIONS = [
 
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-700",
+  PROCESSING: "bg-blue-100 text-blue-700",
   SENT: "bg-brand-100 text-brand-700",
   FAILED: "bg-red-100 text-red-700",
   SKIPPED: "bg-gray-100 text-gray-500",
@@ -48,6 +51,7 @@ const STATUS_COLORS: Record<string, string> = {
 const STATUS_META: Record<string, { label: string; icon: typeof Inbox }> = {
   "": { label: "Todos", icon: Inbox },
   PENDING: { label: "Pendente", icon: Clock3 },
+  PROCESSING: { label: "Em processamento", icon: Send },
   SENT: { label: "Enviadas", icon: CircleCheckBig },
   FAILED: { label: "Falhadas", icon: CircleX },
   SKIPPED: { label: "Ignoradas", icon: CircleAlert },
@@ -56,6 +60,7 @@ const STATUS_META: Record<string, { label: string; icon: typeof Inbox }> = {
 
 const STATUS_BADGE_META: Record<string, { icon: typeof Inbox }> = {
   PENDING: { icon: Clock3 },
+  PROCESSING: { icon: Send },
   SENT: { icon: CircleCheckBig },
   FAILED: { icon: CircleX },
   SKIPPED: { icon: CircleAlert },
@@ -64,6 +69,7 @@ const STATUS_BADGE_META: Record<string, { icon: typeof Inbox }> = {
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "Pendente",
+  PROCESSING: "Em processamento",
   SENT: "Enviado",
   FAILED: "Falhado",
   SKIPPED: "Ignorado",
@@ -160,7 +166,7 @@ export default function NotificationsManager({
           {STATUS_OPTIONS.map((s) => (
             <Link
               key={s}
-              href={`/notifications?status=${s}&page=1`}
+              href={buildNotificationsHref(s, 1)}
               className={`inline-flex shrink-0 items-center gap-2 text-sm px-3.5 py-1.5 rounded-xl font-medium transition-all ${
                 statusFilter === s
                   ? "bg-brand-600 text-white shadow-sm"
@@ -317,7 +323,7 @@ export default function NotificationsManager({
         <div className="flex justify-center gap-2">
           {page > 1 && (
             <Link
-              href={`/notifications?status=${statusFilter}&page=${page - 1}`}
+              href={buildNotificationsHref(statusFilter, page - 1)}
               className="px-3.5 py-1.5 text-sm font-medium bg-white border border-surface-200 rounded-xl hover:bg-surface-50 shadow-card transition-all"
             >
               Anterior
@@ -328,7 +334,7 @@ export default function NotificationsManager({
           </span>
           {page < totalPages && (
             <Link
-              href={`/notifications?status=${statusFilter}&page=${page + 1}`}
+              href={buildNotificationsHref(statusFilter, page + 1)}
               className="px-3.5 py-1.5 text-sm font-medium bg-white border border-surface-200 rounded-xl hover:bg-surface-50 shadow-card transition-all"
             >
               Próxima

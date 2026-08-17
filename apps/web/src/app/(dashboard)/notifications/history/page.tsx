@@ -2,22 +2,26 @@ import { createClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/layout/PageHeader";
 import EmailHistoryView from "@/components/EmailHistoryView";
 import { Mail } from "lucide-react";
+import {
+  getLisbonDateBounds,
+  historyViewKey,
+  parseHistorySearchParams,
+  throwIfNotificationQueryError,
+  type HistorySearchParams,
+} from "@/lib/notification-history";
 
 const TIME_ZONE = "Europe/Lisbon";
-const FETCH_BATCH_SIZE = 1000;
+const PAGE_SIZE = 25;
 
-type CalendarDate = {
-  year: number;
-  month: number;
-  day: number;
+type CalendarDate = { year: number; month: number; day: number };
+type HistoryRpcResult = {
+  ids?: string[];
+  total_count?: number;
+  min_timestamp?: string | null;
 };
 
 function formatCalendarDate(date: CalendarDate): string {
-  return [
-    date.year,
-    String(date.month).padStart(2, "0"),
-    String(date.day).padStart(2, "0"),
-  ].join("-");
+  return [date.year.toString().padStart(4, "0"), date.month.toString().padStart(2, "0"), date.day.toString().padStart(2, "0")].join("-");
 }
 
 function getCalendarDate(value: Date, timeZone: string): CalendarDate {
@@ -27,135 +31,98 @@ function getCalendarDate(value: Date, timeZone: string): CalendarDate {
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(value);
-
-  const read = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value);
-
-  return {
-    year: read("year"),
-    month: read("month"),
-    day: read("day"),
-  };
+  const read = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
+  return { year: read("year"), month: read("month"), day: read("day") };
 }
 
-function getTimeZoneOffsetMs(value: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(value);
-
-  const read = (type: Intl.DateTimeFormatPartTypes) =>
-    Number(parts.find((part) => part.type === type)?.value);
-
-  const representedAsUtc = Date.UTC(
-    read("year"),
-    read("month") - 1,
-    read("day"),
-    read("hour"),
-    read("minute"),
-    read("second"),
-  );
-
-  return representedAsUtc - value.getTime();
+function addCalendarDays(date: CalendarDate, days: number): CalendarDate {
+  const value = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+  return { year: value.getUTCFullYear(), month: value.getUTCMonth() + 1, day: value.getUTCDate() };
 }
 
-function localMidnightToUtc(date: CalendarDate, timeZone: string): Date {
-  const midnightAsUtc = Date.UTC(date.year, date.month - 1, date.day);
-  let resolved = midnightAsUtc - getTimeZoneOffsetMs(new Date(midnightAsUtc), timeZone);
-
-  // Recalculate once using the resolved instant to cover daylight-saving changes.
-  resolved = midnightAsUtc - getTimeZoneOffsetMs(new Date(resolved), timeZone);
-  return new Date(resolved);
-}
-
-function getCurrentWeekBounds(now = new Date()) {
-  const today = getCalendarDate(now, TIME_ZONE);
+function getCurrentWeekStart(today: CalendarDate): CalendarDate {
   const todayAsUtc = new Date(Date.UTC(today.year, today.month - 1, today.day));
-  const daysSinceMonday = (todayAsUtc.getUTCDay() + 6) % 7;
-
-  const mondayAsUtc = new Date(todayAsUtc);
-  mondayAsUtc.setUTCDate(todayAsUtc.getUTCDate() - daysSinceMonday);
-
-  const nextMondayAsUtc = new Date(mondayAsUtc);
-  nextMondayAsUtc.setUTCDate(mondayAsUtc.getUTCDate() + 7);
-
-  const monday = {
-    year: mondayAsUtc.getUTCFullYear(),
-    month: mondayAsUtc.getUTCMonth() + 1,
-    day: mondayAsUtc.getUTCDate(),
-  };
-  const nextMonday = {
-    year: nextMondayAsUtc.getUTCFullYear(),
-    month: nextMondayAsUtc.getUTCMonth() + 1,
-    day: nextMondayAsUtc.getUTCDate(),
-  };
-
-  return {
-    start: localMidnightToUtc(monday, TIME_ZONE).toISOString(),
-    end: localMidnightToUtc(nextMonday, TIME_ZONE).toISOString(),
-    startDate: formatCalendarDate(monday),
-    currentDate: formatCalendarDate(today),
-  };
+  return addCalendarDays(today, -((todayAsUtc.getUTCDay() + 6) % 7));
 }
 
-export default async function NotificationsHistoryPage() {
+export default async function NotificationsHistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<HistorySearchParams>;
+}) {
+  const rawParams = await searchParams;
   const supabase = await createClient();
-  const { data: appUser } = await supabase
-    .from("app_users")
-    .select("tenant_id")
-    .maybeSingle();
+  const todayCalendar = getCalendarDate(new Date(), TIME_ZONE);
+  const today = formatCalendarDate(todayCalendar);
+  const defaultFromDate = formatCalendarDate(getCurrentWeekStart(todayCalendar));
+  const requested = parseHistorySearchParams(rawParams, today, defaultFromDate);
+  const bounds = getLisbonDateBounds(requested.fromDate, requested.toDate);
 
-  const week = getCurrentWeekBounds();
-  const notifications: unknown[] = [];
+  const searchHistory = (page: number) => supabase.rpc("notification_history_search", {
+    p_from: bounds.start,
+    p_to: bounds.end,
+    p_status: requested.status || null,
+    p_search: requested.search || null,
+    p_page: page,
+    p_page_size: PAGE_SIZE,
+  });
 
-  for (let from = 0; ; from += FETCH_BATCH_SIZE) {
-    let query = supabase
+  let { data: rpcData, error: rpcError } = await searchHistory(requested.page);
+  throwIfNotificationQueryError(rpcError, "Não foi possível pesquisar o histórico de notificações");
+  let result = (rpcData ?? {}) as HistoryRpcResult;
+  const totalCount = Number(result.total_count ?? 0);
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const page = Math.min(requested.page, totalPages);
+
+  if (page !== requested.page) {
+    ({ data: rpcData, error: rpcError } = await searchHistory(page));
+    throwIfNotificationQueryError(rpcError, "Não foi possível carregar a página do histórico de notificações");
+    result = (rpcData ?? {}) as HistoryRpcResult;
+  }
+
+  const ids = Array.isArray(result.ids) ? result.ids.slice(0, PAGE_SIZE) : [];
+  let notifications: unknown[] = [];
+  if (ids.length > 0) {
+    const { data, error } = await supabase
       .from("notifications")
       .select(
         `id, status, channel, sent_at, error, created_at,
          clients (name, email),
          announcements (title, publication_date, description, detail_url, dr_announcement_no, base_announcement_id, raw_payload)`,
       )
-      .or(
-        `and(sent_at.gte.${week.start},sent_at.lt.${week.end}),and(sent_at.is.null,created_at.gte.${week.start},created_at.lt.${week.end})`,
-      )
+      .in("id", ids)
       .order("created_at", { ascending: false })
-      .range(from, from + FETCH_BATCH_SIZE - 1);
-
-    if (appUser?.tenant_id) {
-      query = query.eq("tenant_id", appUser.tenant_id);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.error("[notifications-history] Failed to load current week:", error);
-      break;
-    }
-
-    notifications.push(...(data ?? []));
-    if ((data?.length ?? 0) < FETCH_BATCH_SIZE) break;
+      .order("id", { ascending: false });
+    throwIfNotificationQueryError(error, "Não foi possível carregar os registos do histórico de notificações");
+    notifications = data ?? [];
   }
+
+  const minDate = result.min_timestamp
+    ? formatCalendarDate(getCalendarDate(new Date(result.min_timestamp), TIME_ZONE))
+    : requested.fromDate;
 
   return (
     <div className="space-y-5">
       <PageHeader
         icon={Mail}
         title="Histórico de envios"
-        description={`${notifications.length} envio(s) esta semana`}
+        description={`${totalCount} envio(s) entre ${requested.fromDate} e ${requested.toDate}`}
         backHref="/notifications"
         backLabel="Voltar"
         size="detail"
       />
       <EmailHistoryView
-        notifications={notifications as any}
-        weekStart={week.startDate}
-        weekEnd={week.currentDate}
+        key={historyViewKey({ ...requested, page })}
+        notifications={notifications as Parameters<typeof EmailHistoryView>[0]["notifications"]}
+        fromDate={requested.fromDate}
+        toDate={requested.toDate}
+        minDate={minDate}
+        maxDate={today}
+        statusFilter={requested.status}
+        search={requested.search}
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
       />
     </div>
   );
