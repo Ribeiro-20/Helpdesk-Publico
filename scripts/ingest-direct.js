@@ -38,6 +38,15 @@ async function main() {
     process.exit(1);
   }
 
+  if (!tenantIdArg) {
+    console.error("Missing required --tenant-id.");
+    process.exit(1);
+  }
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10000000) {
+    console.error("Invalid --limit; expected an integer between 1 and 10000000.");
+    process.exit(1);
+  }
+
   if (fromDate && toDate) {
     if (!isValidIsoDate(fromDate) || !isValidIsoDate(toDate)) {
       console.error("Invalid date format. Use YYYY-MM-DD.");
@@ -91,32 +100,9 @@ async function main() {
   let errors = 0;
   let processed = 0;
 
-  // Get tenant ID
-  let tenantId = null;
-  if (tenantIdArg) {
-    tenantId = tenantIdArg;
-    console.log(`[ingest-direct] Using tenant from args: ${tenantId}`);
-  } else {
-    try {
-      const tenantRes = await fetch(`${restBaseUrl}/tenants?select=id&limit=1`, {
-        headers: {
-          "Authorization": `Bearer ${serviceRoleKey}`,
-          "apikey": apiKey,
-        },
-      });
-      const tenants = await tenantRes.json();
-      if (Array.isArray(tenants) && tenants.length > 0 && tenants[0]?.id) {
-        tenantId = tenants[0].id;
-        console.log(`[ingest-direct] Using tenant from table: ${tenantId}`);
-      } else {
-        console.error("No tenant found. Pass --tenant-id or run admin-seed first.");
-        process.exit(1);
-      }
-    } catch (err) {
-      console.error("Failed to fetch tenant:", err.message);
-      process.exit(1);
-    }
-  }
+  // Tenant context is mandatory to prevent cross-tenant writes.
+  const tenantId = tenantIdArg;
+  console.log(`[ingest-direct] Using required tenant argument: ${tenantId}`);
 
   const BATCH_SIZE = 50;
   const rowsToInsert = [];
@@ -147,8 +133,7 @@ async function main() {
       });
       if (!res.ok) {
         const errText = await res.text();
-        console.warn(`[ingest-direct] Could not fetch existing IDs: ${errText.slice(0, 200)}`);
-        break;
+        throw new Error(`Could not fetch existing IDs: ${errText.slice(0, 200)}`);
       }
       const existing = await res.json();
       if (!Array.isArray(existing) || existing.length === 0) break;
@@ -159,58 +144,37 @@ async function main() {
     }
     console.log(`[ingest-direct] Existing contracts indexed: ${existingIds.size}`);
   } catch (err) {
-    console.warn(`[ingest-direct] Failed indexing existing contracts: ${err.message}`);
+    throw new Error(`[ingest-direct] Failed indexing existing contracts: ${err.message}`);
   }
 
   async function flushBatch() {
     if (rowsToInsert.length === 0) return;
-    try {
-      // Deduplicate batch by base_contract_id to avoid duplicate insert attempts
-      const uniqueMap = new Map();
-      for (const r of rowsToInsert) {
-        if (!r.base_contract_id) continue;
-        if (!uniqueMap.has(r.base_contract_id)) uniqueMap.set(r.base_contract_id, r);
-      }
-      const uniqueRows = [...uniqueMap.values()];
-
-      if (uniqueRows.length === 0) {
-        // nothing to insert
-      } else {
-        for (const row of uniqueRows) {
-          try {
-            const res = await fetch(`${restBaseUrl}/contracts`, {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${serviceRoleKey}`,
-                "apikey": apiKey,
-                "Content-Type": "application/json",
-                "Prefer": "return=minimal",
-              },
-              body: JSON.stringify([row]),
-            });
-
-            if (res.ok) {
-              inserted += 1;
-            } else if (res.status === 409) {
-              // duplicate key — skip
-              skipped += 1;
-            } else {
-              const errText = await res.text();
-              console.error(`HTTP ${res.status}: ${errText.slice(0, 300)}`);
-              errors += 1;
-            }
-          } catch (e) {
-            console.error(`Row insert error: ${e.message}`);
-            errors += 1;
-          }
-        }
-      }
-    } catch (err) {
-      console.error(`Batch error: ${err.message}`);
-      errors += rowsToInsert.length;
-    } finally {
-      rowsToInsert.length = 0;
+    const uniqueMap = new Map();
+    for (const row of rowsToInsert) {
+      if (row.base_contract_id && !uniqueMap.has(row.base_contract_id)) uniqueMap.set(row.base_contract_id, row);
     }
+    const uniqueRows = [...uniqueMap.values()];
+    for (const row of uniqueRows) {
+      const res = await fetch(`${restBaseUrl}/contracts`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "apikey": apiKey,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify([row]),
+      });
+      if (res.ok) {
+        inserted += 1;
+      } else if (res.status === 409) {
+        skipped += 1;
+      } else {
+        const errText = await res.text();
+        throw new Error(`Contract insert HTTP ${res.status}: ${errText.slice(0, 300)}`);
+      }
+    }
+    rowsToInsert.length = 0;
   }
 
   const todayIso = new Date().toISOString().slice(0, 10);
@@ -228,9 +192,7 @@ async function main() {
 
   async function processPayload(payload, sourceLabel) {
     if (!Array.isArray(payload)) {
-      console.error(`BASE API response for ${sourceLabel} is not a JSON array.`);
-      errors++;
-      return;
+      throw new Error(`BASE API response for ${sourceLabel} is not a JSON array.`);
     }
 
     for (const raw of payload) {
@@ -243,8 +205,6 @@ async function main() {
         continue;
       }
 
-      fetched++;
-
       const contract = mapToContract(raw);
 
       if (fromDate && toDate && !useRecentWindow) {
@@ -254,6 +214,8 @@ async function main() {
           continue;
         }
       }
+
+      fetched++;
 
       if (!contract.base_contract_id) {
         skipped++;
@@ -322,12 +284,10 @@ async function main() {
     });
 
     if (!response.ok) {
-      console.error(`Failed to fetch recent window: HTTP ${response.status}`);
-      errors++;
-    } else {
-      const rawPayload = await response.json().catch(() => null);
-      await processPayload(extractContractsArray(rawPayload), `recent-window ${rangeDays}d`);
+      throw new Error(`Failed to fetch recent window: HTTP ${response.status}`);
     }
+    const rawPayload = await response.json();
+    await processPayload(extractContractsArray(rawPayload), `recent-window ${rangeDays}d`);
   } else {
     for (const currentYear of yearsToFetch) {
       if (stopProcessing) break;
@@ -340,12 +300,10 @@ async function main() {
       });
 
       if (!response.ok) {
-        console.error(`Failed to fetch year ${currentYear}: HTTP ${response.status}`);
-        errors++;
-        continue;
+        throw new Error(`Failed to fetch year ${currentYear}: HTTP ${response.status}`);
       }
 
-      const rawPayload = await response.json().catch(() => null);
+      const rawPayload = await response.json();
       await processPayload(extractContractsArray(rawPayload), `year ${currentYear}`);
     }
   }
@@ -359,6 +317,7 @@ async function main() {
   console.log(`[ingest-direct] Inserted: ${inserted}`);
   console.log(`[ingest-direct] Skipped: ${skipped}`);
   console.log(`[ingest-direct] Errors: ${errors}`);
+  console.log(`[ingest-direct-json]${JSON.stringify({ fetched, inserted, updated: 0, skipped, errors })}`);
 
   if (errors > 0) process.exit(1);
 }

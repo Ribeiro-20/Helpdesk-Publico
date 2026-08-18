@@ -1,124 +1,81 @@
 import { createClient } from "@/lib/supabase/server";
-import { getSupabaseAdminEnv } from "@/lib/supabase/env";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 
-type DateRange = { from: string; to: string };
+type JobKind = "announcements" | "contracts";
+const JOB_SELECT = "id, kind, status, from_date, to_date, current_window, total_windows, fetched_count, inserted_count, updated_count, skipped_count, public_error, started_at, finished_at, created_at, updated_at";
 
-const WINDOWS: DateRange[] = [
-  { from: "2024-01-01", to: "2024-12-31" },
-  { from: "2025-01-01", to: "2025-12-31" },
-  { from: "2026-01-01", to: "2026-12-31" },
-];
-
-function toIsoDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+function parseKind(value: unknown): JobKind | null {
+  return value === "announcements" || value === "contracts" ? value : null;
 }
 
-function splitInto15DayChunks(range: DateRange): DateRange[] {
-  const chunks: DateRange[] = [];
-  const start = new Date(`${range.from}T00:00:00Z`);
-  const end = new Date(`${range.to}T00:00:00Z`);
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
-    return chunks;
-  }
-
-  let cursor = new Date(start);
-  while (cursor <= end) {
-    const chunkStart = new Date(cursor);
-    const chunkEnd = new Date(cursor);
-    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + 14);
-    if (chunkEnd > end) chunkEnd.setTime(end.getTime());
-
-    chunks.push({
-      from: toIsoDate(chunkStart),
-      to: toIsoDate(chunkEnd),
-    });
-
-    cursor = new Date(chunkEnd);
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return chunks;
+function internalError(scope: string, error: unknown) {
+  const correlationId = randomUUID();
+  console.error(`[historical-ingestion][${correlationId}] ${scope}`, error);
+  return NextResponse.json(
+    { ok: false, message: "Não foi possível processar o pedido. Tenta novamente.", correlation_id: correlationId },
+    { status: 500 },
+  );
 }
 
-async function runWindow(origin: string, serviceRoleKey: string, from: string, to: string) {
-  const response = await fetch(`${origin}/api/admin/ingest-dr`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${serviceRoleKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ from_date: from, to_date: to }),
-    cache: "no-store",
-  });
+async function requireAdmin() {
+  const supabase = await createClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  if (authError || !authData.user) return { response: NextResponse.json({ ok: false, message: "Não autenticado." }, { status: 401 }) };
+  const { data: appUser, error: appUserError } = await supabase.from("app_users")
+    .select("tenant_id, role").eq("id", authData.user.id).maybeSingle();
+  if (appUserError) return { response: internalError("app-user", appUserError) };
+  if (!appUser?.tenant_id || appUser.role !== "admin") {
+    return { response: NextResponse.json({ ok: false, message: "Acesso negado: apenas admin." }, { status: 403 }) };
+  }
+  return { supabase: supabase as unknown as SupabaseClient, tenantId: appUser.tenant_id };
+}
 
-  const body = await response.json().catch(() => ({}));
-  return {
-    ok: response.ok,
-    status: response.status,
-    body,
-  };
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+  const kind = parseKind(req.nextUrl.searchParams.get("kind"));
+  if (!kind) return NextResponse.json({ ok: false, message: "Tipo de ingestão inválido." }, { status: 400 });
+  const { data: job, error } = await auth.supabase.from("historical_ingestion_jobs")
+    .select(JOB_SELECT).eq("tenant_id", auth.tenantId).eq("kind", kind)
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) return internalError("get-job", error);
+  return NextResponse.json({ ok: true, job: job ?? null });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    const auth = await requireAdmin();
+    if ("response" in auth) return auth.response;
+    const body = await req.json().catch(() => ({}));
+    const kind = parseKind(body.kind);
+    if (!kind) return NextResponse.json({ ok: false, message: "Tipo de ingestão inválido." }, { status: 400 });
 
-    if (userError || !user) {
-      return NextResponse.json({ ok: false, message: "Não autenticado." }, { status: 401 });
+    const { data: active, error: activeError } = await auth.supabase.from("historical_ingestion_jobs")
+      .select(JOB_SELECT).eq("tenant_id", auth.tenantId).eq("kind", kind)
+      .in("status", ["queued", "running"]).maybeSingle();
+    if (activeError) return internalError("active-job", activeError);
+    if (active) return NextResponse.json({ ok: true, message: "A ingestão histórica já está em curso.", job: active }, { status: 202 });
+
+    const { data: failed, error: failedError } = await auth.supabase.from("historical_ingestion_jobs")
+      .select("id").eq("tenant_id", auth.tenantId).eq("kind", kind).eq("status", "failed")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (failedError) return internalError("failed-job", failedError);
+    if (failed) {
+      const { data: resumedData, error: resumeError } = await auth.supabase.rpc("resume_historical_ingestion", { p_job_id: failed.id });
+      if (resumeError) return internalError("resume-job", resumeError);
+      const resumed = Array.isArray(resumedData) ? resumedData[0] : resumedData;
+      return NextResponse.json({ ok: true, message: "Ingestão histórica retomada.", job: resumed }, { status: 202 });
     }
 
-    const { data: appUser, error: appUserError } = await supabase
-      .from("app_users")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (appUserError) {
-      return NextResponse.json({ ok: false, message: appUserError.message }, { status: 500 });
-    }
-
-    if (!appUser || appUser.role !== "admin") {
-      return NextResponse.json({ ok: false, message: "Acesso negado: apenas admin." }, { status: 403 });
-    }
-
-    const { serviceRoleKey } = getSupabaseAdminEnv("Ingest DR historical BASE route");
-    const details: Array<{ from: string; to: string; ok: boolean; status: number; body: unknown }> = [];
-    const origin = req.nextUrl.origin;
-    const chunks = WINDOWS.flatMap(splitInto15DayChunks);
-
-    for (const chunk of chunks) {
-      const result = await runWindow(origin, serviceRoleKey, chunk.from, chunk.to);
-      details.push({ from: chunk.from, to: chunk.to, ...result });
-      if (!result.ok) {
-        return NextResponse.json(
-          {
-            ok: false,
-            message: `Falhou ingestão para intervalo ${chunk.from} a ${chunk.to}.`,
-            details,
-          },
-          { status: result.status || 500 },
-        );
-      }
-    }
-
-    return NextResponse.json({
-      ok: true,
-      message: "Ingestão histórica BASE (2024-2026) concluída.",
-      details,
+    const { data: queuedData, error: enqueueError } = await auth.supabase.rpc("enqueue_historical_ingestion", {
+      p_kind: kind, p_from_date: "2024-01-01", p_to_date: new Date().toISOString().slice(0, 10), p_window_days: 15,
     });
+    if (enqueueError) return internalError("enqueue-job", enqueueError);
+    const job = Array.isArray(queuedData) ? queuedData[0] : queuedData;
+    return NextResponse.json({ ok: true, message: "Ingestão histórica colocada em fila.", job }, { status: 202 });
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        message: error instanceof Error ? error.message : "Erro inesperado na ingestão histórica.",
-      },
-      { status: 500 },
-    );
+    return internalError("post-job", error);
   }
 }

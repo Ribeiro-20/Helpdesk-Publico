@@ -8,6 +8,7 @@ import MarketOverviewPanel from "../../../components/market/MarketOverviewPanel"
 import { cleanAnnouncementText } from "@/lib/announcements";
 import MarketFiltersForm from "../../../components/market/MarketFiltersForm";
 import { calendarDaysUntilDeadlineInPortugal } from "@/lib/deadlines";
+import { displayActTypeFilter, normalizeActTypeFilter } from "@/lib/market-filter-state";
 import {
   ProcedurePercentTable,
   MonthlyOperatorsTable,
@@ -511,7 +512,9 @@ export default async function MarketPage({
   const dateFromFilter = (params.date_from ?? "").trim();
   const dateToFilter = (params.date_to ?? "").trim();
   const deadlineBucketFilter = (params.deadline_bucket ?? "").trim();
-  const actTypeFilters = parseMultiValues(params.act_type);
+  const requestedActTypeFilters = parseMultiValues(params.act_type);
+  const actTypeFilters = requestedActTypeFilters.map(normalizeActTypeFilter);
+  const displayedActTypeFilters = requestedActTypeFilters.map(displayActTypeFilter);
   const contractTypeFilters = parseMultiValues(params.contract_type);
   const modelTypeFilters = parseMultiValues(params.model_type);
   const districtFilters = parseMultiValues(params.district);
@@ -620,7 +623,7 @@ export default async function MarketPage({
   const filtersFormEl = selectedAnalysis ? (
     <MarketFiltersForm
       analysisType={selectedAnalysis}
-      defaultActTypes={actTypeFilters}
+      defaultActTypes={displayedActTypeFilters}
       defaultContractTypes={contractTypeFilters}
       defaultModelTypes={modelTypeFilters}
       defaultDistricts={districtFilters}

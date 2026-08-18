@@ -3,6 +3,8 @@ import PageHeader from "@/components/layout/PageHeader";
 import SingleDatePicker from "@/components/SingleDatePicker";
 import Link from "next/link";
 import { FileSignature } from "lucide-react";
+import { throwIfContractQueryError } from "@/lib/contract-search";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -159,12 +161,13 @@ export default async function ContractsPage({
   }
 
   let contracts: ContractRow[] = [];
-  let totalCount = 0;
+  let totalCount: number | null = null;
+  let hasMore = false;
 
-  const { data: rpcResult } = await supabase.rpc("search_contracts", {
-    p_tenant_id: tenantId,
-    p_entity_nif: effectiveEntityNif,
-    p_winner_nif: effectiveWinnerNif,
+  const contractClient = supabase as unknown as SupabaseClient;
+  const { data: rpcResult, error: rpcError } = await contractClient.rpc("search_contracts_v2", {
+    p_entity: effectiveEntityNif,
+    p_winner: effectiveWinnerNif,
     p_cpv: cpvFilter || null,
     p_procedure: procedureFilter || null,
     p_min_value: minValue ? parseFloat(minValue) : null,
@@ -175,22 +178,27 @@ export default async function ContractsPage({
     p_offset: from,
     p_limit: PAGE_SIZE,
   });
+  throwIfContractQueryError(rpcError);
 
   if (rpcResult) {
     const result = (Array.isArray(rpcResult) ? rpcResult[0] : rpcResult) as {
       rows: ContractRow[] | string;
-      total_count: number;
+      total_count: number | null;
+      has_more: boolean;
     };
     if (result) {
       const rawRows = typeof result.rows === "string"
         ? (JSON.parse(result.rows) as ContractRow[])
         : result.rows;
       contracts = Array.isArray(rawRows) ? rawRows : [];
-      totalCount = Number(result.total_count ?? 0);
+      totalCount = result.total_count === null ? null : Number(result.total_count);
+      hasMore = result.has_more === true;
     }
   }
 
-  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const totalPages = totalCount === null
+    ? (hasMore ? page + 1 : page)
+    : Math.ceil(totalCount / PAGE_SIZE);
 
   const cpvCodes = Array.from(new Set(contracts.map((c) => c.cpv_main).filter(Boolean) as string[]));
   const cpvDescriptions: Record<string, string> = {};
@@ -232,7 +240,7 @@ export default async function ContractsPage({
       <PageHeader
         icon={FileSignature}
         title="Contratos"
-        description={`${totalCount} contratos celebrados`}
+        description={totalCount === null ? "Resultados filtrados" : `${totalCount} contratos celebrados`}
       />
 
       {/* Active NIF filter banner */}
@@ -242,7 +250,9 @@ export default async function ContractsPage({
             {entityNifFilter && <>A filtrar por entidade NIF <span className="font-mono font-medium">{entityNifFilter}</span></>}
             {entityNifFilter && winnerNifFilter && <> &middot; </>}
             {winnerNifFilter && <>A filtrar por vencedor NIF <span className="font-mono font-medium">{winnerNifFilter}</span></>}
-            {" "}&mdash; {totalCount} resultado{totalCount !== 1 ? "s" : ""}
+            {totalCount === null
+              ? <> &mdash; resultados apresentados por página</>
+              : <> &mdash; {totalCount} resultado{totalCount !== 1 ? "s" : ""}</>}
           </p>
           <Link href="/contracts" className="self-start text-blue-600 hover:underline text-sm font-medium sm:self-auto">
             Limpar filtro

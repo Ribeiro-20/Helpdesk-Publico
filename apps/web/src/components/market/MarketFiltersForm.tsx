@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import SingleDatePicker from "../SingleDatePicker";
 import CpvMultiSearchInput from "../CpvMultiSearchInput";
 import BaseHistoricalIngestButton from "./BaseHistoricalIngestButton";
+import { displayActTypeFilter, normalizeActTypeFilter, reconcileMarketDateEnd } from "@/lib/market-filter-state";
 
 const ACT_TYPE_OPTIONS = [
   "Anúncio de procedimento",
@@ -224,7 +225,24 @@ export default function MarketFiltersForm({
 }: Props) {
   const resolvedContractTypes = (contractTypeOptions && contractTypeOptions.length > 0 ? contractTypeOptions : CONTRACT_TYPE_OPTIONS) as readonly string[];
   const resolvedModelTypes = (modelTypeOptions && modelTypeOptions.length > 0 ? modelTypeOptions : MODEL_TYPE_OPTIONS) as readonly string[];
-  const resolvedActTypes = (actTypeOptions && actTypeOptions.length > 0 ? actTypeOptions : ACT_TYPE_OPTIONS) as readonly string[];
+  const resolvedActTypes = (actTypeOptions && actTypeOptions.length > 0 ? actTypeOptions : ACT_TYPE_OPTIONS)
+    .map(displayActTypeFilter) as readonly string[];
+  const actTypeValueMap = Object.fromEntries(
+    resolvedActTypes.map((label) => [label, normalizeActTypeFilter(label)]),
+  );
+  const [dateFrom, setDateFrom] = useState(defaultDateFrom);
+  const [dateTo, setDateTo] = useState(defaultDateTo);
+
+  useEffect(() => {
+    setDateFrom(defaultDateFrom);
+    setDateTo(defaultDateTo);
+  }, [defaultDateFrom, defaultDateTo]);
+
+  function handleDateFromChange(nextStart: string) {
+    setDateFrom(nextStart);
+    setDateTo((currentEnd) => reconcileMarketDateEnd(nextStart, currentEnd));
+  }
+
   return (
     <div className="bg-white border border-surface-200 rounded-xl p-6 shadow-card">
       <h2 className="font-semibold text-gray-900 mb-4">Filtros de mercado</h2>
@@ -240,6 +258,7 @@ export default function MarketFiltersForm({
                 name="act_type"
                 options={resolvedActTypes}
                 defaultValues={defaultActTypes}
+                valueMap={actTypeValueMap}
               />
               <MultiCheckbox
                 label="Tipo de contrato"
@@ -281,7 +300,8 @@ export default function MarketFiltersForm({
             <span className="mb-1 block text-xs text-gray-400">Data inicial</span>
             <SingleDatePicker
               name="date_from"
-              defaultValue={defaultDateFrom}
+              value={dateFrom}
+              onChange={handleDateFromChange}
               placeholder="Selecionar data"
               className="w-full"
               buttonClassName="w-full justify-start"
@@ -292,8 +312,9 @@ export default function MarketFiltersForm({
             <span className="mb-1 block text-xs text-gray-400">Data final</span>
             <SingleDatePicker
               name="date_to"
-              defaultValue={defaultDateTo}
-              min={defaultDateFrom || undefined}
+              value={dateTo}
+              onChange={setDateTo}
+              min={dateFrom || undefined}
               placeholder="Selecionar data"
               className="w-full"
               buttonClassName="w-full justify-start"
@@ -352,7 +373,7 @@ export default function MarketFiltersForm({
           >
             Abrir observatório com estes filtros
           </a>
-          <BaseHistoricalIngestButton />
+          <BaseHistoricalIngestButton analysisType={analysisType} />
         </div>
       </form>
     </div>

@@ -43,7 +43,7 @@ function diffDaysInclusive(fromDate: string, toDate: string): number {
 }
 
 function validateDateRange(fromDate: string, toDate: string): string | null {
-  const minDate = "2026-01-01";
+  const minDate = "2024-01-01";
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
     return "Datas invalidas. Use o formato YYYY-MM-DD.";
   }
@@ -146,11 +146,12 @@ async function loadExistingContracts(
 
   for (let i = 0; i < baseContractIds.length; i += 500) {
     const chunk = baseContractIds.slice(i, i + 500);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("contracts")
       .select("id, base_contract_id, raw_hash")
       .eq("tenant_id", tenantId)
       .in("base_contract_id", chunk);
+    if (error) throw error;
 
     (data ?? []).forEach((row: { id: string; base_contract_id: string; raw_hash: string | null }) => {
       existingMap.set(row.base_contract_id, { id: row.id, raw_hash: row.raw_hash });
@@ -169,11 +170,12 @@ async function loadAnnouncementMap(
 
   for (let i = 0; i < announcementNos.length; i += 500) {
     const chunk = announcementNos.slice(i, i + 500);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("announcements")
       .select("id, dr_announcement_no")
       .eq("tenant_id", tenantId)
       .in("dr_announcement_no", chunk);
+    if (error) throw error;
 
     (data ?? []).forEach((row: { id: string; dr_announcement_no: string }) => {
       if (row.dr_announcement_no) announcementMap.set(row.dr_announcement_no, row.id);
@@ -206,11 +208,12 @@ async function ensureEntityMap(
 
   for (let i = 0; i < nifArr.length; i += 500) {
     const chunk = nifArr.slice(i, i + 500);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("entities")
       .select("id, nif")
       .eq("tenant_id", tenantId)
       .in("nif", chunk);
+    if (error) throw error;
 
     (data ?? []).forEach((row: { id: string; nif: string }) => {
       entityMap.set(row.nif, row.id);
@@ -233,12 +236,23 @@ async function ensureEntityMap(
       .upsert(batch, { onConflict: "tenant_id,nif", ignoreDuplicates: true })
       .select("id, nif");
 
-    if (!error && data) {
-      data.forEach((row: { id: string; nif: string }) => {
-        entityMap.set(row.nif, row.id);
-      });
-      stats.entities_touched += data.length;
-    }
+    if (error) throw error;
+    (data ?? []).forEach((row: { id: string; nif: string }) => {
+      entityMap.set(row.nif, row.id);
+    });
+    stats.entities_touched += data?.length ?? 0;
+  }
+
+  const unresolvedEntityNifs = missingEntityNifs.filter((nif) => !entityMap.has(nif));
+  for (let i = 0; i < unresolvedEntityNifs.length; i += 500) {
+    const chunk = unresolvedEntityNifs.slice(i, i + 500);
+    const { data, error } = await supabase.from("entities").select("id, nif")
+      .eq("tenant_id", tenantId).in("nif", chunk);
+    if (error) throw error;
+    (data ?? []).forEach((row: { id: string; nif: string }) => entityMap.set(row.nif, row.id));
+  }
+  if (missingEntityNifs.some((nif) => !entityMap.has(nif))) {
+    throw new Error("entity link resolution failed");
   }
 
   return entityMap;
@@ -267,11 +281,12 @@ async function ensureCompanyMap(
 
   for (let i = 0; i < nifArr.length; i += 500) {
     const chunk = nifArr.slice(i, i + 500);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("companies")
       .select("id, nif")
       .eq("tenant_id", tenantId)
       .in("nif", chunk);
+    if (error) throw error;
 
     (data ?? []).forEach((row: { id: string; nif: string }) => {
       companyMap.set(row.nif, row.id);
@@ -294,12 +309,23 @@ async function ensureCompanyMap(
       .upsert(batch, { onConflict: "tenant_id,nif", ignoreDuplicates: true })
       .select("id, nif");
 
-    if (!error && data) {
-      data.forEach((row: { id: string; nif: string }) => {
-        companyMap.set(row.nif, row.id);
-      });
-      stats.companies_touched += data.length;
-    }
+    if (error) throw error;
+    (data ?? []).forEach((row: { id: string; nif: string }) => {
+      companyMap.set(row.nif, row.id);
+    });
+    stats.companies_touched += data?.length ?? 0;
+  }
+
+  const unresolvedCompanyNifs = missingCompanyNifs.filter((nif) => !companyMap.has(nif));
+  for (let i = 0; i < unresolvedCompanyNifs.length; i += 500) {
+    const chunk = unresolvedCompanyNifs.slice(i, i + 500);
+    const { data, error } = await supabase.from("companies").select("id, nif")
+      .eq("tenant_id", tenantId).in("nif", chunk);
+    if (error) throw error;
+    (data ?? []).forEach((row: { id: string; nif: string }) => companyMap.set(row.nif, row.id));
+  }
+  if (missingCompanyNifs.some((nif) => !companyMap.has(nif))) {
+    throw new Error("company link resolution failed");
   }
 
   return companyMap;
@@ -307,6 +333,12 @@ async function ensureCompanyMap(
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
+
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const authorization = req.headers.get("authorization") ?? "";
+  if (!serviceRoleKey || authorization !== `Bearer ${serviceRoleKey}`) {
+    return new Response(JSON.stringify({ error: "Acesso negado." }), { status: 403, headers: CORS });
+  }
 
   const startedAt = Date.now();
 
@@ -334,22 +366,18 @@ Deno.serve(async (req: Request) => {
 
     const supabase: SupabaseClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      serviceRoleKey,
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    let tenantId: string = body.tenant_id ?? "";
+    const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
     if (!tenantId) {
-      const { data: tenant, error } = await supabase
-        .from("tenants").select("id").limit(1).single();
-      if (error || !tenant) {
-        return new Response(
-          JSON.stringify({ error: "No tenant found. Run admin-seed first." }),
-          { status: 400, headers: CORS },
-        );
-      }
-      tenantId = tenant.id;
+      return new Response(JSON.stringify({ error: "Tenant obrigatório." }), { status: 400, headers: CORS });
     }
+    const { data: tenant, error: tenantError } = await supabase
+      .from("tenants").select("id").eq("id", tenantId).maybeSingle();
+    if (tenantError) throw tenantError;
+    if (!tenant) return new Response(JSON.stringify({ error: "Tenant inválido." }), { status: 400, headers: CORS });
 
     const stats = {
       fetched: 0,
@@ -442,10 +470,10 @@ Deno.serve(async (req: Request) => {
         const announcementMap = announcementNos.length > 0
           ? await loadAnnouncementMap(supabase, tenantId, announcementNos)
           : new Map<string, string>();
-        const entityMap = contractsToWrite.length > 0
+        const entityMap = !dryRun && contractsToWrite.length > 0
           ? await ensureEntityMap(supabase, tenantId, contractsToWrite, stats)
           : new Map<string, string>();
-        const companyMap = contractsToWrite.length > 0
+        const companyMap = !dryRun && contractsToWrite.length > 0
           ? await ensureCompanyMap(supabase, tenantId, contractsToWrite, stats)
           : new Map<string, string>();
 
@@ -505,15 +533,10 @@ Deno.serve(async (req: Request) => {
 
             const { error } = await supabase.from("contracts").insert(batch);
             if (error) {
-              console.error(`[ingest-contracts] insert batch ${i / BATCH_SIZE + 1} error:`, error.message, error.details, error.hint, error.code);
-              if (batch.length > 0) {
-                const sample = batch[0];
-                console.error("[ingest-contracts] sample:", sample.base_contract_id, sample.cpv_main, sample.publication_date);
-              }
-              stats.errors += batch.length;
-            } else {
-              stats.inserted += batch.length;
+              console.error(`[ingest-contracts] insert batch ${i / BATCH_SIZE + 1} failed`, error);
+              throw new Error("contract insert failed");
             }
+            stats.inserted += batch.length;
           }
 
           for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
@@ -570,11 +593,10 @@ Deno.serve(async (req: Request) => {
                 .eq("id", existingId);
 
               if (error) {
-                console.error("[ingest-contracts] update error:", error.message, existingId);
-                stats.errors++;
-              } else {
-                stats.updated++;
+                console.error("[ingest-contracts] update failed", { existingId, error });
+                throw new Error("contract update failed");
               }
+              stats.updated++;
             }
           }
         } else {
@@ -590,13 +612,15 @@ Deno.serve(async (req: Request) => {
     stats.fetched = fetchedCount;
     console.log(`[ingest-contracts] fetched ${stats.fetched} items in ${Date.now() - fetchStart}ms`);
     stats.elapsed_ms = Date.now() - startedAt;
+    if (stats.errors > 0) throw new Error("contract ingestion completed with persistence errors");
     console.log("[ingest-contracts] done:", stats);
 
     return new Response(JSON.stringify(stats), { status: 200, headers: CORS });
   } catch (err) {
-    console.error("[ingest-contracts] fatal:", err);
+    const correlationId = crypto.randomUUID();
+    console.error(`[ingest-contracts][${correlationId}] fatal:`, err);
     return new Response(
-      JSON.stringify({ error: String(err) }),
+      JSON.stringify({ error: "Falha na ingestão de contratos.", correlation_id: correlationId }),
       { status: 500, headers: CORS },
     );
   }

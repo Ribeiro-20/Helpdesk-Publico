@@ -18,9 +18,15 @@ export default async function NotificationsPage({
 }) {
   const requested = parseNotificationSearchParams(await searchParams);
   const supabase = await createClient();
+  const { data: authData, error: authError } = await supabase.auth.getUser();
+  throwIfNotificationQueryError(authError, "Não foi possível autenticar o utilizador das notificações");
+  const user = authData.user;
+  if (!user) throw new Error("Não foi possível autenticar o utilizador das notificações");
+
   const { data: appUser, error: appUserError } = await supabase
     .from("app_users")
     .select("tenant_id, role")
+    .eq("id", user.id)
     .maybeSingle();
   throwIfNotificationQueryError(appUserError, "Não foi possível carregar o utilizador das notificações");
 

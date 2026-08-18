@@ -47,3 +47,7 @@ startProcess("cleanup-announcements", [
   "./node_modules/tsx/dist/cli.mjs",
   "cleanup-announcements.ts",
 ]);
+startProcess("historical-ingestion", [
+  "./node_modules/tsx/dist/cli.mjs",
+  "historical-ingestion-worker.ts",
+]);
