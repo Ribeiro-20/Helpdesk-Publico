@@ -13,9 +13,14 @@ dotenv.config({ path: path.resolve(__dirname, "..", ".env") });
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "http://127.0.0.1:54321";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const TENANT_ID = process.env.TENANT_ID;
 
 if (!SERVICE_ROLE_KEY) {
   console.error("SUPABASE_SERVICE_ROLE_KEY nao definido no .env");
+  process.exit(1);
+}
+if (!TENANT_ID) {
+  console.error("TENANT_ID nao definido no .env");
   process.exit(1);
 }
 
@@ -59,11 +64,20 @@ function toIsoDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function splitRangeByDays(from, to, maxDays) {
+  if (!isValidIsoDate(from) || !isValidIsoDate(to)) {
+    throw new Error("Intervalo inválido. Usa datas de calendário no formato YYYY-MM-DD.");
+  }
   const start = new Date(`${from}T00:00:00Z`);
   const end = new Date(`${to}T00:00:00Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) {
-    throw new Error("Intervalo inválido. Usa datas no formato YYYY-MM-DD.");
+  if (start > end) {
+    throw new Error("Intervalo inválido. Usa datas de calendário no formato YYYY-MM-DD.");
   }
 
   const ranges = [];
@@ -123,7 +137,17 @@ async function runDirectIngestFallback(range) {
 
   const { stdout, stderr } = await execFileAsync(
     process.execPath,
-    [scriptPath, "--from", range.from, "--to", range.to],
+    [
+      scriptPath,
+      "--from",
+      range.from,
+      "--to",
+      range.to,
+      "--tenant-id",
+      TENANT_ID,
+      "--limit",
+      "10000000",
+    ],
     {
       cwd: __dirname,
       maxBuffer: 1024 * 1024 * 10,

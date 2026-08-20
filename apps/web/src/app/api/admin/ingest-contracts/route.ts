@@ -8,7 +8,9 @@ import { existsSync } from "node:fs";
 const execFileAsync = promisify(execFile);
 
 function isIsoDate(value: unknown): value is string {
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 function parsePositiveInt(value: unknown, fallback: number): number {
@@ -109,7 +111,9 @@ export async function POST(req: NextRequest) {
     const defaults = defaultDateRange();
     const fromDate = isIsoDate(parsedBody.from_date) ? parsedBody.from_date : defaults.fromDate;
     const toDate = isIsoDate(parsedBody.to_date) ? parsedBody.to_date : defaults.toDate;
-    const limit = parsedBody.limit !== undefined ? parsePositiveInt(parsedBody.limit, 200000) : null;
+    const limit = parsedBody.limit !== undefined
+      ? parsePositiveInt(parsedBody.limit, 10000000)
+      : 10000000;
     const days = daysInclusive(fromDate, toDate);
 
     if (days <= 0) {
@@ -163,7 +167,8 @@ export async function POST(req: NextRequest) {
         fromDate,
         "--to",
         toDate,
-        ...(limit ? ["--limit", String(limit)] : []),
+        "--limit",
+        String(limit),
         ...(tenantId ? ["--tenant-id", tenantId] : []),
       ],
       {
@@ -188,7 +193,7 @@ export async function POST(req: NextRequest) {
       to_date: toDate,
       fetched: parseNumericLine(output, "Fetched"),
       inserted: parseNumericLine(output, "Inserted"),
-      updated: 0,
+      updated: parseNumericLine(output, "Updated"),
       skipped: parseNumericLine(output, "Skipped"),
       linked_to_announcements: 0,
       entities_touched: 0,

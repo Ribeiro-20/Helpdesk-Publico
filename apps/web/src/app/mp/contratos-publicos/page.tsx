@@ -40,13 +40,6 @@ type MercadoSearchParams = {
   limit?: string;
 };
 
-type ContractExtraRow = {
-  id: string;
-  contract_type: string | null;
-  execution_deadline_days: number | null;
-  execution_locations: unknown;
-};
-
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -70,61 +63,6 @@ function parseExecutionLocation(raw: string): {
     district: parts[1] ?? "",
     municipality: parts.slice(2).join(", "),
   };
-}
-
-function locationMatches(
-  locations: string[],
-  country: string,
-  district: string,
-  municipality: string,
-): boolean {
-  if (country === "all" && district === "all" && municipality === "all") {
-    return true;
-  }
-
-  for (const rawLocation of locations) {
-    const parsed = parseExecutionLocation(rawLocation);
-
-    if (country !== "all" && parsed.country !== country) continue;
-    if (district !== "all" && parsed.district !== district) continue;
-    if (municipality !== "all" && parsed.municipality !== municipality)
-      continue;
-
-    return true;
-  }
-
-  return false;
-}
-
-function chunkArray<T>(items: T[], chunkSize: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += chunkSize) {
-    chunks.push(items.slice(i, i + chunkSize));
-  }
-  return chunks;
-}
-
-function closingDateIso(
-  signingDate: string | null,
-  deadlineDays: number | null | undefined,
-): string | null {
-  if (!signingDate || !deadlineDays || deadlineDays <= 0) return null;
-  const start = new Date(`${signingDate}T00:00:00`);
-  if (Number.isNaN(start.getTime())) return null;
-  const end = new Date(start);
-  end.setDate(end.getDate() + deadlineDays);
-  return end.toISOString().slice(0, 10);
-}
-
-function inDateRange(
-  value: string | null,
-  fromDate: string,
-  toDate: string,
-): boolean {
-  if (!value) return false;
-  if (fromDate && value < fromDate) return false;
-  if (toDate && value > toDate) return false;
-  return true;
 }
 
 export default async function MercadoPublicoPage({
@@ -153,10 +91,10 @@ export default async function MercadoPublicoPage({
   const fromDate = (params.from_date ?? "").trim();
   const toDate = (params.to_date ?? "").trim();
   const selectedDateField =
-    params.date_field === "publication_date" ||
+    params.date_field === "signing_date" ||
     params.date_field === "closing_date"
       ? params.date_field
-      : "signing_date";
+      : "publication_date";
   const sortField = params.sort ?? "publication_date";
   const countryFilter = params.country ?? "all";
   const districtFilter = params.district ?? "all";
@@ -533,10 +471,10 @@ export default async function MercadoPublicoPage({
     }
   }
 
+  // Facets are sampled only to populate the dropdowns. URL filters are accepted
+  // independently so a valid location outside that sample is never reset to "all".
   const selectedCountry =
-    countryFilter !== "all" && countryOptions.includes(countryFilter)
-      ? countryFilter
-      : "all";
+    countryFilter.trim() && countryFilter !== "all" ? countryFilter.trim() : "all";
 
   const districtOptions =
     selectedCountry !== "all"
@@ -546,10 +484,8 @@ export default async function MercadoPublicoPage({
       : [];
 
   const selectedDistrict =
-    selectedCountry !== "all" &&
-    districtFilter !== "all" &&
-    districtOptions.includes(districtFilter)
-      ? districtFilter
+    districtFilter.trim() && districtFilter !== "all"
+      ? districtFilter.trim()
       : "all";
 
   const municipalityOptions =
@@ -560,254 +496,93 @@ export default async function MercadoPublicoPage({
       : [];
 
   const selectedMunicipality =
-    selectedCountry !== "all" &&
-    selectedDistrict !== "all" &&
-    municipalityFilter !== "all" &&
-    municipalityOptions.includes(municipalityFilter)
-      ? municipalityFilter
+    municipalityFilter.trim() && municipalityFilter !== "all"
+      ? municipalityFilter.trim()
       : "all";
 
-  // Only force client-side filtering (fetch all) if we are filtering by fields
-  // that CANNOT be handled efficiently by the DB/RPC with current logic.
-  // Location filters require JS parsing, so they force extended filtering.
-  // CPV is handled by RPC, so it doesn't need extended filtering.
-  const hasLocationFilters =
-    selectedCountry !== "all" ||
-    selectedDistrict !== "all" ||
-    selectedMunicipality !== "all";
+  // Every result filter and pagination request goes through the same
+  // service-only, deduplicated RPC. Facet sampling never limits the search.
+  const rpcBaseArgs = {
+    p_tenant_id: tenantId,
+    p_entity: entityFilter || null,
+    p_winner: winnerFilter || null,
+    p_cpv: cpvFilter || null,
+    p_procedures: procedureFilters.length > 0 ? procedureFilters : null,
+    p_contract_types: contractTypeFilters.length > 0 ? contractTypeFilters : null,
+    p_country: selectedCountry !== "all" ? selectedCountry : null,
+    p_district: selectedDistrict !== "all" ? selectedDistrict : null,
+    p_municipality: selectedMunicipality !== "all" ? selectedMunicipality : null,
+    p_min_value: minValue ? parseFloat(minValue) : null,
+    p_max_value: maxValue ? parseFloat(maxValue) : null,
+    p_from_date: fromDate || null,
+    p_to_date: toDate || null,
+    p_date_field: selectedDateField,
+    p_sort: sortField,
+    p_limit: PAGE_SIZE,
+  };
 
-  const needsExtendedFiltering =
-    contractTypeFilters.length > 0 ||
-    procedureFilters.length > 0 ||
-    hasLocationFilters;
+  const parseRpcSearch = (value: unknown): {
+    rows: ContractRow[];
+    totalCount: number;
+  } => {
+    const result = (Array.isArray(value) ? value[0] : value) as
+      | { rows?: ContractRow[] | string; total_count?: number }
+      | null;
+    if (!result) return { rows: [], totalCount: 0 };
 
-  const rpcOffset = needsExtendedFiltering ? 0 : (page - 1) * PAGE_SIZE;
-  const rpcLimit = needsExtendedFiltering ? 50000 : PAGE_SIZE;
+    const rawRows =
+      typeof result.rows === "string"
+        ? (JSON.parse(result.rows) as ContractRow[])
+        : result.rows;
+    return {
+      rows: Array.isArray(rawRows) ? rawRows : [],
+      totalCount: Number(result.total_count ?? 0),
+    };
+  };
+
+  const runRpcSearch = (targetPage: number) =>
+    supabase.rpc("search_public_contracts", {
+      ...rpcBaseArgs,
+      p_offset: (targetPage - 1) * PAGE_SIZE,
+    });
 
   let totalCount = 0;
   let contracts: ContractRow[] = [];
+  let queryError = false;
+  let resolvedPage = page;
 
-  // -------------------------------------------------------------------
-  // If procedure, contract_type OR CPV filters are active, query DB directly.
-  // This guarantees CPV prefix semantics (cpv%) instead of contains semantics.
-  // -------------------------------------------------------------------
-  const hasTypeFilters =
-    contractTypeFilters.length > 0 ||
-    procedureFilters.length > 0 ||
-    cpvFilter.length > 0 ||
-    selectedDateField !== "signing_date";
-
-  const requiresClientDateFiltering = selectedDateField === "closing_date";
-
-  if (hasTypeFilters) {
-    // Build a direct query applying exact filters at DB level
-    let q = supabase
-      .from("contracts")
-      .select(
-        "id, object, procedure_type, contract_type, signing_date, publication_date, cpv_main, contract_price, base_price, status, contracting_entities, winners, execution_deadline_days, execution_locations",
-        { count: "exact" },
-      )
-      .eq("tenant_id", tenantId);
-
-    if (contractTypeFilters.length > 0)
-      q = q.in("contract_type", contractTypeFilters);
-    if (procedureFilters.length > 0)
-      q = q.in("procedure_type", procedureFilters);
-    if (entityFilter)
-      q = (q as any).ilike("contracting_entities", `%${entityFilter}%`);
-    if (winnerFilter) q = (q as any).ilike("winners", `%${winnerFilter}%`);
-    if (cpvFilter) q = q.ilike("cpv_main", `${cpvFilter}%`);
-    if (minValue) q = q.gte("contract_price", parseFloat(minValue));
-    if (maxValue) q = q.lte("contract_price", parseFloat(maxValue));
-    if (selectedDateField === "signing_date") {
-      if (fromDate) q = q.gte("signing_date", fromDate);
-      if (toDate) q = q.lte("signing_date", toDate);
-    } else if (selectedDateField === "publication_date") {
-      if (fromDate) q = q.gte("publication_date", fromDate);
-      if (toDate) q = q.lte("publication_date", toDate);
-    }
-
-    // Apply sort
-    if (sortField === "value_desc")
-      q = q.order("contract_price", { ascending: false, nullsFirst: false });
-    else if (sortField === "value_asc")
-      q = q.order("contract_price", { ascending: true, nullsFirst: false });
-    else if (sortField === "publication_date")
-      q = q.order("publication_date", { ascending: false, nullsFirst: false });
-    else q = q.order("signing_date", { ascending: false, nullsFirst: false });
-
-    // If NO location filters are active, we can paginate directly in DB (performant for millions of rows)
-    if (!hasLocationFilters && !requiresClientDateFiltering) {
-      // Apply pagination directly to query
-      const offsetDB = (page - 1) * PAGE_SIZE;
-      q = q.range(offsetDB, offsetDB + PAGE_SIZE - 1);
-
-      const { data: directRows, count: directCount } = await q;
-
-      contracts = (directRows ?? []).map((row: any) => ({
-        ...row,
-        execution_locations: toStringArray(row.execution_locations),
-      })) as ContractRow[];
-      totalCount = directCount ?? 0;
-    } else {
-      // Fallback for location filters: fetch up to limit, filter in JS (slower, capped)
-      const { data: directRows } = await q.limit(50000);
-
-      let filteredDirect = (directRows ?? []).map((row: any) => ({
-        ...row,
-        execution_locations: toStringArray(row.execution_locations),
-      })) as ContractRow[];
-
-      filteredDirect = filteredDirect.filter((row) => {
-        const locationOk = locationMatches(
-          row.execution_locations ?? [],
-          selectedCountry,
-          selectedDistrict,
-          selectedMunicipality,
-        );
-        if (!locationOk) return false;
-
-        if (selectedDateField === "closing_date") {
-          const closingDate = closingDateIso(
-            row.signing_date,
-            row.execution_deadline_days,
-          );
-          return inDateRange(closingDate, fromDate, toDate);
-        }
-
-        return true;
-      });
-
-      totalCount = filteredDirect.length;
-      const totalPagesF = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-      const safePageF = Math.min(page, totalPagesF);
-      const offsetF = (safePageF - 1) * PAGE_SIZE;
-      contracts = filteredDirect.slice(offsetF, offsetF + PAGE_SIZE);
-    }
+  let rpcResponse = await runRpcSearch(page);
+  if (rpcResponse.error) {
+    console.error("[public-contracts] RPC query failed", rpcResponse.error);
+    queryError = true;
   } else {
-    const { data: rpcResult } = await supabase.rpc("search_contracts", {
-      p_tenant_id: tenantId,
-      p_entity_nif: entityFilter || null,
-      p_winner_nif: winnerFilter || null,
-      p_cpv: cpvFilter || null,
-      p_procedure: null, // multi-select filters applied JS-side
-      p_min_value: minValue ? parseFloat(minValue) : null,
-      p_max_value: maxValue ? parseFloat(maxValue) : null,
-      p_from_date: fromDate || null,
-      p_to_date: toDate || null,
-      p_sort: sortField,
-      p_offset: rpcOffset,
-      p_limit: rpcLimit,
-    });
+    let parsed = parseRpcSearch(rpcResponse.data);
+    totalCount = parsed.totalCount;
+    const rpcTotalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+    resolvedPage = Math.min(page, rpcTotalPages);
 
-    let rpcRows: ContractRow[] = [];
-    let rpcTotalCount = 0;
-
-    if (rpcResult) {
-      const result = (Array.isArray(rpcResult) ? rpcResult[0] : rpcResult) as {
-        rows: ContractRow[] | string;
-        total_count: number;
-      };
-      if (result) {
-        const rawRows = typeof result.rows === "string"
-          ? (JSON.parse(result.rows) as ContractRow[])
-          : result.rows;
-        rpcRows = Array.isArray(rawRows) ? rawRows : [];
-        rpcTotalCount = Number(result.total_count ?? 0);
+    // An out-of-range URL must render the resolved last page, not an empty page
+    // whose pagination label claims to be valid.
+    if (resolvedPage !== page && totalCount > 0) {
+      rpcResponse = await runRpcSearch(resolvedPage);
+      if (rpcResponse.error) {
+        console.error("[public-contracts] resolved-page RPC failed", rpcResponse.error);
+        queryError = true;
+        parsed = { rows: [], totalCount };
+      } else {
+        parsed = parseRpcSearch(rpcResponse.data);
+        totalCount = parsed.totalCount;
       }
     }
 
-    const ids = rpcRows.map((row) => row.id).filter(Boolean);
-    const extrasById = new Map<
-      string,
-      {
-        contract_type: string | null;
-        execution_deadline_days: number | null;
-        execution_locations: string[];
-      }
-    >();
-
-    for (const idChunk of chunkArray(ids, 200)) {
-      const { data: extraRows } = await supabase
-        .from("contracts")
-        .select(
-          "id, contract_type, execution_deadline_days, execution_locations",
-        )
-        .in("id", idChunk);
-
-      for (const row of (extraRows ?? []) as ContractExtraRow[]) {
-        extrasById.set(row.id, {
-          contract_type: row.contract_type,
-          execution_deadline_days: row.execution_deadline_days,
-          execution_locations: toStringArray(row.execution_locations),
-        });
-      }
-    }
-
-    let mergedRows: ContractRow[] = rpcRows.map((row) => {
-      const extra = extrasById.get(row.id);
-      return {
-        ...row,
-        contract_type: extra?.contract_type ?? null,
-        execution_deadline_days: extra?.execution_deadline_days ?? null,
-        execution_locations: extra?.execution_locations ?? [],
-      };
-    });
-
-    // Only apply JS filtering if we are in "extended filtering" mode (client-side pagination).
-    // If we used server-side pagination (needsExtendedFiltering === false), the rows are already correct for the page.
-    if (needsExtendedFiltering && cpvFilter) {
-      const cpvPrefix = cpvFilter.toLowerCase();
-      mergedRows = mergedRows.filter((row) =>
-        (row.cpv_main ?? "").toLowerCase().startsWith(cpvPrefix),
-      );
-    }
-
-    if (contractTypeFilters.length > 0) {
-      mergedRows = mergedRows.filter(
-        (row) =>
-          row.contract_type != null &&
-          contractTypeFilters.includes(row.contract_type),
-      );
-    }
-
-    if (procedureFilters.length > 0) {
-      mergedRows = mergedRows.filter(
-        (row) =>
-          row.procedure_type != null &&
-          procedureFilters.includes(row.procedure_type),
-      );
-    }
-
-    if (
-      selectedCountry !== "all" ||
-      selectedDistrict !== "all" ||
-      selectedMunicipality !== "all"
-    ) {
-      mergedRows = mergedRows.filter((row) =>
-        locationMatches(
-          row.execution_locations ?? [],
-          selectedCountry,
-          selectedDistrict,
-          selectedMunicipality,
-        ),
-      );
-    }
-
-    if (needsExtendedFiltering) {
-      totalCount = mergedRows.length;
-      const totalPagesFiltered = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-      const safePageFiltered = Math.min(page, totalPagesFiltered);
-      const offset = (safePageFiltered - 1) * PAGE_SIZE;
-      contracts = mergedRows.slice(offset, offset + PAGE_SIZE);
-    } else {
-      totalCount = rpcTotalCount;
-      contracts = mergedRows;
-    }
+    contracts = parsed.rows.map((row) => ({
+      ...row,
+      execution_locations: toStringArray(row.execution_locations),
+    }));
   }
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
+  const safePage = resolvedPage;
   const hasFilters = !!(
     cpvFilter ||
     entityFilter ||
@@ -840,7 +615,7 @@ export default async function MercadoPublicoPage({
   if (maxValue) qsParams.set("max_value", maxValue);
   if (fromDate) qsParams.set("from_date", fromDate);
   if (toDate) qsParams.set("to_date", toDate);
-  if (selectedDateField !== "signing_date") {
+  if (selectedDateField !== "publication_date") {
     qsParams.set("date_field", selectedDateField);
   }
   if (sortField) qsParams.set("sort", sortField);
@@ -960,8 +735,8 @@ export default async function MercadoPublicoPage({
                 label="Critério de data"
                 defaultValue={selectedDateField}
                 options={[
+                  { value: "publication_date", label: "Data de publicação do contrato" },
                   { value: "signing_date", label: "Data de celebração" },
-                  { value: "publication_date", label: "Data de contrato" },
                   { value: "closing_date", label: "Data de encerramento" },
                 ]}
               />
@@ -1046,7 +821,8 @@ export default async function MercadoPublicoPage({
         {/* Table + Pagination + Modal */}
         <ContractsTable
           contracts={contracts}
-          hasFilters={hasFilters}
+          queryError={queryError}
+          dateField={selectedDateField}
           totalPages={totalPages}
           page={safePage}
           buildQsBase={buildQsBase}

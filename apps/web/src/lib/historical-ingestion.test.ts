@@ -30,6 +30,52 @@ test("direct contract importer fails before ingestion when persistence is unavai
   );
 });
 
+test("direct contract importer rejects impossible calendar dates before network access", async () => {
+  const script = path.join(root, "scripts/ingest-direct.js");
+  await assert.rejects(
+    execFileAsync(
+      process.execPath,
+      [
+        script,
+        "--from",
+        "2026-02-31",
+        "--to",
+        "2026-03-01",
+        "--tenant-id",
+        "c43fcb2c-2f0a-43c5-98ca-4a844ddc356d",
+      ],
+      {
+        env: {
+          ...process.env,
+          BASE_API_TOKEN: "test",
+          SUPABASE_SERVICE_ROLE_KEY: "test",
+          SUPABASE_URL: "http://127.0.0.1:1",
+        },
+        timeout: 5000,
+      },
+    ),
+    (error: NodeJS.ErrnoException & { stderr?: string }) =>
+      error.stderr?.includes("Invalid date format or calendar date") === true,
+  );
+});
+
+test("market refresh rejects impossible calendar dates before network access", async () => {
+  const script = path.join(root, "scripts/market-refresh.js");
+  await assert.rejects(
+    execFileAsync(process.execPath, [script, "2026-02-31", "2026-03-05"], {
+      env: {
+        ...process.env,
+        SUPABASE_URL: "http://127.0.0.1:1",
+        SUPABASE_SERVICE_ROLE_KEY: "test",
+        TENANT_ID: "c43fcb2c-2f0a-43c5-98ca-4a844ddc356d",
+      },
+      timeout: 5000,
+    }),
+    (error: NodeJS.ErrnoException & { stderr?: string }) =>
+      error.stderr?.includes("Intervalo inválido. Usa datas de calendário no formato YYYY-MM-DD.") === true,
+  );
+});
+
 test("historical windows cover the full range without overlap", () => {
   assert.deepEqual(buildHistoricalWindows("2024-01-01", "2024-02-05", 15), [
     { from: "2024-01-01", to: "2024-01-15" },
@@ -95,10 +141,38 @@ test("historical worker supports both announcement and contract jobs", () => {
   const directImporter = fs.readFileSync(path.join(root, "scripts/ingest-direct.js"), "utf8");
   assert.match(directImporter, /Missing required --tenant-id/);
   assert.match(directImporter, /\[ingest-direct-json\]/);
-  assert.match(directImporter, /if \(errors > 0\) process\.exit\(1\)/);
+  assert.match(directImporter, /if \(errors > 0 \|\| limitReached\) process\.exit\(1\)/);
   assert.doesNotMatch(directImporter, /tenants\?select=id&limit=1/);
   assert.doesNotMatch(directImporter, /errors\+\+|errors \+=/);
   assert.match(directImporter, /throw new Error\(`Contract insert HTTP/);
+});
+
+test("direct importer filters every payload by publication date and checks IDs globally per batch", () => {
+  const directImporter = fs.readFileSync(path.join(root, "scripts/ingest-direct.js"), "utf8");
+  const dailyCron = fs.readFileSync(path.join(root, "supabase/cron/cron-contracts.ts"), "utf8");
+  const adminRoute = fs.readFileSync(
+    path.join(root, "apps/web/src/app/api/admin/ingest-contracts/route.ts"),
+    "utf8",
+  );
+  const marketRefresh = fs.readFileSync(path.join(root, "scripts/market-refresh.js"), "utf8");
+
+  assert.match(directImporter, /let limit = 1000;/);
+  assert.match(directImporter, /You must provide both --from and --to dates/);
+  assert.doesNotMatch(directImporter, /rangeFilter/);
+  assert.doesNotMatch(directImporter, /fromDate && toDate && !useRecentWindow/);
+  assert.match(directImporter, /contract\.publication_date < fromDate/);
+  assert.match(directImporter, /base_contract_id=in\.\(/);
+  assert.match(directImporter, /method:\s*"PATCH"/);
+  assert.match(directImporter, /updated\s*\+=\s*1/);
+  assert.match(dailyCron, /"--limit",\s*"10000000"/);
+  assert.match(directImporter, /limitReached/);
+  assert.match(directImporter, /limit_reached/);
+  assert.match(adminRoute, /:\s*10000000;/);
+  assert.match(adminRoute, /"--limit",\s*String\(limit\)/);
+  assert.match(adminRoute, /updated:\s*parseNumericLine\(output,\s*"Updated"\)/);
+  assert.match(marketRefresh, /const TENANT_ID = process\.env\.TENANT_ID/);
+  assert.match(marketRefresh, /"--tenant-id",\s*TENANT_ID/);
+  assert.match(marketRefresh, /"--limit",\s*"10000000"/);
 });
 
 test("historical migration prevents simultaneous jobs per tenant and kind", () => {

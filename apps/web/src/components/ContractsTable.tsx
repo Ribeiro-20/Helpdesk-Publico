@@ -41,6 +41,17 @@ function formatDate(d: string | null): string {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+function closingDateIso(
+  signingDate: string | null,
+  deadlineDays: number | null | undefined,
+): string | null {
+  if (!signingDate || !deadlineDays || deadlineDays <= 0) return null;
+  const date = new Date(`${signingDate}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setUTCDate(date.getUTCDate() + deadlineDays);
+  return date.toISOString().slice(0, 10);
+}
+
 function executionProgress(
   signingDate: string | null,
   deadlineDays: number | null | undefined,
@@ -129,13 +140,15 @@ function extractName(raw: unknown): string {
 
 export default function ContractsTable({
   contracts,
-  hasFilters,
+  queryError,
+  dateField,
   totalPages,
   page,
   buildQsBase,
 }: {
   contracts: ContractRow[];
-  hasFilters: boolean;
+  queryError: boolean;
+  dateField: "publication_date" | "signing_date" | "closing_date";
   totalPages: number;
   page: number;
   buildQsBase: string;
@@ -261,6 +274,12 @@ export default function ContractsTable({
                     ? extractName(c.winners[0])
                     : "—";
                 const statusBadge = resolveStatusBadge(c);
+                const displayedDate =
+                  dateField === "signing_date"
+                    ? c.signing_date
+                    : dateField === "closing_date"
+                      ? closingDateIso(c.signing_date, c.execution_deadline_days)
+                      : c.publication_date;
                 const cpvTitle = c.cpv_main
                   ? cpvDescriptions[c.cpv_main] ||
                     "Descrição de CPV indisponível"
@@ -289,7 +308,7 @@ export default function ContractsTable({
                       {winnerName}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">
-                      {formatDate(c.publication_date)}
+                      {formatDate(displayedDate)}
                     </td>
                     <td className="px-4 py-3 w-[110px]">
                       {c.cpv_main ? (
@@ -325,9 +344,9 @@ export default function ContractsTable({
                     colSpan={7}
                     className="px-4 py-16 text-center text-gray-400"
                   >
-                    {hasFilters
-                      ? "Nenhum contrato encontrado com estes filtros."
-                      : "Nenhum contrato na base de dados. Execute a ingestão de contratos no Dashboard."}
+                    {queryError
+                      ? "Não foi possível consultar os contratos neste momento. Tente novamente dentro de instantes."
+                      : "Sem contratos a apresentar. Selecione ou ajuste os filtros para obter novos resultados."}
                   </td>
                 </tr>
               )}

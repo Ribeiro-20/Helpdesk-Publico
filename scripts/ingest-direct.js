@@ -49,7 +49,7 @@ async function main() {
 
   if (fromDate && toDate) {
     if (!isValidIsoDate(fromDate) || !isValidIsoDate(toDate)) {
-      console.error("Invalid date format. Use YYYY-MM-DD.");
+      console.error("Invalid date format or calendar date. Use YYYY-MM-DD.");
       process.exit(1);
     }
     if (fromDate > toDate) {
@@ -95,6 +95,7 @@ async function main() {
   }
 
   let inserted = 0;
+  let updated = 0;
   let skipped = 0;
   let fetched = 0;
   let errors = 0;
@@ -108,44 +109,7 @@ async function main() {
   const rowsToInsert = [];
   const existingIds = new Set();
   let stopProcessing = false;
-
-  try {
-    let offset = 0;
-    const pageSize = 1000;
-    const rangeFilter = fromDate && toDate
-      ? `or=(and(signing_date.gte.${fromDate},signing_date.lte.${toDate}),and(publication_date.gte.${fromDate},publication_date.lte.${toDate}))`
-      : null;
-
-    console.log(
-      `[ingest-direct] Indexing existing contracts${rangeFilter ? ` in range ${fromDate}..${toDate}` : ""}...`,
-    );
-
-    while (true) {
-      const query = rangeFilter
-        ? `${restBaseUrl}/contracts?tenant_id=eq.${tenantId}&select=base_contract_id&limit=${pageSize}&offset=${offset}&${rangeFilter}`
-        : `${restBaseUrl}/contracts?tenant_id=eq.${tenantId}&select=base_contract_id&limit=${pageSize}&offset=${offset}`;
-
-      const res = await fetch(query, {
-        headers: {
-          "Authorization": `Bearer ${serviceRoleKey}`,
-          "apikey": apiKey,
-        },
-      });
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Could not fetch existing IDs: ${errText.slice(0, 200)}`);
-      }
-      const existing = await res.json();
-      if (!Array.isArray(existing) || existing.length === 0) break;
-      for (const row of existing) {
-        if (row?.base_contract_id) existingIds.add(row.base_contract_id);
-      }
-      offset += pageSize;
-    }
-    console.log(`[ingest-direct] Existing contracts indexed: ${existingIds.size}`);
-  } catch (err) {
-    throw new Error(`[ingest-direct] Failed indexing existing contracts: ${err.message}`);
-  }
+  let limitReached = false;
 
   async function flushBatch() {
     if (rowsToInsert.length === 0) return;
@@ -154,7 +118,56 @@ async function main() {
       if (row.base_contract_id && !uniqueMap.has(row.base_contract_id)) uniqueMap.set(row.base_contract_id, row);
     }
     const uniqueRows = [...uniqueMap.values()];
+    const ids = uniqueRows.map((row) => encodeURIComponent(row.base_contract_id));
+    const lookupUrl = `${restBaseUrl}/contracts?tenant_id=eq.${encodeURIComponent(tenantId)}&base_contract_id=in.(${ids.join(",")})&select=id,base_contract_id,raw_hash,updated_at&order=updated_at.desc`;
+    const lookupResponse = await fetch(lookupUrl, {
+      headers: {
+        "Authorization": `Bearer ${serviceRoleKey}`,
+        "apikey": apiKey,
+      },
+    });
+    if (!lookupResponse.ok) {
+      const errText = await lookupResponse.text();
+      throw new Error(`Could not check existing contract IDs: ${errText.slice(0, 300)}`);
+    }
+
+    const existingRows = await lookupResponse.json();
+    const canonicalByBaseId = new Map();
+    for (const existing of Array.isArray(existingRows) ? existingRows : []) {
+      if (existing?.base_contract_id && !canonicalByBaseId.has(existing.base_contract_id)) {
+        canonicalByBaseId.set(existing.base_contract_id, existing);
+      }
+    }
+
     for (const row of uniqueRows) {
+      const existing = canonicalByBaseId.get(row.base_contract_id);
+      if (existing) {
+        if (existing.raw_hash === row.raw_hash) {
+          skipped += 1;
+          continue;
+        }
+
+        const updateResponse = await fetch(
+          `${restBaseUrl}/contracts?tenant_id=eq.${encodeURIComponent(tenantId)}&id=eq.${encodeURIComponent(existing.id)}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Authorization": `Bearer ${serviceRoleKey}`,
+              "apikey": apiKey,
+              "Content-Type": "application/json",
+              "Prefer": "return=minimal",
+            },
+            body: JSON.stringify(row),
+          },
+        );
+        if (!updateResponse.ok) {
+          const errText = await updateResponse.text();
+          throw new Error(`Contract update HTTP ${updateResponse.status}: ${errText.slice(0, 300)}`);
+        }
+        updated += 1;
+        continue;
+      }
+
       const res = await fetch(`${restBaseUrl}/contracts`, {
         method: "POST",
         headers: {
@@ -198,6 +211,7 @@ async function main() {
     for (const raw of payload) {
       if (processed >= limit) {
         stopProcessing = true;
+        limitReached = true;
         break;
       }
       if (!raw || typeof raw !== "object") {
@@ -207,9 +221,12 @@ async function main() {
 
       const contract = mapToContract(raw);
 
-      if (fromDate && toDate && !useRecentWindow) {
-        const effectiveDate = contract.publication_date || contract.signing_date;
-        if (!effectiveDate || effectiveDate < fromDate || effectiveDate > toDate) {
+      if (fromDate && toDate) {
+        if (
+          !contract.publication_date ||
+          contract.publication_date < fromDate ||
+          contract.publication_date > toDate
+        ) {
           skipped++;
           continue;
         }
@@ -315,15 +332,22 @@ async function main() {
   console.log(`[ingest-direct] Fetched: ${fetched}`);
   console.log(`[ingest-direct] Processed: ${processed}`);
   console.log(`[ingest-direct] Inserted: ${inserted}`);
+  console.log(`[ingest-direct] Updated: ${updated}`);
   console.log(`[ingest-direct] Skipped: ${skipped}`);
   console.log(`[ingest-direct] Errors: ${errors}`);
-  console.log(`[ingest-direct-json]${JSON.stringify({ fetched, inserted, updated: 0, skipped, errors })}`);
+  console.log(`[ingest-direct] Limit reached: ${limitReached}`);
+  console.log(`[ingest-direct-json]${JSON.stringify({ fetched, inserted, updated, skipped, errors, limit_reached: limitReached })}`);
 
-  if (errors > 0) process.exit(1);
+  if (limitReached) {
+    console.error(`[ingest-direct] Incomplete: processing limit ${limit} was reached.`);
+  }
+  if (errors > 0 || limitReached) process.exit(1);
 }
 
 function isValidIsoDate(value) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 function buildRestBaseUrl(url) {

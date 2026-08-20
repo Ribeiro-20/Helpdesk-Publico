@@ -54,3 +54,64 @@ test("contracts page checks the RPC error before reading data", () => {
   assert.doesNotMatch(source, /p_tenant_id:/);
   assert.match(source, /has_more:\s*boolean/);
 });
+
+test("public contracts use a service-only deduplicated search", () => {
+  const testDirectory = path.dirname(fileURLToPath(import.meta.url));
+  const root = path.resolve(testDirectory, "../../../..");
+  const migration = fs.readFileSync(
+    path.join(root, "supabase/migrations/20260820140000_public_contract_search_p0.sql"),
+    "utf8",
+  );
+  const page = fs.readFileSync(
+    path.join(root, "apps/web/src/app/mp/contratos-publicos/page.tsx"),
+    "utf8",
+  );
+
+  assert.match(migration, /create or replace function public\.search_public_contracts/i);
+  assert.match(migration, /security definer/i);
+  assert.match(migration, /auth\.role\(\)\s*(?:<>|!=)\s*'service_role'/i);
+  assert.match(migration, /distinct on\s*\(c\.base_contract_id\)/i);
+  assert.match(migration, /create table if not exists public\.contract_base_id_registry/i);
+  assert.match(migration, /primary key\s*\(tenant_id,\s*base_contract_id\)/i);
+  assert.match(migration, /create trigger trg_claim_contract_base_id/i);
+  assert.match(migration, /errcode\s*=\s*'23505'/i);
+  assert.match(migration, /jsonb_array_elements_text/i);
+  assert.match(migration, /when 'closing_date' then c\.signing_date \+ c\.execution_deadline_days/i);
+  assert.match(migration, /revoke execute[\s\S]*from public, anon, authenticated/i);
+  assert.match(migration, /grant execute[\s\S]*to service_role/i);
+  assert.match(migration, /set search_path\s*=\s*public,\s*pg_temp/i);
+  assert.match(migration, /alter table public\.contract_base_id_registry enable row level security/i);
+  assert.match(migration, /before insert or update of tenant_id, base_contract_id/i);
+  assert.match(migration, /tenant_id and base_contract_id are immutable/i);
+  assert.match(page, /rpc\("search_public_contracts"/);
+  assert.doesNotMatch(page, /\.limit\(50000\)/);
+  assert.doesNotMatch(page, /extrasById/);
+  assert.match(page, /countryFilter\.trim\(\)/);
+  assert.match(page, /resolvedPage !== page/);
+  assert.match(page, /p_country:/);
+  assert.match(page, /p_district:/);
+  assert.match(page, /p_municipality:/);
+  assert.match(page, /rpcResponse\.error/);
+  assert.match(page, /queryError=/);
+});
+
+test("public contracts default to publication date and render distinct empty and error states", () => {
+  const testDirectory = path.dirname(fileURLToPath(import.meta.url));
+  const root = path.resolve(testDirectory, "../../../..");
+  const page = fs.readFileSync(
+    path.join(root, "apps/web/src/app/mp/contratos-publicos/page.tsx"),
+    "utf8",
+  );
+  const table = fs.readFileSync(
+    path.join(root, "apps/web/src/components/ContractsTable.tsx"),
+    "utf8",
+  );
+
+  assert.match(page, /:\s*"publication_date";/);
+  assert.match(page, /Data de publicação do contrato/);
+  assert.match(page, /dateField=\{selectedDateField\}/);
+  assert.match(table, /Não foi possível consultar os contratos neste momento/);
+  assert.match(table, /Sem contratos a apresentar\. Selecione ou ajuste os filtros/);
+  assert.doesNotMatch(table, /Execute a ingestão de contratos no Dashboard/);
+  assert.match(table, /dateField:\s*"publication_date"\s*\|\s*"signing_date"\s*\|\s*"closing_date"/);
+});

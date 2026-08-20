@@ -76,6 +76,7 @@ async function runDailyContractPipeline(): Promise<void> {
         "--from", today,
         "--to", today,
         "--tenant-id", TENANT_ID,
+        "--limit", "10000000",
       ],
       {
         cwd: SCRIPTS_DIR,
