@@ -95,6 +95,56 @@ test("public contracts use a service-only deduplicated search", () => {
   assert.match(page, /queryError=/);
 });
 
+test("public contract search avoids auth refreshes and wide canonical materialization", () => {
+  const testDirectory = path.dirname(fileURLToPath(import.meta.url));
+  const root = path.resolve(testDirectory, "../../../..");
+  const migration = fs.readFileSync(
+    path.join(root, "supabase/migrations/20260905172000_public_contract_search_performance.sql"),
+    "utf8",
+  );
+  const page = fs.readFileSync(
+    path.join(root, "apps/web/src/app/mp/contratos-publicos/page.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(page, /createAdminClient,\s*createClient/);
+  assert.doesNotMatch(page, /auth\.getUser\(\)/);
+  assert.doesNotMatch(page, /from\("app_users"\)/);
+  assert.match(page, /from\("tenants"\)/);
+
+  assert.match(migration, /^begin;/i);
+  assert.match(migration, /set local lock_timeout\s*=\s*'10s'/i);
+  assert.match(migration, /set local statement_timeout\s*=\s*'180s'/i);
+  const contractsLockOffset = migration.indexOf("lock table public.contracts in share row exclusive mode;");
+  const registryLockOffset = migration.indexOf("lock table public.contract_base_id_registry in share row exclusive mode;");
+  const registryAlterOffset = migration.indexOf("alter table public.contract_base_id_registry");
+  assert.ok(contractsLockOffset >= 0 && contractsLockOffset < registryLockOffset);
+  assert.ok(registryLockOffset < registryAlterOffset);
+  assert.match(migration, /create or replace function public\.search_public_contracts/i);
+  assert.doesNotMatch(migration, /distinct on\s*\(c\.base_contract_id\)/i);
+  assert.doesNotMatch(migration, /canonical\s+as\s+materialized/i);
+  assert.match(migration, /not exists\s*\([\s\S]*newer\.updated_at,\s*newer\.id[\s\S]*c\.updated_at,\s*c\.id/i);
+  assert.match(migration, /contract_base_id_registry[\s\S]*count\(\*\)/i);
+  assert.match(migration, /alter table public\.contract_base_id_registry[\s\S]*add column if not exists reference_count bigint/i);
+  assert.match(migration, /set reference_count\s*=\s*counts\.physical_count/i);
+  assert.match(migration, /check\s*\(reference_count\s*>=\s*0\)/i);
+  assert.match(migration, /create or replace function public\.release_contract_base_ids\(\)/i);
+  assert.match(migration, /referencing old table as deleted_contracts[\s\S]*for each statement/i);
+  assert.match(migration, /from deleted_contracts[\s\S]*group by tenant_id,\s*base_contract_id[\s\S]*order by tenant_id,\s*base_contract_id/i);
+  assert.match(migration, /create trigger trg_release_contract_base_ids[\s\S]*after delete/i);
+  assert.match(migration, /create or replace function public\.reset_contract_base_id_registry_after_truncate\(\)/i);
+  assert.match(migration, /if exists\s*\(select 1 from public\.contract_base_id_registry\)[\s\S]*delete from public\.contract_base_id_registry/i);
+  assert.match(migration, /create trigger trg_reset_contract_base_id_registry_after_truncate[\s\S]*after truncate on public\.contracts/i);
+  assert.match(migration, /update public\.contract_base_id_registry[\s\S]*reference_count\s*=\s*reference_count\s*-\s*v_key\.deleted_count[\s\S]*returning reference_count into v_remaining/i);
+  assert.match(migration, /delete from public\.contract_base_id_registry[\s\S]*reference_count\s*=\s*0/i);
+  assert.match(migration, /set statement_timeout\s*=\s*'5s'/i);
+  assert.match(migration, /create index if not exists idx_contracts_tenant_price_desc[\s\S]*contract_price desc nulls last/i);
+  assert.match(migration, /create index if not exists idx_contracts_tenant_price_asc[\s\S]*contract_price asc nulls last/i);
+  assert.match(migration, /revoke execute[\s\S]*from public, anon, authenticated/i);
+  assert.match(migration, /grant execute[\s\S]*to service_role/i);
+  assert.match(migration, /commit;\s*$/i);
+});
+
 test("public contracts default to publication date and render distinct empty and error states", () => {
   const testDirectory = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(testDirectory, "../../../..");
