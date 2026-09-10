@@ -24,3 +24,19 @@ test("company refresh keeps the upstream connection open beyond 60 seconds", () 
   assert.match(nginx, /proxy_send_timeout\s+310s;/);
   assert.match(nginx, /proxy_pass\s+http:\/\/localhost:3001;/);
 });
+
+test("announcement pipeline keeps the upstream connection open beyond 60 seconds", () => {
+  const nginx = readFileSync(snippetPath, "utf8");
+  const block = nginx.match(
+    /location\s*=\s*\/api\/admin\/run-ingest-pipeline\s*\{([\s\S]*?)\n\}/,
+  )?.[1];
+
+  assert.ok(block, "the announcement pipeline must have an exact Nginx location");
+  assert.match(
+    block,
+    /proxy_read_timeout\s+910s;/,
+    "Nginx must wait longer than the route's 900 second maxDuration",
+  );
+  assert.match(block, /proxy_send_timeout\s+910s;/);
+  assert.match(block, /proxy_pass\s+http:\/\/localhost:3001;/);
+});

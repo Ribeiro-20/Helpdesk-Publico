@@ -1,0 +1,8 @@
+[Unit]
+Description=Enforce BASE Monitor Kong REST timeout
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/enforce-kong-rest-timeout

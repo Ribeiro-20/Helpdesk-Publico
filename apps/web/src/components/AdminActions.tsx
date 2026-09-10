@@ -639,6 +639,27 @@ export default function AdminActions({
           return;
         }
 
+        if (pipelineData.no_new_announcements === true) {
+          setInfo("Não foram encontrados anúncios novos para o intervalo selecionado.");
+          setResults((prev) => [{ fn: "ingest-base (sem novos anúncios)", data: pipelineData }, ...prev.slice(0, 4)]);
+          await recordHistory({
+            title: actionLabel,
+            status: "success",
+            range: { fromDate: rangeBody.from_date, toDate: rangeBody.to_date },
+            steps: [
+              buildHistoryStep(
+                "ingest-base",
+                "Anúncios BASE",
+                pipelineData.ingest_base ?? {},
+                "success",
+                "Não foram encontrados anúncios novos.",
+              ),
+            ],
+          });
+          router.refresh();
+          return;
+        }
+
         const pipelineBaseData = pipelineData.ingest_base ?? {};
         const pipelineBaseError =
           typeof pipelineData.ingest_base_error === "string"

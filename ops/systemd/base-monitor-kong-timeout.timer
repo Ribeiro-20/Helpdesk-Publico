@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically enforce BASE Monitor Kong REST timeout
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+Persistent=true
+Unit=base-monitor-kong-timeout.service
+
+[Install]
+WantedBy=timers.target

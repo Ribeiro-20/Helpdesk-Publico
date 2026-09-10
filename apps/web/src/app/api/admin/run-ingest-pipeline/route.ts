@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { getSupabaseAdminEnv } from "@/lib/supabase/env";
+import { hasAnnouncementChanges } from "@/lib/admin-announcement-pipeline";
+import { runDrIngest } from "@/lib/server/ingest-dr";
 
 export const runtime = "nodejs";
 export const maxDuration = 900;
@@ -38,12 +40,6 @@ function daysInclusive(fromDate: string, toDate: string): number {
   const start = new Date(`${fromDate}T00:00:00Z`);
   const end = new Date(`${toDate}T00:00:00Z`);
   return Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-}
-
-function numericField(data: unknown, field: string): number {
-  if (!data || typeof data !== "object") return 0;
-  const value = (data as Record<string, unknown>)[field];
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function formatError(result: FunctionResult): string | null {
@@ -248,22 +244,7 @@ async function callFunction(name: string, body: Record<string, unknown>): Promis
   return { ok: res.ok, status: res.status, data };
 }
 
-async function callInternalDr(origin: string, body: Record<string, unknown>): Promise<FunctionResult> {
-  const { serviceRoleKey } = getSupabaseAdminEnv("Run ingest pipeline");
-  const res = await fetch(new URL("/api/admin/ingest-dr", origin), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-  return { ok: res.ok, status: res.status, data };
-}
-
-async function runPipeline(origin: string, fromDate: string, toDate: string, dryRun: boolean) {
+async function runPipeline(fromDate: string, toDate: string, dryRun: boolean) {
   const rangeBody = { from_date: fromDate, to_date: toDate };
   const baseBody = dryRun ? { ...rangeBody, dry_run: true } : rangeBody;
   const baseRes = await callFunction("ingest-base", baseBody);
@@ -280,15 +261,33 @@ async function runPipeline(origin: string, fromDate: string, toDate: string, dry
     };
   }
 
-  const fetched = baseRes.ok ? numericField(baseRes.data, "fetched") : 0;
-  const shouldRunDr = fetched > 0 || fromDate === todayIso() || toDate === todayIso() || !!baseError;
-  const drRes = shouldRunDr
-    ? await callInternalDr(origin, rangeBody)
-    : {
+  if (baseRes.ok && !hasAnnouncementChanges((baseRes.data ?? {}) as Record<string, unknown>)) {
+    return {
       ok: true,
-      status: 200,
-      data: { skipped: true, reason: "no_new_base_announcements" },
+      no_new_announcements: true,
+      message: "Não foram encontrados anúncios novos.",
+      from_date: fromDate,
+      to_date: toDate,
+      ingest_base: baseRes.data,
+      ingest_base_error: null,
+      ingest_dr: { skipped: true, reason: "no_new_announcements" },
+      match_and_queue: { skipped: true, reason: "no_new_announcements" },
     };
+  }
+
+  let drRes: FunctionResult;
+  try {
+    const data = await runDrIngest({
+      fromDate,
+      toDate,
+      waitMs: 12000,
+      maxResults: Math.min(Math.max(daysInclusive(fromDate, toDate) * 250, 300), 5000),
+    });
+    drRes = { ok: true, status: 200, data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    drRes = { ok: false, status: 500, data: { error: `Falha a executar ingestão DR: ${message}` } };
+  }
 
   const mqRes = await callFunction("match-and-queue", rangeBody);
   const ok = baseRes.ok && drRes.ok && mqRes.ok;
@@ -326,8 +325,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (asyncMode) {
-      const origin = req.nextUrl.origin;
-      void runPipeline(origin, fromDate, toDate, false).catch((error) => {
+      void runPipeline(fromDate, toDate, false).catch((error) => {
         console.error("[run-ingest-pipeline] background pipeline failed:", error);
       });
 
@@ -343,7 +341,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await runPipeline(req.nextUrl.origin, fromDate, toDate, dryRun);
+    const result = await runPipeline(fromDate, toDate, dryRun);
 
     if (!dryRun && !result.ok && admin.context) {
       await notifySystemAlert(
