@@ -55,6 +55,25 @@ test("contracts page checks the RPC error before reading data", () => {
   assert.match(source, /has_more:\s*boolean/);
 });
 
+test("backoffice contract navigation has a transaction-safe index matching its default order", () => {
+  const testDirectory = path.dirname(fileURLToPath(import.meta.url));
+  const sql = fs.readFileSync(
+    path.resolve(testDirectory, "../../../../supabase/migrations/20260911100000_contract_navigation_performance.sql"),
+    "utf8",
+  );
+  const rollback = fs.readFileSync(
+    path.resolve(testDirectory, "../../../../supabase/rollbacks/20260911100000_contract_navigation_performance.sql"),
+    "utf8",
+  );
+
+  assert.match(sql, /create index idx_contracts_tenant_effective_signing/i);
+  assert.doesNotMatch(sql, /concurrently|create index if not exists/i);
+  assert.match(sql, /tenant_id\s*,\s*\(coalesce\(signing_date,\s*publication_date\)\)\s+desc\s+nulls\s+last/i);
+  assert.match(sql, /publication_date\s+desc\s+nulls\s+last\s*,\s*id\s+desc/i);
+  assert.match(rollback, /drop index if exists public\.idx_contracts_tenant_effective_signing/i);
+  assert.doesNotMatch(rollback, /concurrently/i);
+});
+
 test("public contracts use a service-only deduplicated search", () => {
   const testDirectory = path.dirname(fileURLToPath(import.meta.url));
   const root = path.resolve(testDirectory, "../../../..");

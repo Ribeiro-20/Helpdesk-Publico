@@ -311,7 +311,7 @@ export default async function ContractsPage({
           />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 rounded-xl border border-surface-100 bg-surface-50/60 p-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1fr)_auto] rounded-xl border border-surface-100 bg-surface-50/60 p-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-500">Data de</label>
             <SingleDatePicker
@@ -329,7 +329,7 @@ export default async function ContractsPage({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Valor min.</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Valor mínimo (€)</label>
             <input
               name="min_value"
               type="number"
@@ -339,7 +339,7 @@ export default async function ContractsPage({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Valor max.</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Valor máximo (€)</label>
             <input
               name="max_value"
               type="number"
@@ -361,17 +361,17 @@ export default async function ContractsPage({
               <option value="value_asc">Menor valor</option>
             </select>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="sm:col-span-2 lg:col-span-3 xl:col-span-1 flex flex-wrap items-end gap-2 xl:flex-nowrap xl:justify-end">
             <button
               type="submit"
-              className="w-full bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
+              className="inline-flex items-center justify-center whitespace-nowrap bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
             >
               Filtrar
             </button>
             <a
               href={exportQs()}
               download
-              className="shrink-0 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
+              className="shrink-0 inline-flex items-center gap-2 whitespace-nowrap bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
             >
               <FileSpreadsheet className="h-4 w-4" />
               Exportar CSV
@@ -379,7 +379,7 @@ export default async function ContractsPage({
             {hasFilters && (
               <Link
                 href="/contracts"
-                className="shrink-0 text-gray-500 text-sm font-medium px-4 py-2.5 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
+                className="shrink-0 whitespace-nowrap text-gray-500 text-sm font-medium px-4 py-2.5 rounded-xl bg-white border border-surface-200 hover:bg-surface-50 transition-all shadow-card"
               >
                 Limpar
               </Link>

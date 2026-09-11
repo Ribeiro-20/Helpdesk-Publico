@@ -120,3 +120,19 @@ test("download buttons exist only on authenticated backoffice lists", () => {
   assert.doesNotMatch(publicAnnouncements, /\/api\/announcements\/export|Exportar CSV|download/);
   assert.doesNotMatch(publicContracts, /\/api\/contracts\/export|Exportar CSV|download/);
 });
+
+test("contract secondary filters reserve compact value fields and keep actions inside the card", () => {
+  const dashboard = read("apps/web/src/app/(dashboard)/contracts/page.tsx");
+
+  assert.match(
+    dashboard,
+    /xl:grid-cols-\[minmax\(0,1\.15fr\)_minmax\(0,1\.15fr\)_minmax\(0,0\.7fr\)_minmax\(0,0\.7fr\)_minmax\(0,1fr\)_auto\]/,
+  );
+  assert.match(dashboard, /Valor mínimo \(€\)/);
+  assert.match(dashboard, /Valor máximo \(€\)/);
+  assert.match(dashboard, /xl:flex-nowrap xl:justify-end/);
+  assert.match(
+    dashboard,
+    /<a[\s\S]*?href=\{exportQs\(\)\}[\s\S]*?className="[^"]*whitespace-nowrap[^"]*"[\s\S]*?Exportar CSV/,
+  );
+});
