@@ -743,7 +743,7 @@ export default async function AnnouncementsPage({
               className="h-10 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
             >
               <FileSpreadsheet className="h-4 w-4 text-white" />
-              Exportar Excel
+              Exportar CSV
             </a>
           </div>
 

@@ -1,32 +1,64 @@
-import { createClient } from "@/lib/supabase/server";
-import { cleanAnnouncementText, effectiveStatus, STATUS_LABEL } from "@/lib/announcements";
+import { cleanAnnouncementText, extractProcedurePiecesUrl } from "@/lib/announcements";
+import { buildSemicolonCsv, PRIVATE_NO_STORE_HEADERS } from "@/lib/export-csv";
+import { requireBackofficeUser } from "@/lib/server/backoffice-export-auth";
+import { consumeBackofficeExportRateLimit } from "@/lib/server/backoffice-export-rate-limit";
 import { NextRequest, NextResponse } from "next/server";
-import * as XLSX from "xlsx";
 
+export const dynamic = "force-dynamic";
+
+const MAX_EXPORT_ROWS = 5000;
 const CHUNK_SIZE = 500;
+const SORTABLE = new Set(["publication_date", "base_price", "proposal_deadline_at"]);
 
-const SORTABLE: Record<string, string> = {
-  publication_date: "publication_date",
-  base_price: "base_price",
-  entity_name: "entity_name",
-  title: "title",
-  status: "proposal_deadline_at",
+const ACT_TYPE_VARIANTS: Record<string, string[]> = {
+  "Anúncio de procedimento": ["Anúncio de procedimento"],
+  "Anúncio de concurso urgente": ["Anúncio de concurso urgente", "Anuncio de concurso urgente"],
+  "Declaração de retificação de anúncio": ["Declaração de retificação de anúncio", "Declaracao de retificacao de anuncio"],
+  "Aviso de prorrogação de prazo": ["Aviso de prorrogação de prazo", "Aviso de prorrogacao de prazo"],
+  "Anúncio de Alteração": ["Anúncio de Alteração", "Anúncio de alteração", "Anuncio de Alteracao"],
+};
+const CONTRACT_TYPE_VARIANTS: Record<string, string[]> = {
+  "Aquisição de bens móveis": ["Aquisição de bens móveis", "Aquisição de Bens Móveis"],
+  "Aquisição de serviços": ["Aquisição de serviços", "Aquisição de Serviços"],
+  "Concessão de obras públicas": ["Concessão de obras públicas", "Concessão de Obras Públicas"],
+  "Concessão de serviços públicos": ["Concessão de serviços públicos", "Concessão de Serviços Públicos"],
+  "Empreitadas de obras públicas": ["Empreitadas de obras públicas", "Empreitada de Obras Públicas"],
+  "Locação de bens móveis": ["Locação de bens móveis", "Locação de Bens Móveis"],
+  Sociedade: ["Sociedade"],
+  Outros: ["Outros"],
+};
+const PROCEDURE_TYPE_VARIANTS: Record<string, string[]> = {
+  "Concurso público": ["Concurso público", "Concurso Publico"],
+  "Concurso público urgente": ["Concurso público urgente", "Concurso Publico urgente"],
+  "Concurso limitado por prévia qualificação": ["Concurso limitado por prévia qualificação", "Concurso limitado por previa qualificacao"],
+  "Procedimento de negociação": ["Procedimento de negociação", "Procedimento de negociacao"],
+  "Diálogo concorrencial": ["Diálogo concorrencial", "Dialogo concorrencial"],
+  "Concurso de conceção": ["Concurso de conceção", "Concurso de concecao"],
+  "Anúncio simplificado": ["Anúncio simplificado", "Anuncio simplificado"],
+  "Instituição de sistema de qualificação": ["Instituição de sistema de qualificação", "Instituicao de sistema de qualificacao"],
+  "Intenção de celebração de empreitadas de obras públicas por concessionários que não sejam entidades adjudicantes": ["Intenção de celebração de empreitadas de obras públicas por concessionários que não sejam entidades adjudicantes", "Intencao de celebracao de empreitadas de obras publicas por concessionarios que nao sejam entidades adjudicantes"],
+  "Parceria para a inovação": ["Parceria para a inovação", "Parceria para a inovacao"],
+  "Concurso de ideias": ["Concurso de ideias"],
+  "Instituição de sistema de aquisição dinâmico": ["Instituição de sistema de aquisição dinâmico", "Instituicao de sistema de aquisicao dinamico"],
+  "Hasta Pública de Alienação de Bens Móveis": ["Hasta Pública de Alienação de Bens Móveis", "Hasta Publica de Alienacao de Bens Moveis"],
+  "Aquisição de Serviços Sociais e de Outros Serviços Específicos": ["Aquisição de Serviços Sociais e de Outros Serviços Específicos", "Aquisição de serviços sociais e de outros serviços específicos", "Aquisicao de Servicos Sociais e de Outros Servicos Especificos"],
+  "Anúncio de Adjudicação de Aquisição de Serviços Sociais e de Outros Serviços Específicos": ["Anúncio de Adjudicação de Aquisição de Serviços Sociais e de Outros Serviços Específicos", "Anuncio de Adjudicacao de Aquisicao de Servicos Sociais e de Outros Servicos Especificos"],
+  "Concurso público simplificado": ["Concurso público simplificado", "Concurso Publico simplificado"],
+  "Concurso limitado por prévia qualificação simplificado": ["Concurso limitado por prévia qualificação simplificado", "Concurso limitado por previa qualificacao simplificado"],
 };
 
 type AnnouncementRow = {
   id: string;
-  title: string;
+  title: string | null;
   entity_name: string | null;
   entity_nif: string | null;
   publication_date: string | null;
+  created_at: string | null;
   cpv_main: string | null;
   cpv_list: unknown;
   base_price: number | null;
   currency: string | null;
-  status: string;
-  source: string | null;
   proposal_deadline_at: string | null;
-  detail_url: string | null;
   raw_payload: unknown;
   act_type: string | null;
   procedure_type: string | null;
@@ -35,304 +67,221 @@ type AnnouncementRow = {
   dr_announcement_no: string | null;
 };
 
-type CpvCatalogRow = {
-  id: string;
-  descricao: string | null;
-};
-
 function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function toIsoDatePt(value: string | null): string {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString("pt-PT");
+function finiteNumber(value: string): number | null {
+  if (!value.trim()) return null;
+  const parsed = Number.parseFloat(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+function cpvFilters(raw: string): string[] {
+  return Array.from(new Set(raw.split(/[;,\n]+/).map((value) => value.trim()).filter(Boolean)));
 }
 
-function rawString(payload: Record<string, unknown>, key: string): string | null {
-  const value = payload[key];
-  if (value == null || value === "") return null;
-  if (Array.isArray(value)) return value.length > 0 ? String(value[0]).trim() : null;
-  const normalized = String(value).trim();
-  return normalized || null;
+function cpvClause(values: string[]): string {
+  return Array.from(new Set(values.flatMap((value) => {
+    const digits = value.replace(/\D/g, "");
+    const core = digits.length >= 8 ? digits.slice(0, 8) : "";
+    return core && core !== value.replace(/\s+/g, "")
+      ? [`cpv_main.ilike.%${value}%`, `cpv_main.ilike.%${core}%`]
+      : [`cpv_main.ilike.%${value}%`];
+  }))).join(",");
 }
 
-function pick(payload: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = rawString(payload, key);
-    if (value) return value;
+function normalizeEntitySearch(value: string): string {
+  return value
+    .toLocaleLowerCase("pt-PT")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function entitySearchTerms(value: string): string[] {
+  const normalized = normalizeEntitySearch(value);
+  if (!normalized) return [];
+  const stopWords = new Set(["de", "do", "da", "dos", "das", "e", "a", "o"]);
+  const terms = normalized.split(" ").filter((term) => term.length >= 3 && !stopWords.has(term));
+  const unique = Array.from(new Set(terms));
+  return unique.length ? unique.slice(0, 5) : [normalized];
+}
+
+function diacriticVariants(token: string, maxVariants = 32): string[] {
+  const groups: Record<string, string[]> = {
+    a: ["a", "á", "à", "â", "ã"], e: ["e", "é", "ê"], i: ["i", "í"],
+    o: ["o", "ó", "ô", "õ"], u: ["u", "ú"], c: ["c", "ç"],
+  };
+  let output = [""];
+  for (const char of token.toLocaleLowerCase("pt-PT")) {
+    const next: string[] = [];
+    for (const base of output) {
+      for (const choice of groups[char] ?? [char]) {
+        next.push(base + choice);
+        if (next.length >= maxVariants) break;
+      }
+      if (next.length >= maxVariants) break;
+    }
+    output = next.length ? next : output;
+    if (output.length >= maxVariants) break;
   }
-  return null;
+  return Array.from(new Set(output.filter(Boolean)));
 }
 
-function payloadRoot(rawPayload: unknown): Record<string, unknown> {
-  const root = asRecord(rawPayload) ?? {};
-  return asRecord(root.payload) ?? root;
+function entityNameClause(value: string): string | null {
+  const terms = entitySearchTerms(value)
+    .map((term) => term.replace(/[%,]/g, " ").trim())
+    .filter(Boolean);
+  if (!terms.length) return null;
+  const groups = terms.map((term) => {
+    const clauses = diacriticVariants(term).map((variant) => `entity_name.ilike.%${variant}%`);
+    return clauses.length === 1 ? clauses[0] : `or(${clauses.join(",")})`;
+  });
+  return groups.length === 1 ? groups[0] : `and(${groups.join(",")})`;
 }
 
-function extractProcedurePiecesFromText(text: string): string | null {
-  if (!text.trim()) return null;
+function variants(values: string[], catalog: Record<string, string[]>): string[] {
+  return Array.from(new Set(values.flatMap((value) => catalog[value] ?? [value])));
+}
 
-  const labeled = text.match(
-    /Link\s+para\s+acesso[^\r\n:]*pe\S*as\s+do\s+concurso\s*\(URL\)\s*:\s*(https?:\/\/[^\s\r\n]+)/i,
+
+function announcementCpvs(row: AnnouncementRow): string {
+  const values = Array.isArray(row.cpv_list) ? row.cpv_list : row.cpv_main ? [row.cpv_main] : [];
+  return Array.from(new Set(values.map((value) => String(value ?? "").trim()).filter(Boolean))).join("; ");
+}
+
+function errorResponse(error: string, status: number, headers: Record<string, string> = {}) {
+  return NextResponse.json(
+    { error },
+    { status, headers: { ...PRIVATE_NO_STORE_HEADERS, ...headers } },
   );
-  if (labeled) return labeled[1];
-
-  const knownPlatform = text.match(
-    /https?:\/\/[^\s\r\n]*(?:downloadProcedurePiece|donwloadProcedurePiece|public-tender-documents|acessoDocs\.jsp\?codigoAcesso=)[^\s\r\n]*/i,
-  );
-  return knownPlatform ? knownPlatform[0] : null;
 }
 
-function extractProcedurePiecesUrl(rawPayload: unknown): string {
-  const root = payloadRoot(rawPayload);
-  const direct = pick(root, ["PecasProcedimento", "linkPecasProc", "procedure_docs_url"]);
-  if (direct) return direct;
+async function exportAnnouncements(req: NextRequest) {
+  const auth = await requireBackofficeUser();
+  if (!auth.ok) return errorResponse(auth.error, auth.status);
 
-  const detail = asRecord(root.detalhe_conteudo);
-  const detailText = typeof detail?.Texto === "string" ? detail.Texto : "";
-  return extractProcedurePiecesFromText(detailText) ?? "";
-}
-
-function normalizeAnnouncementCpvs(ann: AnnouncementRow): string[] {
-  const rawList = Array.isArray(ann.cpv_list)
-    ? ann.cpv_list
-    : ann.cpv_main
-    ? [ann.cpv_main]
-    : [];
-
-  const out: string[] = [];
-  for (const item of rawList) {
-    const code = String(item ?? "").trim();
-    if (!code) continue;
-    out.push(code);
+  const rateLimit = await consumeBackofficeExportRateLimit(auth.supabase);
+  if (!rateLimit.ok) {
+    console.error("Announcement export rate-limit check failed", rateLimit.error);
+    return errorResponse("Não foi possível exportar os anúncios neste momento.", 500);
+  }
+  if (!rateLimit.allowed) {
+    return errorResponse(
+      "Foram efetuadas demasiadas exportações. Tente novamente dentro de instantes.",
+      429,
+      { "Retry-After": String(rateLimit.retryAfterSeconds) },
+    );
   }
 
-  return Array.from(new Set(out));
-}
+  const { searchParams } = new URL(req.url);
+  const cpv = searchParams.get("cpv") ?? "";
+  const entity = (searchParams.get("entity") ?? "").trim();
+  const announcementNumber = (searchParams.get("announcement_number") ?? "").trim();
+  const actTypes = Array.from(new Set(searchParams.getAll("act_type").flatMap((value) => value.split("|")).map((value) => value.trim()).filter(Boolean)));
+  const procedureTypes = Array.from(new Set(searchParams.getAll("procedure_type").flatMap((value) => value.split("|")).map((value) => value.trim()).filter(Boolean)));
+  const contractTypes = Array.from(new Set(searchParams.getAll("contract_type").flatMap((value) => value.split("|")).map((value) => value.trim()).filter(Boolean)));
+  const minValue = finiteNumber(searchParams.get("min_value") ?? "");
+  const maxValue = finiteNumber(searchParams.get("max_value") ?? "");
+  const fromRaw = searchParams.get("from_date") ?? "";
+  const toRaw = searchParams.get("to_date") ?? "";
+  const fromDate = isIsoDate(fromRaw) ? fromRaw : "";
+  const toDate = isIsoDate(toRaw) ? toRaw : "";
+  const requestedSort = searchParams.get("sort") ?? "publication_date";
+  const sort = SORTABLE.has(requestedSort) ? requestedSort : "publication_date";
+  const ascending = searchParams.get("dir") === "asc";
 
-function formatCpvsForExport(cpvCodes: string[], cpvDescriptions: Record<string, string>): string {
-  return cpvCodes
-    .map((code) => {
-      const description = (cpvDescriptions[code] ?? "").trim();
-      return description ? `${code}, ${description}` : code;
-    })
-    .join("; ");
-}
+  const rows: AnnouncementRow[] = [];
+  let offset = 0;
+  while (rows.length <= MAX_EXPORT_ROWS) {
+    let query = auth.supabase
+      .from("announcements")
+      .select("id, title, entity_name, entity_nif, publication_date, created_at, cpv_main, cpv_list, base_price, currency, proposal_deadline_at, raw_payload, act_type, procedure_type, contract_type, base_announcement_id, dr_announcement_no")
+      .eq("tenant_id", auth.user.tenantId);
 
-function applyFilters(
-  query: any,
-  {
-    tenantId,
-    cpv,
-    entity,
-    source,
-    status,
-    fromDate,
-    toDate,
-  }: {
-    tenantId: string | null;
-    cpv: string;
-    entity: string;
-    source: string;
-    status: string;
-    fromDate: string;
-    toDate: string;
-  },
-) {
-  let q = query;
+    const selectedCpvs = cpvFilters(cpv);
+    if (selectedCpvs.length) query = query.or(cpvClause(selectedCpvs));
+    if (entity) {
+      const nif = entity.replace(/\D/g, "");
+      const nameClause = entityNameClause(entity);
+      const clauses = [
+        ...(nameClause ? [nameClause] : []),
+        ...(nif.length >= 5 ? [`entity_nif.ilike.%${nif}%`] : []),
+      ];
+      if (clauses.length === 1) {
+        query = clauses[0].startsWith("entity_name.ilike.")
+          ? query.ilike("entity_name", clauses[0].replace("entity_name.ilike.", ""))
+          : clauses[0].startsWith("entity_nif.ilike.")
+            ? query.ilike("entity_nif", clauses[0].replace("entity_nif.ilike.", ""))
+            : query.or(clauses[0]);
+      } else if (clauses.length > 1) {
+        query = query.or(clauses.join(","));
+      }
+    }
+    if (announcementNumber) query = query.or(`dr_announcement_no.ilike.%${announcementNumber}%,base_announcement_id.ilike.%${announcementNumber}%`);
+    if (actTypes.length) query = query.in("act_type", variants(actTypes, ACT_TYPE_VARIANTS));
+    if (procedureTypes.length) query = query.in("procedure_type", variants(procedureTypes, PROCEDURE_TYPE_VARIANTS));
+    if (contractTypes.length) query = query.in("contract_type", variants(contractTypes, CONTRACT_TYPE_VARIANTS));
+    if (minValue !== null) query = query.gte("base_price", minValue);
+    if (maxValue !== null) query = query.lte("base_price", maxValue);
+    if (fromDate) query = query.gte("publication_date", fromDate);
+    if (toDate) query = query.lte("publication_date", toDate);
 
-  if (tenantId) q = q.eq("tenant_id", tenantId);
-  if (cpv) q = q.ilike("cpv_main", `%${cpv}%`);
-  if (entity) q = q.ilike("entity_name", `%${entity}%`);
-  if (source) q = q.eq("source", source);
-
-  if (status === "active") {
-    const todayIso = new Date().toISOString();
-    q = q.eq("status", "active").or(`proposal_deadline_at.is.null,proposal_deadline_at.gte.${todayIso}`);
-  } else if (status === "expired") {
-    const todayIso = new Date().toISOString();
-    q = q.or(`status.eq.expired,and(status.eq.active,proposal_deadline_at.lt.${todayIso})`);
-  } else if (status) {
-    q = q.eq("status", status);
+    query = sort === "publication_date"
+      ? query.order("publication_date", { ascending, nullsFirst: false }).order("created_at", { ascending, nullsFirst: false }).order("id", { ascending })
+      : query.order(sort, { ascending, nullsFirst: false }).order("publication_date", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
+    const { data, error } = await query.range(offset, offset + CHUNK_SIZE - 1);
+    if (error) {
+      console.error("Announcement export query failed", error);
+      return errorResponse("Não foi possível exportar os anúncios neste momento.", 500);
+    }
+    const chunk = (data ?? []) as AnnouncementRow[];
+    rows.push(...chunk);
+    if (chunk.length < CHUNK_SIZE) break;
+    offset += chunk.length;
   }
 
-  if (fromDate) q = q.gte("publication_date", fromDate);
-  if (toDate) q = q.lte("publication_date", toDate);
+  if (rows.length > MAX_EXPORT_ROWS) {
+    return errorResponse(
+      `A exportação excede ${MAX_EXPORT_ROWS} anúncios. Reduza o intervalo ou aplique mais filtros.`,
+      413,
+    );
+  }
 
-  return q;
+  const headers = ["Número do anúncio", "Data de publicação", "Objeto do procedimento", "Entidade(s)", "Preço base", "Moeda", "CPVs", "Tipo de ato", "Modelo do anúncio", "Tipo de contrato", "Peças do procedimento", "ID do procedimento"];
+  const csvRows = rows.map((row) => [
+    row.dr_announcement_no ?? row.base_announcement_id ?? "",
+    row.publication_date ?? "",
+    cleanAnnouncementText(row.title),
+    row.entity_name ? `${cleanAnnouncementText(row.entity_name)}${row.entity_nif ? ` (${row.entity_nif})` : ""}` : "",
+    row.base_price,
+    row.currency ?? "EUR",
+    announcementCpvs(row),
+    cleanAnnouncementText(row.act_type),
+    cleanAnnouncementText(row.procedure_type),
+    cleanAnnouncementText(row.contract_type),
+    extractProcedurePiecesUrl(row.raw_payload) ?? "",
+    row.base_announcement_id ?? "",
+  ]);
+
+  return new NextResponse(buildSemicolonCsv(headers, csvRows), {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="anuncios-${new Date().toISOString().slice(0, 10)}.csv"`,
+      ...PRIVATE_NO_STORE_HEADERS,
+    },
+  });
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { searchParams } = new URL(req.url);
-
-    const cpv = searchParams.get("cpv") ?? "";
-    const entity = searchParams.get("entity") ?? "";
-    const source = searchParams.get("source") ?? "";
-    const status = searchParams.get("status") ?? "";
-    const fromDateRaw = searchParams.get("from_date") ?? "";
-    const toDateRaw = searchParams.get("to_date") ?? "";
-    const fromDate = isIsoDate(fromDateRaw) ? fromDateRaw : "";
-    const toDate = isIsoDate(toDateRaw) ? toDateRaw : "";
-    const sortCol = SORTABLE[searchParams.get("sort") ?? ""]
-      ? (searchParams.get("sort") as string)
-      : "publication_date";
-    const sortDir = searchParams.get("dir") === "asc" ? "asc" : "desc";
-
-    const { data: appUser } = await supabase
-      .from("app_users")
-      .select("tenant_id")
-      .maybeSingle();
-
-    const rows: AnnouncementRow[] = [];
-    let offset = 0;
-
-    while (true) {
-      let query = supabase
-        .from("announcements")
-        .select(
-          "id, title, entity_name, entity_nif, publication_date, cpv_main, cpv_list, base_price, currency, status, source, proposal_deadline_at, detail_url, raw_payload, act_type, procedure_type, contract_type, base_announcement_id, dr_announcement_no",
-        )
-        .order(SORTABLE[sortCol], {
-          ascending: sortDir === "asc",
-          nullsFirst: false,
-        })
-        .range(offset, offset + CHUNK_SIZE - 1);
-
-      query = applyFilters(query, {
-        tenantId: appUser?.tenant_id ?? null,
-        cpv,
-        entity,
-        source,
-        status,
-        fromDate,
-        toDate,
-      });
-
-      const { data, error } = await query;
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-
-      const chunk = (data ?? []) as AnnouncementRow[];
-      rows.push(...chunk);
-
-      if (chunk.length < CHUNK_SIZE) break;
-      offset += CHUNK_SIZE;
-    }
-    const cpvCodes = Array.from(
-      new Set(rows.flatMap((row) => normalizeAnnouncementCpvs(row))),
-    );
-
-    let cpvDescriptions: Record<string, string> = {};
-    if (cpvCodes.length > 0) {
-      const CPV_CHUNK_SIZE = 500;
-      const cpvRows: CpvCatalogRow[] = [];
-
-      for (let i = 0; i < cpvCodes.length; i += CPV_CHUNK_SIZE) {
-        const chunk = cpvCodes.slice(i, i + CPV_CHUNK_SIZE);
-        const { data, error } = await supabase
-          .from("cpv_codes")
-          .select("id, descricao")
-          .in("id", chunk);
-
-        if (error) {
-          return NextResponse.json({ error: error.message }, { status: 500 });
-        }
-
-        cpvRows.push(...((data ?? []) as CpvCatalogRow[]));
-      }
-
-      cpvDescriptions = Object.fromEntries(
-        cpvRows.map((row) => [row.id, row.descricao ?? ""]),
-      );
-    }
-
-    const worksheetRows = rows.map((ann) => {
-      // Entidade(s): "Nome (NIF)" ou só o nome se não houver NIF
-      const entidade = ann.entity_name
-        ? ann.entity_nif
-          ? `${ann.entity_name} (${ann.entity_nif})`
-          : ann.entity_name
-        : "";
-
-      // Preço Base: formato "250.000,00 €"
-      const precoBase =
-        ann.base_price != null
-          ? `${Number(ann.base_price).toLocaleString("pt-PT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-          : "";
-
-      // CPVs: formato "cpv, descrição; cpv, descrição"
-      const cpvList = formatCpvsForExport(
-        normalizeAnnouncementCpvs(ann),
-        cpvDescriptions,
-      );
-      const procedurePiecesUrl = extractProcedurePiecesUrl(ann.raw_payload);
-
-      return {
-        "Número do Anúncio": ann.dr_announcement_no ?? ann.base_announcement_id ?? "",
-        "Data de Publicação": toIsoDatePt(ann.publication_date),
-        "Objeto do Procedimento": cleanAnnouncementText(ann.title),
-        "Entidade(s)": cleanAnnouncementText(entidade),
-        "Preço Base": precoBase,
-        "CPVs": cpvList,
-        "Tipo de Ato": cleanAnnouncementText(ann.act_type),
-        "Modelo do Anúncio": cleanAnnouncementText(ann.procedure_type),
-        "Tipo de Contrato": cleanAnnouncementText(ann.contract_type),
-        "Peças do procedimento": procedurePiecesUrl,
-        "ID do Procedimento": ann.base_announcement_id ?? "",
-      };
-    });
-
-    const headers = [
-      "Número do Anúncio",
-      "Data de Publicação",
-      "Objeto do Procedimento",
-      "Entidade(s)",
-      "Preço Base",
-      "CPVs",
-      "Tipo de Ato",
-      "Modelo do Anúncio",
-      "Tipo de Contrato",
-      "Peças do procedimento",
-      "ID do Procedimento",
-    ];
-
-    const worksheet =
-      worksheetRows.length > 0
-        ? XLSX.utils.json_to_sheet(worksheetRows, { header: headers })
-        : XLSX.utils.aoa_to_sheet([headers]);
-
-    const fileBuffer = Buffer.concat([
-      Buffer.from("\ufeff", "utf8"),
-      Buffer.from(XLSX.utils.sheet_to_csv(worksheet, { FS: ";" }), "utf8"),
-    ]);
-
-    const selectedDateLabel =
-      fromDate && toDate
-        ? fromDate === toDate
-          ? fromDate
-          : `${fromDate}_a_${toDate}`
-        : fromDate || toDate || new Date().toISOString().slice(0, 10);
-    const filename = `anuncios-${selectedDateLabel}.csv`;
-
-    return new NextResponse(fileBuffer, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
-    });
+    return await exportAnnouncements(req);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Erro inesperado";
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("[announcements-export] unexpected failure", error);
+    return errorResponse("Não foi possível exportar os anúncios neste momento.", 500);
   }
 }

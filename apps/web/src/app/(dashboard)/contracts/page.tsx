@@ -2,7 +2,7 @@ import { createClient, createAdminClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/layout/PageHeader";
 import SingleDatePicker from "@/components/SingleDatePicker";
 import Link from "next/link";
-import { FileSignature } from "lucide-react";
+import { FileSignature, FileSpreadsheet } from "lucide-react";
 import { throwIfContractQueryError } from "@/lib/contract-search";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -233,6 +233,28 @@ export default async function ContractsPage({
     return `/contracts?${parts.join("&")}`;
   }
 
+  function exportQs() {
+    const params = new URLSearchParams();
+    const values: Record<string, string> = {
+      cpv: cpvFilter,
+      entity: entityFilter,
+      entity_nif: entityNifFilter,
+      winner: winnerFilter,
+      winner_nif: winnerNifFilter,
+      procedure: procedureFilter,
+      min_value: minValue,
+      max_value: maxValue,
+      from_date: fromDate,
+      to_date: toDate,
+      sort: sortField,
+    };
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    const query = params.toString();
+    return `/api/contracts/export${query ? `?${query}` : ""}`;
+  }
+
   const hasFilters = hasAnyFilter;
 
   return (
@@ -346,6 +368,14 @@ export default async function ContractsPage({
             >
               Filtrar
             </button>
+            <a
+              href={exportQs()}
+              download
+              className="shrink-0 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar CSV
+            </a>
             {hasFilters && (
               <Link
                 href="/contracts"

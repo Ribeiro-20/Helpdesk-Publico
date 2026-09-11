@@ -25,8 +25,19 @@ const PUBLIC_PATHS = [
   "/api/cpv-search",
 ];
 
+// These routes live below public API prefixes, but Rui's requirement is
+// explicit: downloads are available only inside the authenticated backoffice.
+const PRIVATE_EXPORT_PATHS = [
+  "/api/announcements/export",
+  "/api/contracts/export",
+];
+
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
+function isPrivateExportPath(pathname: string): boolean {
+  return PRIVATE_EXPORT_PATHS.includes(pathname);
 }
 
 function isPublicAnnouncementDetailPath(pathname: string): boolean {
@@ -114,7 +125,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // Skip auth check entirely for public pages — no Supabase call needed
-  if (isPublicPath(pathname) || isPublicAnnouncementDetailPath(pathname)) {
+  if (
+    (!isPrivateExportPath(pathname) && isPublicPath(pathname)) ||
+    isPublicAnnouncementDetailPath(pathname)
+  ) {
     return NextResponse.next({ request });
   }
 
