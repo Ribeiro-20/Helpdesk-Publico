@@ -155,14 +155,10 @@ export async function POST(req: NextRequest) {
     const baseDir = baseDirCandidates.find((p) => existsSync(path.join(p, "supabase", "config.toml"))) ?? cwd;
     const runtimeEnv = await resolveSupabaseRuntimeEnv(baseDir);
 
-    const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
-
     const { stdout, stderr } = await execFileAsync(
-      npmCmd,
+      process.execPath,
       [
-        "run",
-        "ingest-contracts:direct",
-        "--",
+        "ingest-direct.js",
         "--from",
         fromDate,
         "--to",
