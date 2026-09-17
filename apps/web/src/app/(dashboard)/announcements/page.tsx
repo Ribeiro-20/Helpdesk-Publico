@@ -6,8 +6,9 @@ import MercadoMultiSelect from "@/components/MercadoMultiSelect";
 import MercadoSingleSelect from "@/components/MercadoSingleSelect";
 import CurrencyValueField from "@/components/CurrencyValueField";
 import EntitySearchInput from "@/components/EntitySearchInput";
+import CsvExportButton from "@/components/CsvExportButton";
 import Link from "next/link";
-import { Megaphone, ArrowUp, ArrowDown, ArrowUpDown, FileSpreadsheet, Filter } from "lucide-react";
+import { Megaphone, ArrowUp, ArrowDown, ArrowUpDown, Filter } from "lucide-react";
 import { cleanAnnouncementText, effectiveStatus, STATUS_BADGE, STATUS_LABEL } from "@/lib/announcements";
 
 const DEFAULT_PAGE_SIZE = 25;
@@ -737,14 +738,7 @@ export default async function AnnouncementsPage({
 
         <div className="grid grid-cols-1 items-center gap-2 pt-1 lg:grid-cols-[1fr_auto_1fr]">
           <div className="flex justify-center lg:justify-start">
-            <a
-              href={exportQs()}
-              download
-              className="h-10 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-medium px-4 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
-            >
-              <FileSpreadsheet className="h-4 w-4 text-white" />
-              Exportar CSV
-            </a>
+            <CsvExportButton href={exportQs()} filenamePrefix="anuncios" />
           </div>
 
           <button

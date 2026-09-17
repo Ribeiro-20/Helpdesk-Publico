@@ -5,17 +5,18 @@ import { useRef, useState } from "react";
 
 type CsvExportButtonProps = {
   href: string;
+  filenamePrefix?: string;
 };
 
-function downloadFilename(contentDisposition: string | null): string {
+function downloadFilename(contentDisposition: string | null, filenamePrefix: string): string {
   const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
   const plain = contentDisposition?.match(/filename="?([^";]+)"?/i)?.[1];
   const candidate = encoded ? decodeURIComponent(encoded) : plain;
-  return (candidate || `contratos-${new Date().toISOString().slice(0, 10)}.csv`)
+  return (candidate || `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.csv`)
     .replace(/[\\/\0]/g, "-");
 }
 
-async function responseError(response: Response): Promise<string> {
+async function responseError(response: Response, fallback: string): Promise<string> {
   try {
     const payload = await response.json() as { error?: unknown };
     if (typeof payload.error === "string" && payload.error.trim()) {
@@ -27,13 +28,16 @@ async function responseError(response: Response): Promise<string> {
 
   return response.status === 429
     ? "Já existe uma exportação recente. Aguarde alguns segundos e tente novamente."
-    : "Não foi possível exportar os contratos neste momento.";
+    : fallback;
 }
 
-export default function CsvExportButton({ href }: CsvExportButtonProps) {
+export default function CsvExportButton({ href, filenamePrefix = "contratos" }: CsvExportButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
+  const failureMessage = filenamePrefix === "anuncios"
+    ? "Não foi possível exportar os anúncios neste momento."
+    : "Não foi possível exportar os contratos neste momento.";
 
   const handleExport = async () => {
     if (inFlight.current) return;
@@ -48,7 +52,7 @@ export default function CsvExportButton({ href }: CsvExportButtonProps) {
       });
 
       if (!response.ok) {
-        setError(await responseError(response));
+        setError(await responseError(response, failureMessage));
         return;
       }
 
@@ -62,13 +66,13 @@ export default function CsvExportButton({ href }: CsvExportButtonProps) {
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = downloadFilename(response.headers.get("Content-Disposition"));
+      anchor.download = downloadFilename(response.headers.get("Content-Disposition"), filenamePrefix);
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
     } catch {
-      setError("Não foi possível exportar os contratos neste momento.");
+      setError(failureMessage);
     } finally {
       inFlight.current = false;
       setLoading(false);
