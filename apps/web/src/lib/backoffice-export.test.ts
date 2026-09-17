@@ -100,13 +100,26 @@ test("contract export reuses the filtered RPC, is bounded, and is exposed only i
   assert.match(route, /rpc\("search_contracts_v2"/);
   assert.match(route, /MAX_EXPORT_ROWS\s*=\s*5000/);
   assert.match(route, /has_more/);
-  assert.match(route, /select\(["']id, base_contract_id["']\)/);
-  assert.match(route, /baseContractIds\.get\(row\.id\)/);
-  assert.doesNotMatch(route, /baseContractIds\.get\(row\.id\)\s*\?\?\s*row\.id/);
+  assert.match(route, /base_contract_id/);
+  assert.match(route, /row\.base_contract_id\s*\?\?\s*""/);
+  assert.doesNotMatch(route, /\.from\("contracts"\)/);
+  assert.doesNotMatch(route, /BASE ID lookup failed/);
   assert.match(route, /Reduza o intervalo ou aplique mais filtros/);
   assert.match(dashboard, /\/api\/contracts\/export/);
   assert.match(dashboard, /Exportar CSV/);
   assert.doesNotMatch(publicPage, /\/api\/contracts\/export|Exportar CSV|download/);
+});
+
+test("contract export RPC carries the BASE ID without a second REST lookup", () => {
+  const migration = read("supabase/migrations/20260917120000_contract_export_base_id.sql");
+  const rollback = read("supabase/rollbacks/20260917120000_contract_export_base_id.sql");
+
+  assert.match(migration, /select c\.id, c\.base_contract_id, c\.object/);
+  assert.match(migration, /security invoker/i);
+  assert.match(migration, /revoke execute .* from public, anon/i);
+  assert.match(migration, /grant execute .* to authenticated/i);
+  assert.doesNotMatch(rollback, /select c\.id, c\.base_contract_id, c\.object/);
+  assert.match(rollback, /select c\.id, c\.object/);
 });
 
 test("download buttons exist only on authenticated backoffice lists", () => {

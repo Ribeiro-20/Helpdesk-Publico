@@ -4,6 +4,7 @@ import SingleDatePicker from "@/components/SingleDatePicker";
 import Link from "next/link";
 import { FileSignature, FileSpreadsheet } from "lucide-react";
 import { throwIfContractQueryError } from "@/lib/contract-search";
+import { buildContractDetailHref } from "@/lib/contract-navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -430,7 +431,7 @@ export default async function ContractsPage({
                   <tr key={c.id} className="hover:bg-surface-50 transition-colors">
                     <td className="px-4 py-3 max-w-xs">
                       <Link
-                        href={`/contracts/${c.id}`}
+                        href={buildContractDetailHref(c.id, buildQs())}
                         className="text-brand-600 hover:underline font-medium line-clamp-2"
                       >
                         {c.object || "Sem objecto"}
