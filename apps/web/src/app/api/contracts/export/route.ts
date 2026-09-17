@@ -1,16 +1,17 @@
 import {
   buildSemicolonCsv,
-  parseJsonArray,
   PRIVATE_NO_STORE_HEADERS,
 } from "@/lib/export-csv";
 import { requireBackofficeUser } from "@/lib/server/backoffice-export-auth";
 import { consumeBackofficeExportRateLimit } from "@/lib/server/backoffice-export-rate-limit";
+import { createAdminClient } from "@/lib/supabase/server";
+import { classifyContractExport, parseContractExportEnvelope } from "@/lib/contract-export";
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
 const MAX_EXPORT_ROWS = 5000;
-const RPC_PAGE_SIZE = 100;
+const RPC_PAGE_SIZE = MAX_EXPORT_ROWS + 1;
 
 type ContractRow = {
   id: string;
@@ -95,45 +96,38 @@ async function exportContracts(req: NextRequest) {
   const requestedSort = searchParams.get("sort") ?? "signing_date";
   const sort = allowedSort.has(requestedSort) ? requestedSort : "signing_date";
 
-  const rows: ContractRow[] = [];
-  let offset = 0;
-  let hasMore = true;
+  const adminSupabase = await createAdminClient();
+  const { data, error } = await adminSupabase.rpc("export_contracts_v1", {
+    p_tenant_id: auth.user.tenantId,
+    p_entity: entity,
+    p_winner: winner,
+    p_cpv: cpv,
+    p_procedure: procedure,
+    p_min_value: minValue,
+    p_max_value: maxValue,
+    p_from_date: fromDate,
+    p_to_date: toDate,
+    p_sort: sort,
+    p_limit: RPC_PAGE_SIZE,
+  });
 
-  while (hasMore && rows.length <= MAX_EXPORT_ROWS) {
-    const { data, error } = await auth.supabase.rpc("search_contracts_v2", {
-      p_entity: entity,
-      p_winner: winner,
-      p_cpv: cpv,
-      p_procedure: procedure,
-      p_min_value: minValue,
-      p_max_value: maxValue,
-      p_from_date: fromDate,
-      p_to_date: toDate,
-      p_sort: sort,
-      p_offset: offset,
-      p_limit: RPC_PAGE_SIZE,
-    });
-
-    if (error) {
-      console.error("Contract export RPC failed", error);
-      return errorResponse("Não foi possível exportar os contratos neste momento.", 500);
-    }
-
-    const result = (Array.isArray(data) ? data[0] : data) as
-      | { rows?: unknown; has_more?: boolean }
-      | null;
-    const chunk = parseJsonArray<ContractRow>(result?.rows ?? []);
-    if (!chunk) {
-      console.error("Contract export RPC returned malformed rows");
-      return errorResponse("Não foi possível exportar os contratos neste momento.", 500);
-    }
-    rows.push(...chunk);
-    hasMore = result?.has_more === true;
-    offset += chunk.length;
-    if (chunk.length === 0) break;
+  if (error) {
+    console.error("Contract export RPC failed", error);
+    return errorResponse("Não foi possível exportar os contratos neste momento.", 500);
   }
 
-  if (rows.length > MAX_EXPORT_ROWS || hasMore) {
+  const result = parseContractExportEnvelope<ContractRow>(data);
+  if (!result) {
+    console.error("Contract export RPC returned a malformed envelope");
+    return errorResponse("Não foi possível exportar os contratos neste momento.", 500);
+  }
+  const { rows } = result;
+  const classification = classifyContractExport(rows.length, result.hasMore, MAX_EXPORT_ROWS);
+  if (classification === "malformed") {
+    console.error("Contract export RPC returned malformed has_more");
+    return errorResponse("Não foi possível exportar os contratos neste momento.", 500);
+  }
+  if (classification === "too_large") {
     return errorResponse(
       `A exportação excede ${MAX_EXPORT_ROWS} contratos. Reduza o intervalo ou aplique mais filtros.`,
       413,

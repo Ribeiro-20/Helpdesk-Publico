@@ -9,6 +9,7 @@ import {
   PRIVATE_NO_STORE_HEADERS,
   safeSpreadsheetCell,
 } from "./export-csv";
+import { classifyContractExport, parseContractExportEnvelope } from "./contract-export";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const read = (relative: string) => fs.readFileSync(path.join(root, relative), "utf8");
@@ -92,12 +93,13 @@ test("announcement export preserves every backoffice list filter and applies a h
   assert.match(route, /Reduza o intervalo ou aplique mais filtros/);
 });
 
-test("contract export reuses the filtered RPC, is bounded, and is exposed only in backoffice", () => {
+test("contract export uses the dedicated bounded RPC and is exposed only in backoffice", () => {
   const route = read("apps/web/src/app/api/contracts/export/route.ts");
   const dashboard = read("apps/web/src/app/(dashboard)/contracts/page.tsx");
   const publicPage = read("apps/web/src/app/mp/contratos-publicos/page.tsx");
 
-  assert.match(route, /rpc\("search_contracts_v2"/);
+  assert.match(route, /rpc\("export_contracts_v1"/);
+  assert.match(route, /p_tenant_id:\s*auth\.user\.tenantId/);
   assert.match(route, /MAX_EXPORT_ROWS\s*=\s*5000/);
   assert.match(route, /has_more/);
   assert.match(route, /base_contract_id/);
@@ -139,11 +141,61 @@ test("contract export button never downloads JSON error responses", () => {
   const button = read("apps/web/src/components/CsvExportButton.tsx");
 
   assert.match(button, /if \(!response\.ok\)/);
-  assert.match(button, /responseError\(response\)/);
+  assert.match(button, /responseError\(response, failureMessage\)/);
   assert.match(button, /Content-Type/);
   assert.match(button, /text\/csv/);
   assert.match(button, /URL\.createObjectURL\(blob\)/);
   assert.match(button, /aria-live="polite"/);
+});
+
+test("contract export uses one service-only bounded RPC call", () => {
+  const route = read("apps/web/src/app/api/contracts/export/route.ts");
+  const migration = read("supabase/migrations/20260917143000_contract_export_single_call.sql");
+  const rollback = read("supabase/rollbacks/20260917143000_contract_export_single_call.sql");
+
+  assert.match(route, /RPC_PAGE_SIZE\s*=\s*MAX_EXPORT_ROWS\s*\+\s*1/);
+  assert.doesNotMatch(route, /while \(hasMore/);
+  assert.match(route, /createAdminClient/);
+  assert.match(route, /rpc\("export_contracts_v1"/);
+  assert.match(route, /p_tenant_id:\s*auth\.user\.tenantId/);
+  assert.match(migration, /v_limit integer := least\(greatest\(coalesce\(p_limit, 5001\), 1\), 5001\)/);
+  assert.match(migration, /set plan_cache_mode = 'force_custom_plan'/);
+  assert.match(migration, /revoke execute .* from public, anon, authenticated/is);
+  assert.match(migration, /grant execute .* to service_role/is);
+  assert.match(rollback, /drop function if exists public\.export_contracts_v1/is);
+});
+
+test("contract export classifies exact limits and malformed envelopes", () => {
+  assert.equal(classifyContractExport(5000, false), "ok");
+  assert.equal(classifyContractExport(5001, false), "too_large");
+  assert.equal(classifyContractExport(5000, true), "too_large");
+  assert.equal(classifyContractExport(100, null), "malformed");
+  assert.equal(classifyContractExport(-1, false), "malformed");
+  assert.equal(classifyContractExport(10, "false"), "malformed");
+});
+
+test("contract export rejects malformed RPC envelopes", () => {
+  assert.deepEqual(
+    parseContractExportEnvelope([{ rows: [{ id: "one" }], has_more: false }]),
+    { rows: [{ id: "one" }], hasMore: false },
+  );
+  assert.equal(parseContractExportEnvelope([]), null);
+  assert.equal(parseContractExportEnvelope([{ rows: [], has_more: false }, { rows: [], has_more: false }]), null);
+  assert.equal(parseContractExportEnvelope([{ has_more: false }]), null);
+  assert.equal(parseContractExportEnvelope([{ rows: null, has_more: false }]), null);
+  assert.equal(parseContractExportEnvelope([{ rows: {}, has_more: false }]), null);
+  assert.equal(parseContractExportEnvelope([{ rows: [], has_more: "false" }]), null);
+});
+
+test("both backoffice exports use the guarded CSV button", () => {
+  const contracts = read("apps/web/src/app/(dashboard)/contracts/page.tsx");
+  const announcements = read("apps/web/src/app/(dashboard)/announcements/page.tsx");
+  const button = read("apps/web/src/components/CsvExportButton.tsx");
+
+  assert.match(contracts, /<CsvExportButton\s+href=\{exportQs\(\)\}/);
+  assert.match(announcements, /<CsvExportButton\s+href=\{exportQs\(\)\}\s+filenamePrefix="anuncios"/);
+  assert.doesNotMatch(announcements, /<a[\s\S]*?href=\{exportQs\(\)\}[\s\S]*?download/);
+  assert.match(button, /filenamePrefix/);
 });
 
 test("download buttons exist only on authenticated backoffice lists", () => {

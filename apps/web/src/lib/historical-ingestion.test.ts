@@ -170,6 +170,9 @@ test("direct importer filters every payload by publication date and checks IDs g
   assert.match(adminRoute, /:\s*10000000;/);
   assert.match(adminRoute, /"--limit",\s*String\(limit\)/);
   assert.match(adminRoute, /updated:\s*parseNumericLine\(output,\s*"Updated"\)/);
+  assert.match(adminRoute, /execFileAsync\(\s*process\.execPath/);
+  assert.match(adminRoute, /path\.join\(scriptsDir,\s*"ingest-direct\.js"\)/);
+  assert.doesNotMatch(adminRoute, /ingest-contracts:direct|const npmCmd/);
   assert.match(marketRefresh, /const TENANT_ID = process\.env\.TENANT_ID/);
   assert.match(marketRefresh, /"--tenant-id",\s*TENANT_ID/);
   assert.match(marketRefresh, /"--limit",\s*"10000000"/);
