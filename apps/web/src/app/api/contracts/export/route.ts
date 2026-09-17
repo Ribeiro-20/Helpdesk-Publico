@@ -140,22 +140,6 @@ async function exportContracts(req: NextRequest) {
     );
   }
 
-  const baseContractIds = new Map<string, string>();
-  for (let index = 0; index < rows.length; index += 200) {
-    const ids = rows.slice(index, index + 200).map((row) => row.id);
-    const { data, error } = await auth.supabase
-      .from("contracts")
-      .select("id, base_contract_id")
-      .eq("tenant_id", auth.user.tenantId)
-      .in("id", ids);
-    if (error) {
-      console.error("Contract export BASE ID lookup failed", error);
-      return errorResponse("Não foi possível exportar os contratos neste momento.", 500);
-    }
-    for (const item of data ?? []) {
-      if (item.base_contract_id) baseContractIds.set(String(item.id), String(item.base_contract_id));
-    }
-  }
 
   const headers = [
     "ID do Contrato",
@@ -173,7 +157,7 @@ async function exportContracts(req: NextRequest) {
     "Estado",
   ];
   const csvRows = rows.map((row) => [
-    baseContractIds.get(row.id) ?? "",
+    row.base_contract_id ?? "",
     row.object ?? "",
     parties(row.contracting_entities),
     parties(row.winners),

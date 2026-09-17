@@ -3,6 +3,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FileSignature } from "lucide-react";
+import { buildBaseContractUrl, safeContractsReturnHref } from "@/lib/contract-navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -83,10 +84,14 @@ function extractNif(raw: string): string {
 
 export default async function ContractDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ return_to?: string }>;
 }) {
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const returnTo = typeof query.return_to === "string" ? query.return_to : null;
+  const backHref = safeContractsReturnHref(returnTo);
   const supabase = await createClient();
 
   const [{ data: contract }, { data: modifications }] = await Promise.all([
@@ -99,6 +104,8 @@ export default async function ContractDetailPage({
   ]);
 
   if (!contract) notFound();
+
+  const portalUrl = buildBaseContractUrl(contract.base_contract_id);
 
   const cpvList: string[] = Array.isArray(contract.cpv_list) ? contract.cpv_list : [];
   const entities: string[] = Array.isArray(contract.contracting_entities) ? contract.contracting_entities : [];
@@ -117,7 +124,7 @@ export default async function ContractDetailPage({
       <PageHeader
         icon={FileSignature}
         title={contract.object || "Contrato sem objecto"}
-        backHref="/contracts"
+        backHref={backHref}
         backLabel="Contratos"
         size="detail"
         meta={
@@ -281,12 +288,12 @@ export default async function ContractDetailPage({
           )}
         </InfoCard>
 
-        {/* Documentos */}
-        {contract.procedure_docs_url && (
+        {/* Publicação oficial */}
+        {portalUrl && (
           <div className="bg-brand-50/60 border border-brand-200/60 rounded-xl p-4">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Documentos</p>
+            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Publicação oficial</p>
             <a
-              href={contract.procedure_docs_url}
+              href={portalUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 text-brand-600 hover:text-brand-700 font-medium text-sm hover:underline"
@@ -294,7 +301,7 @@ export default async function ContractDetailPage({
               <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
               </svg>
-              Peças do Procedimento / Contrato
+              Ver contrato publicado no Portal BASE
             </a>
           </div>
         )}
