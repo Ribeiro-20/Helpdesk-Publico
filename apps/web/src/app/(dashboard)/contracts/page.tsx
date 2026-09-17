@@ -1,8 +1,9 @@
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import PageHeader from "@/components/layout/PageHeader";
 import SingleDatePicker from "@/components/SingleDatePicker";
+import CsvExportButton from "@/components/CsvExportButton";
 import Link from "next/link";
-import { FileSignature, FileSpreadsheet } from "lucide-react";
+import { FileSignature } from "lucide-react";
 import { throwIfContractQueryError } from "@/lib/contract-search";
 import { buildContractDetailHref } from "@/lib/contract-navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -369,14 +370,7 @@ export default async function ContractsPage({
             >
               Filtrar
             </button>
-            <a
-              href={exportQs()}
-              download
-              className="shrink-0 inline-flex items-center gap-2 whitespace-nowrap bg-brand-600 text-white text-sm font-medium px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-all shadow-sm hover:shadow-md"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Exportar CSV
-            </a>
+            <CsvExportButton href={exportQs()} />
             {hasFilters && (
               <Link
                 href="/contracts"

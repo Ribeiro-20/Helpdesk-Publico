@@ -106,7 +106,8 @@ test("contract export reuses the filtered RPC, is bounded, and is exposed only i
   assert.doesNotMatch(route, /BASE ID lookup failed/);
   assert.match(route, /Reduza o intervalo ou aplique mais filtros/);
   assert.match(dashboard, /\/api\/contracts\/export/);
-  assert.match(dashboard, /Exportar CSV/);
+  assert.match(dashboard, /CsvExportButton/);
+  assert.match(read("apps/web/src/components/CsvExportButton.tsx"), /Exportar CSV/);
   assert.doesNotMatch(publicPage, /\/api\/contracts\/export|Exportar CSV|download/);
 });
 
@@ -120,6 +121,29 @@ test("contract export RPC carries the BASE ID without a second REST lookup", () 
   assert.match(migration, /grant execute .* to authenticated/i);
   assert.doesNotMatch(rollback, /select c\.id, c\.base_contract_id, c\.object/);
   assert.match(rollback, /select c\.id, c\.object/);
+});
+
+test("contract export button blocks rapid duplicate requests immediately", () => {
+  const dashboard = read("apps/web/src/app/(dashboard)/contracts/page.tsx");
+  const button = read("apps/web/src/components/CsvExportButton.tsx");
+
+  assert.match(dashboard, /<CsvExportButton\s+href=\{exportQs\(\)\}/);
+  assert.doesNotMatch(dashboard, /<a[\s\S]*?href=\{exportQs\(\)\}[\s\S]*?download/);
+  assert.match(button, /useRef\(false\)/);
+  assert.match(button, /if \(inFlight\.current\) return/);
+  assert.match(button, /inFlight\.current = true[\s\S]*?await fetch\(href/);
+  assert.match(button, /disabled=\{loading\}/);
+});
+
+test("contract export button never downloads JSON error responses", () => {
+  const button = read("apps/web/src/components/CsvExportButton.tsx");
+
+  assert.match(button, /if \(!response\.ok\)/);
+  assert.match(button, /responseError\(response\)/);
+  assert.match(button, /Content-Type/);
+  assert.match(button, /text\/csv/);
+  assert.match(button, /URL\.createObjectURL\(blob\)/);
+  assert.match(button, /aria-live="polite"/);
 });
 
 test("download buttons exist only on authenticated backoffice lists", () => {
@@ -144,8 +168,7 @@ test("contract secondary filters reserve compact value fields and keep actions i
   assert.match(dashboard, /Valor mínimo \(€\)/);
   assert.match(dashboard, /Valor máximo \(€\)/);
   assert.match(dashboard, /xl:flex-nowrap xl:justify-end/);
-  assert.match(
-    dashboard,
-    /<a[\s\S]*?href=\{exportQs\(\)\}[\s\S]*?className="[^"]*whitespace-nowrap[^"]*"[\s\S]*?Exportar CSV/,
-  );
+  const exportButton = read("apps/web/src/components/CsvExportButton.tsx");
+  assert.match(dashboard, /<CsvExportButton\s+href=\{exportQs\(\)\}/);
+  assert.match(exportButton, /className="[^"]*whitespace-nowrap[^"]*"/);
 });
