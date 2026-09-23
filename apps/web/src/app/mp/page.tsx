@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import Header from "@/components/layout/Header";
 import PublicFooter from "@/components/layout/PublicFooter";
-import { createAdminClient } from "@/lib/supabase/server";
 import type { ElementType } from "react";
 
 export const metadata = {
@@ -17,66 +16,10 @@ export const metadata = {
     "Consulte informação do Mercado Público e da Contratação Pública. Pesquise Contratos Públicos, Entidades Adjudicantes, Adjudicatários e Fornecedores do Estado.",
 };
 
-export const dynamic = "force-dynamic";
-
 const BODY_BG = "rgba(247, 250, 253, 1)";
 const GREEN = "#3f6f27";
 
-type HomeStats = {
-  contracts: number;
-  entities: number;
-  companies: number;
-};
-
-function integer(value: number): string {
-  return new Intl.NumberFormat("pt-PT").format(value);
-}
-
-async function resolveTenantId() {
-  const supabase = await createAdminClient();
-
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("id")
-    .limit(1)
-    .maybeSingle();
-
-  return tenant?.id ?? null;
-}
-
-async function getCountByTable(
-  table: "contracts" | "entities" | "companies",
-  tenantId: string,
-): Promise<number> {
-  const supabase = await createAdminClient();
-
-  const { count } = await supabase
-    .from(table)
-    .select("id", { count: "exact", head: true })
-    .eq("tenant_id", tenantId);
-
-  return count ?? 0;
-}
-
-export default async function HomePage() {
-  const tenantId = await resolveTenantId();
-
-  let stats: HomeStats = {
-    contracts: 0,
-    entities: 0,
-    companies: 0,
-  };
-
-  if (tenantId) {
-    const [contracts, entities, companies] = await Promise.all([
-      getCountByTable("contracts", tenantId),
-      getCountByTable("entities", tenantId),
-      getCountByTable("companies", tenantId),
-    ]);
-
-    stats = { contracts, entities, companies };
-  }
-
+export default function HomePage() {
   const cards = [
     {
       icon: FileText,

@@ -102,15 +102,16 @@ test("public contracts use a service-only deduplicated search", () => {
   assert.match(migration, /alter table public\.contract_base_id_registry enable row level security/i);
   assert.match(migration, /before insert or update of tenant_id, base_contract_id/i);
   assert.match(migration, /tenant_id and base_contract_id are immutable/i);
-  assert.match(page, /rpc\("search_public_contracts"/);
+  assert.match(page, /rpc\("search_public_contract_pages"/);
   assert.doesNotMatch(page, /\.limit\(50000\)/);
   assert.doesNotMatch(page, /extrasById/);
   assert.match(page, /countryFilter\.trim\(\)/);
+  assert.match(page, /hasNextPage/);
   assert.match(page, /resolvedPage !== page/);
   assert.match(page, /p_country:/);
   assert.match(page, /p_district:/);
   assert.match(page, /p_municipality:/);
-  assert.match(page, /rpcResponse\.error/);
+  assert.match(page, /response\.error/);
   assert.match(page, /queryError=/);
 });
 

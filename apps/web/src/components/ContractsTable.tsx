@@ -143,13 +143,15 @@ export default function ContractsTable({
   queryError,
   dateField,
   totalPages,
+  hasNextPage,
   page,
   buildQsBase,
 }: {
   contracts: ContractRow[];
   queryError: boolean;
   dateField: "publication_date" | "signing_date" | "closing_date";
-  totalPages: number;
+  totalPages: number | null;
+  hasNextPage: boolean;
   page: number;
   buildQsBase: string;
 }) {
@@ -214,16 +216,18 @@ export default function ContractsTable({
   const add = (n: number) => {
     if (!pages.includes(n)) pages.push(n);
   };
-  add(1);
-  if (page > 3) pages.push("dots");
-  for (
-    let i = Math.max(2, page - 1);
-    i <= Math.min(totalPages - 1, page + 1);
-    i++
-  )
-    add(i);
-  if (page < totalPages - 2) pages.push("dots");
-  if (totalPages > 1) add(totalPages);
+  if (totalPages !== null) {
+    add(1);
+    if (page > 3) pages.push("dots");
+    for (
+      let i = Math.max(2, page - 1);
+      i <= Math.min(totalPages - 1, page + 1);
+      i++
+    )
+      add(i);
+    if (page < totalPages - 2) pages.push("dots");
+    if (totalPages > 1) add(totalPages);
+  }
 
   return (
     <>
@@ -355,7 +359,7 @@ export default function ContractsTable({
         </div>
       </div>
 
-      {totalPages > 1 && (
+      {(page > 1 || hasNextPage || (totalPages ?? 1) > 1) && (
         <div className="flex justify-center items-center gap-1 flex-wrap pb-4">
           {page > 1 && (
             <Link href={buildQs(page - 1)} className={BTN}>
@@ -378,7 +382,12 @@ export default function ContractsTable({
               </Link>
             ),
           )}
-          {page < totalPages && (
+          {totalPages === null && (
+            <span className={ACTIVE} style={{ background: "#3f6f27" }}>
+              {page}
+            </span>
+          )}
+          {(totalPages === null ? hasNextPage : page < totalPages) && (
             <Link href={buildQs(page + 1)} className={BTN}>
               Próxima →
             </Link>

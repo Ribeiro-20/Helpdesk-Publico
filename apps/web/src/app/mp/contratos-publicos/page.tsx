@@ -12,6 +12,11 @@ import MercadoLocationFilters from "@/components/MercadoLocationFilters";
 import InfoPopover from "@/components/InfoPopover";
 import BackButton from "@/components/BackButton";
 import PriceInput from "@/components/PriceInput";
+import {
+  loadFirstPublicContractPage,
+  parsePublicContractEnvelope,
+  parsePublicContractPage,
+} from "@/lib/public-contract-search";
 
 export const metadata = {
   title: "Contratos Públicos | Helpdesk Público",
@@ -22,7 +27,7 @@ export const metadata = {
 export const dynamic = "force-dynamic";
 
 type MercadoSearchParams = {
-  page?: string;
+  page?: string | string[];
   cpv?: string;
   entity?: string;
   winner?: string;
@@ -71,7 +76,7 @@ export default async function MercadoPublicoPage({
   searchParams: Promise<MercadoSearchParams>;
 }) {
   const params = await searchParams;
-  const page = Math.max(1, parseInt(params.page ?? "1"));
+  const page = parsePublicContractPage(params.page);
   const cpvFilter = (params.cpv ?? "").trim();
   const entityFilter = (params.entity ?? "").trim();
   const winnerFilter = (params.winner ?? "").trim();
@@ -123,8 +128,6 @@ export default async function MercadoPublicoPage({
     .eq("tenant_id", tenantId)
     .limit(5000);
 
-  await supabase.from("contracts").select("procedure_type").eq("tenant_id", tenantId).limit(1);
-  await supabase.from("contracts").select("contract_type").eq("tenant_id", tenantId).limit(1);
 
   // Seed with known standard types
   const contractTypeSet = new Set<string>([
@@ -501,67 +504,71 @@ export default async function MercadoPublicoPage({
     p_limit: PAGE_SIZE,
   };
 
-  const parseRpcSearch = (value: unknown): {
-    rows: ContractRow[];
-    totalCount: number;
-  } => {
-    const result = (Array.isArray(value) ? value[0] : value) as
-      | { rows?: ContractRow[] | string; total_count?: number }
-      | null;
-    if (!result) return { rows: [], totalCount: 0 };
-
-    const rawRows =
-      typeof result.rows === "string"
-        ? (JSON.parse(result.rows) as ContractRow[])
-        : result.rows;
-    return {
-      rows: Array.isArray(rawRows) ? rawRows : [],
-      totalCount: Number(result.total_count ?? 0),
-    };
-  };
-
+  const queryDeadline = Date.now() + 8_000;
   const runRpcSearch = (targetPage: number) =>
-    supabase.rpc("search_public_contracts", {
+    supabase.rpc("search_public_contract_pages", {
       ...rpcBaseArgs,
       p_offset: (targetPage - 1) * PAGE_SIZE,
-    });
+    }).abortSignal(AbortSignal.timeout(Math.max(1, queryDeadline - Date.now())));
 
-  let totalCount = 0;
+  const loadPage = async (targetPage: number) => {
+    const response = await runRpcSearch(targetPage);
+    if (response.error) {
+      console.error("[public-contracts] RPC query failed", response.error);
+      return null;
+    }
+    const parsed = parsePublicContractEnvelope<ContractRow>(response.data);
+    if (!parsed) {
+      console.error("[public-contracts] RPC returned a malformed envelope");
+      return null;
+    }
+    return parsed;
+  };
+
+  let totalCount: number | null = null;
   let contracts: ContractRow[] = [];
   let queryError = false;
+  let hasNextPage = false;
   let resolvedPage = page;
 
-  let rpcResponse = await runRpcSearch(page);
-  if (rpcResponse.error) {
-    console.error("[public-contracts] RPC query failed", rpcResponse.error);
+  let parsed = await loadPage(page);
+  if (!parsed) {
     queryError = true;
   } else {
-    let parsed = parseRpcSearch(rpcResponse.data);
     totalCount = parsed.totalCount;
-    const rpcTotalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-    resolvedPage = Math.min(page, rpcTotalPages);
-
-    // An out-of-range URL must render the resolved last page, not an empty page
-    // whose pagination label claims to be valid.
-    if (resolvedPage !== page && totalCount > 0) {
-      rpcResponse = await runRpcSearch(resolvedPage);
-      if (rpcResponse.error) {
-        console.error("[public-contracts] resolved-page RPC failed", rpcResponse.error);
+    if (totalCount !== null) {
+      const exactTotalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+      resolvedPage = Math.min(page, exactTotalPages);
+      if (resolvedPage !== page && totalCount > 0) {
+        parsed = await loadPage(resolvedPage);
+        if (!parsed) {
+          queryError = true;
+        } else {
+          totalCount = parsed.totalCount;
+        }
+      }
+    } else if (page > 1 && parsed.rows.length === 0) {
+      // Filtered totals are intentionally unknown. Fall back to page 1 with one
+      // bounded retry instead of amplifying an arbitrary page into many RPCs.
+      const resolved = await loadFirstPublicContractPage(loadPage);
+      if (!resolved) {
         queryError = true;
-        parsed = { rows: [], totalCount };
       } else {
-        parsed = parseRpcSearch(rpcResponse.data);
-        totalCount = parsed.totalCount;
+        resolvedPage = resolved.page;
+        parsed = resolved.result;
       }
     }
 
-    contracts = parsed.rows.map((row) => ({
-      ...row,
-      execution_locations: toStringArray(row.execution_locations),
-    }));
+    if (!queryError && parsed) {
+      hasNextPage = parsed.hasMore;
+      contracts = parsed.rows.map((row) => ({
+        ...row,
+        execution_locations: toStringArray(row.execution_locations),
+      }));
+    }
   }
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const totalPages = totalCount === null ? null : Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const safePage = resolvedPage;
   const hasFilters = !!(
     cpvFilter ||
@@ -622,7 +629,9 @@ export default async function MercadoPublicoPage({
                 Contratos Públicos
               </h1>
               <p className="text-gray-500 text-sm">
-                {totalCount} contratos publicados
+                {totalCount === null
+                  ? "Resultados filtrados"
+                  : `${totalCount} contratos publicados`}
               </p>
             </div>
           </div>
@@ -804,6 +813,7 @@ export default async function MercadoPublicoPage({
           queryError={queryError}
           dateField={selectedDateField}
           totalPages={totalPages}
+          hasNextPage={hasNextPage}
           page={safePage}
           buildQsBase={buildQsBase}
         />
