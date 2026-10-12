@@ -111,7 +111,7 @@ export default async function ContractsPage({
   const maxValue = params.max_value ?? "";
   const fromDate = params.from_date ?? "";
   const toDate = params.to_date ?? "";
-  const sortField = params.sort ?? "signing_date";
+  const sortField = params.sort ?? "publication_date";
 
   const supabase = await createClient();
   const adminSupabase = await createAdminClient();
@@ -315,7 +315,7 @@ export default async function ContractsPage({
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1fr)_auto] rounded-xl border border-surface-100 bg-surface-50/60 p-3">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Data de</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Celebração desde</label>
             <SingleDatePicker
               name="from_date"
               defaultValue={fromDate}
@@ -323,7 +323,7 @@ export default async function ContractsPage({
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">Data até</label>
+            <label className="mb-1 block text-xs font-medium text-gray-500">Celebração até</label>
             <SingleDatePicker
               name="to_date"
               defaultValue={toDate}
@@ -357,8 +357,8 @@ export default async function ContractsPage({
               defaultValue={sortField}
               className="w-full border border-surface-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-500 transition-all bg-white"
             >
-              <option value="signing_date">Mais recentes</option>
-              <option value="publication_date">Data publicação</option>
+              <option value="publication_date">Mais recentes (publicação)</option>
+              <option value="signing_date">Data de celebração</option>
               <option value="value_desc">Maior valor</option>
               <option value="value_asc">Menor valor</option>
             </select>
@@ -397,6 +397,9 @@ export default async function ContractsPage({
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-400 text-xs uppercase tracking-wider">
                   Vencedor
+                </th>
+                <th className="text-left px-4 py-3 font-medium text-gray-400 text-xs uppercase tracking-wider">
+                  Publicação
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-gray-400 text-xs uppercase tracking-wider">
                   Celebração
@@ -441,6 +444,9 @@ export default async function ContractsPage({
                       {winnerName}
                     </td>
                     <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">
+                      {formatDate(c.publication_date)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 whitespace-nowrap text-xs tabular-nums">
                       {formatDate(c.signing_date)}
                     </td>
                     <td className="px-4 py-3">
@@ -479,7 +485,7 @@ export default async function ContractsPage({
               {contracts.length === 0 && (
                 <tr>
                   <td
-                    colSpan={7}
+                    colSpan={8}
                     className="px-4 py-12 text-center text-gray-400"
                   >
                     {hasFilters
