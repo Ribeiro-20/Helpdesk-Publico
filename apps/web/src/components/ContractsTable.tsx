@@ -362,7 +362,7 @@ export default function ContractsTable({
       {(page > 1 || hasNextPage || (totalPages ?? 1) > 1) && (
         <div className="flex justify-center items-center gap-1 flex-wrap pb-4">
           {page > 1 && (
-            <Link href={buildQs(page - 1)} className={BTN}>
+            <Link href={buildQs(page - 1)} prefetch={false} className={BTN}>
               ← Anterior
             </Link>
           )}
@@ -375,6 +375,7 @@ export default function ContractsTable({
               <Link
                 key={p}
                 href={buildQs(p)}
+                prefetch={false}
                 className={p === page ? ACTIVE : BTN}
                 style={p === page ? { background: "#3f6f27" } : {}}
               >
@@ -388,7 +389,7 @@ export default function ContractsTable({
             </span>
           )}
           {(totalPages === null ? hasNextPage : page < totalPages) && (
-            <Link href={buildQs(page + 1)} className={BTN}>
+            <Link href={buildQs(page + 1)} prefetch={false} className={BTN}>
               Próxima →
             </Link>
           )}
