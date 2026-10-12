@@ -25,6 +25,9 @@ export const metadata = {
 };
 
 export const dynamic = "force-dynamic";
+// Next 14.2.5 still caches Supabase fetches on dynamic pages unless explicit.
+// Bypass old Data Cache snapshots so daily imports are visible immediately.
+export const fetchCache = "force-no-store";
 
 type MercadoSearchParams = {
   page?: string | string[];
